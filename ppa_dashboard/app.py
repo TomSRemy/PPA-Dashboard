@@ -44,7 +44,7 @@ html, body, [class*="css"] {{
     background-color: {BG} !important;
 }}
 h1 {{ font-size: 22px !important; font-weight: 700 !important;
-      color: {C3} !important; font-family: Calibri, Arial, sans-serif !important; }}
+      color: {C1} !important; font-family: Calibri, Arial, sans-serif !important; }}
 h2 {{ font-size: 17px !important; font-weight: 700 !important; color: {C1} !important; }}
 h3 {{ font-size: 15px !important; font-weight: 700 !important; color: {C1} !important; }}
 p, li, label, .stMarkdown, td, th {{
@@ -130,11 +130,11 @@ p, li, label, .stMarkdown, td, th {{
 .stTabs [data-baseweb="tab"] {{
     font-family: Calibri, Arial, sans-serif !important;
     font-size: 14px !important; font-weight: 600;
-    color: {C1} !important;
+    color: {C3} !important;
 }}
 .stTabs [aria-selected="true"] {{
-    border-bottom: 3px solid {C2} !important;
-    color: {C2} !important;
+    border-bottom: 3px solid {C3} !important;
+    color: {C3} !important;
 }}
 div[data-testid="stDataFrame"] td,
 div[data-testid="stDataFrame"] th {{
