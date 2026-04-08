@@ -19,9 +19,9 @@ st.set_page_config(page_title="PPA Pricing Dashboard",
                    layout="wide", initial_sidebar_state="expanded")
 
 # ── Palette ────────────────────────────────────────────────────────────────────
-C1  = "#1D3A4A"   # bleu nuit      → sidebar, headers, texte sur fond clair
+C1  = "#E9C46A"   # jaune doré"      → sidebar, headers, texte sur fond clair
 C2  = "#2A9D8F"   # teal           → positif, PPA price, section titles
-C3  = "#E9C46A"   # jaune doré     → warnings, highlights → texte C1 obligatoire
+C3  = "#1D3A4A"   # bleu nuit     → warnings, highlights → texte C1 obligatoire
 C4  = "#F4A261"   # orange         → attention, stress → texte C1 obligatoire
 C5  = "#E76F51"   # rouge brique   → pertes, négatif → texte blanc
 
