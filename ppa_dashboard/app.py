@@ -41,10 +41,10 @@ st.markdown(f"""<style>
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
     font-size: 15px !important;
-    background-color: {WHT} !important;
+    background-color: {BG} !important;
 }}
 h1 {{ font-size: 22px !important; font-weight: 700 !important;
-      color: {C1} !important; font-family: Calibri, Arial, sans-serif !important; }}
+      color: {C3} !important; font-family: Calibri, Arial, sans-serif !important; }}
 h2 {{ font-size: 17px !important; font-weight: 700 !important; color: {C1} !important; }}
 h3 {{ font-size: 15px !important; font-weight: 700 !important; color: {C1} !important; }}
 p, li, label, .stMarkdown, td, th {{
