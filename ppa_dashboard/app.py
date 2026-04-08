@@ -233,8 +233,8 @@ with c2:
     fig2.add_trace(go.Scatter(x=tx,y=[1-(ic_u+sl_u*yr) for yr in tx],name="Tendance",
         line=dict(color=GREY,width=1.5,dash="dash"),mode="lines",opacity=0.7))
     py=proj["year"].tolist()
-    p10=proj["cp_p10"].tolist(); p25=proj["cp_p25"].tolist()
-    p50=proj["cp_p50"].tolist(); p75=proj["cp_p75"].tolist(); p90=proj["cp_p90"].tolist()
+    p10=proj["p10"].tolist(); p25=proj["p25"].tolist()
+    p50=proj["p50"].tolist(); p75=proj["p75"].tolist(); p90=proj["p90"].tolist()
     fig2.add_trace(go.Scatter(x=py+py[::-1],y=p90+p10[::-1],fill="toself",
         fillcolor="rgba(46,117,182,0.12)",line=dict(color="rgba(0,0,0,0)"),name="P10–P90"))
     fig2.add_trace(go.Scatter(x=py+py[::-1],y=p75+p25[::-1],fill="toself",
@@ -243,8 +243,8 @@ with c2:
     fig2.add_trace(go.Scatter(x=[last_yr]+py,y=[hl]+p50,name="P50",mode="lines+markers",
         line=dict(color=BLUE,width=2.5),marker=dict(size=6)))
     for _,row in proj.iterrows():
-        fig2.add_annotation(x=row["year"],y=row["cp_p50"],
-            text=f"P50:{row['cp_p50']*100:.0f}%<br>P10:{row['cp_p10']*100:.0f}%",
+        fig2.add_annotation(x=row["year"],y=row["p50"],
+            text=f"P50:{row['p50']*100:.0f}%<br>P10:{row['p10']*100:.0f}%",
             showarrow=True,arrowhead=2,arrowcolor=BLUE,font=dict(size=8,color=BLUE),ax=25,ay=-35)
     fig2.add_vline(x=last_yr+0.5,line=dict(color=GREY,width=1,dash="dot"))
     fig2.add_vrect(x0=2021.5,x1=2022.5,fillcolor="orange",opacity=0.07,line_width=0)
