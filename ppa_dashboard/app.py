@@ -18,6 +18,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown("""
+<script>
+setTimeout(() => {
+    const slider = document.querySelector('[data-baseweb="slider"]');
+    if (slider) {
+        const divs = slider.querySelectorAll('div');
+        let info = '';
+        divs.forEach((d, i) => {
+            info += i + ': ' + d.className + ' | style=' + d.getAttribute('style') + '\\n';
+        });
+        document.body.insertAdjacentHTML('afterbegin', '<pre style="position:fixed;top:0;left:0;z-index:9999;background:white;font-size:10px;max-height:300px;overflow:auto;">' + info + '</pre>');
+    }
+}, 2000);
+</script>
+""", unsafe_allow_html=True)
+
 C1  = "#1D3A4A"
 C2  = "#2A9D8F"
 C3  = "#FFD700"
