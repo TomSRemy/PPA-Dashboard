@@ -18,25 +18,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-import streamlit.components.v1 as components
-components.html("""
-<script>
-setTimeout(function() {
-    const slider = window.parent.document.querySelector('[data-baseweb="slider"]');
-    if (slider) {
-        const divs = slider.querySelectorAll('div');
-        let info = '';
-        divs.forEach(function(d, i) {
-            info += i + ': class=[' + d.className + '] style=[' + d.getAttribute('style') + ']\\n';
-        });
-        const pre = window.parent.document.createElement('pre');
-        pre.style = 'position:fixed;top:0;left:200px;z-index:9999;background:white;color:black;font-size:10px;max-height:300px;overflow:auto;padding:10px;';
-        pre.textContent = info;
-        window.parent.document.body.appendChild(pre);
-    }
-}, 3000);
-</script>
-""", height=0)
 
 C1  = "#1D3A4A"
 C2  = "#2A9D8F"
@@ -108,8 +89,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
 .update-pill {{ background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important; padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important; display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important; }}
-[data-baseweb="slider"] [class*="st-cf"] {{ background-color: rgba(255,255,255,0.15) !important; }}
-[data-baseweb="slider"] [class*="st-b3"] {{ background-color: {C3} !important; }}
+.st-cl {{ background-color: rgba(255,255,255,0.15) !important; }}
+.st-d2 {{ background-color: {C3} !important; }}
 [data-baseweb="slider"] [role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; width: 14px !important; height: 14px !important; border-radius: 50% !important; }}
 [data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 [data-testid="stFileUploader"] label {{ font-size: 13px !important; }}
