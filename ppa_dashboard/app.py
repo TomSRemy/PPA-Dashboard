@@ -564,7 +564,7 @@ with tab1:
         fig2.add_vline(x=last_yr_proj+0.5,line=dict(color="#BBBBBB",width=1.5,dash="dot"))
         fig2.add_vrect(x0=2021.5,x1=2022.5,fillcolor=C3,opacity=0.15,line_width=0)
         fig2.update_yaxes(tickformat=".0%")
-        plotly_base(fig2, h=580)
+        plotly_base(fig2, h=640)
         fig2.update_layout(
             title=dict(text=f"Slope: {-sl_u*100:.2f}%/yr — R²: {r2_u:.3f} {'(excl.2022)' if ex22 else ''} — excl. YTD",
                        font=dict(size=13,color=C2,family="Calibri"),x=0.5),
