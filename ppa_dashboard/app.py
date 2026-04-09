@@ -89,8 +89,10 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
 .update-pill {{ background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important; padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important; display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important; }}
-.st-cl {{ background-color: rgba(255,255,255,0.15) !important; }}
-.st-d2 {{ background-color: {C3} !important; }}
+[data-baseweb="slider"] div.st-cl {{ background-color: rgba(255,255,255,0.15) !important; }}
+[data-baseweb="slider"] div.st-d2 {{ background-color: {C3} !important; }}
+[data-baseweb="slider"] div[style*="height: 0.25rem"] {{ background-color: rgba(255,255,255,0.15) !important; }}
+[data-baseweb="slider"] div[style*="height: 0.25rem"] > div:first-child {{ background-color: {C3} !important; }}
 [data-baseweb="slider"] [role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; width: 14px !important; height: 14px !important; border-radius: 50% !important; }}
 [data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 [data-testid="stFileUploader"] label {{ font-size: 13px !important; }}
