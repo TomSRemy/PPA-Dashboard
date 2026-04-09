@@ -94,7 +94,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
 .stTabs [aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; color: {C2} !important; background: {C3L} !important; }}
 
-div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C1} !important; }}
+div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C3} !important; }}
 
 .stButton > button {{
     background: linear-gradient(135deg, {C2}, #238B7D) !important; color: {WHT} !important;
