@@ -87,25 +87,15 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
-
-/* Update pill — dark background, white text */
 .update-pill {{ background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important; padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important; display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important; }}
-
-/* Slider — inactive track transparent, active track yellow */
-[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(2) {{ background-color: rgba(255,255,255,0.15) !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(1) {{ background-color: {C3} !important; border-radius: 4px !important; }}
-
-/* Thumb — small, yellow, white border, no shadow */
-[data-testid="stSlider"] div[role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; border-radius: 50% !important; width: 14px !important; height: 14px !important; }}
-[data-testid="stSlider"] div[role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
-
-/* File uploader — fix text size */
+[data-baseweb="slider"] [class*="st-cf"] {{ background-color: rgba(255,255,255,0.15) !important; }}
+[data-baseweb="slider"] [class*="st-b3"] {{ background-color: {C3} !important; }}
+[data-baseweb="slider"] [role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; width: 14px !important; height: 14px !important; border-radius: 50% !important; }}
+[data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 [data-testid="stFileUploader"] label {{ font-size: 13px !important; }}
 [data-testid="stFileUploader"] section {{ font-size: 12px !important; }}
 [data-testid="stFileUploader"] button {{ font-size: 12px !important; padding: 4px 12px !important; }}
 [data-testid="stFileUploader"] span {{ font-size: 11px !important; }}
-
-/* Hide keyboard_double_arrow icon text if it appears as raw text */
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 
 
