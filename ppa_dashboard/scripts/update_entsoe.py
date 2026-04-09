@@ -231,33 +231,51 @@ def build_new_rows(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
 def recompute_nat_reference(hourly: pd.DataFrame) -> pd.DataFrame:
     """
     Recompute annual national M0 from hourly data.
-    M0 = volume-weighted average price = sum(NatMW × Spot) / sum(NatMW)
+    M0 = volume-weighted average price = sum(NatMW x Spot) / sum(NatMW)
+
+    Complete years  : >= 8000 hours required (filters out partial past years)
+    Current year    : >= 500 hours required  (included as partial / YTD)
+    A 'partial' flag is added so the dashboard can label it accordingly.
     """
     h = hourly[hourly["Spot"] > 0].copy()
     h["Rev_nat"] = h["NatMW"] * h["Spot"]
 
-    # Only years with at least 8000 hours of data (full year)
     hours_per_year = h.groupby("Year")["Spot"].count()
-    complete_years = hours_per_year[hours_per_year >= 8000].index.tolist()
+    current_year   = pd.Timestamp.now().year
+
+    # Threshold: 8 000h for past years, 500h for the current year
+    min_hours = {
+        yr: (500 if yr == current_year else 8000)
+        for yr in hours_per_year.index
+    }
+    complete_years = [
+        yr for yr, cnt in hours_per_year.items()
+        if cnt >= min_hours[yr]
+    ]
 
     ann = h[h["Year"].isin(complete_years)].groupby("Year").agg(
-        spot    = ("Spot",    "mean"),
-        prod_nat= ("NatMW",  "sum"),
-        rev_nat = ("Rev_nat", "sum"),
-        neg_h   = ("Spot",   lambda x: (x < 0).sum()),
+        spot     = ("Spot",    "mean"),
+        prod_nat = ("NatMW",   "sum"),
+        rev_nat  = ("Rev_nat", "sum"),
+        neg_h    = ("Spot",    lambda x: (x < 0).sum()),
+        n_hours  = ("Spot",    "count"),
     ).reset_index()
 
     ann["cp_nat"]     = ann["rev_nat"] / ann["prod_nat"].replace(0, np.nan)
     ann["cp_nat_pct"] = ann["cp_nat"] / ann["spot"]
     ann["shape_disc"] = 1 - ann["cp_nat_pct"]
+    ann["partial"]    = ann["Year"] == current_year   # True = YTD only
     ann = ann.rename(columns={"Year": "year"})
 
-    # Keep only meaningful rows
     ann = ann.dropna(subset=["cp_nat_pct"])
-    ann = ann[["year","spot","cp_nat","cp_nat_pct","shape_disc","neg_h"]]
+    ann = ann[["year", "spot", "cp_nat", "cp_nat_pct", "shape_disc",
+               "neg_h", "n_hours", "partial"]]
 
-    log.info(f"National reference: {len(ann)} complete years "
-             f"({ann['year'].min()}–{ann['year'].max()})")
+    log.info(
+        f"National reference: {len(ann)} years "
+        f"({ann['year'].min()}–{ann['year'].max()}), "
+        f"including {ann['partial'].sum()} partial year(s)"
+    )
     return ann
 
 
@@ -278,7 +296,11 @@ def main():
 
     if start is None:
         log.info("Nothing to update.")
-        # Still write last_update.txt
+        # Still recompute nat_reference in case current year has grown
+        if not existing.empty:
+            nat_ref = recompute_nat_reference(existing)
+            nat_ref.to_csv(NAT_CSV, index=False)
+            log.info(f"Refreshed national reference: {NAT_CSV}")
         _write_log(existing, updated=False)
         return
 
@@ -304,8 +326,8 @@ def main():
 
     # Convert Date to string for CSV (remove timezone info for compatibility)
     combined["Date_str"] = combined["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    save_cols = ["Date_str","Year","Month","Hour","Spot","NatMW"]
-    save_df   = combined[save_cols].rename(columns={"Date_str":"Date"})
+    save_cols = ["Date_str", "Year", "Month", "Hour", "Spot", "NatMW"]
+    save_df   = combined[save_cols].rename(columns={"Date_str": "Date"})
     save_df.to_csv(SPOT_CSV, index=False)
     log.info(f"Saved {len(save_df):,} rows to {SPOT_CSV}")
 
