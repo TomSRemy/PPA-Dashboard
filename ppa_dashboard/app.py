@@ -112,6 +112,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stDownloadButton > button {{ background: linear-gradient(135deg, {C3}, {C4}) !important; color: {C1} !important; border: none !important; font-weight: 700 !important; }}
 .stAlert {{ background-color: {C3L} !important; border: 1px solid {C3} !important; border-radius: 6px !important; }}
 .stAlert > div {{ color: {C1} !important; }}
+[data-testid="stFileUploaderDropzoneInstructions"] span[data-testid="stIconMaterial"] {{ display: none !important; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -313,10 +314,8 @@ def build_excel(nat_ref, hourly, asset_ann, has_asset, asset_name,
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
-
 with st.sidebar:
-    st.markdown("###   Dashboard")
-    st.sidebar.caption(st.__version__)
+    st.markdown("### KAL-EL Dashboard")
     st.markdown(f'<div class="update-pill">{load_log().split(chr(10))[0]}</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("### Market Settings")
@@ -333,9 +332,8 @@ with st.sidebar:
     vol_stress = st.slider("Volume Stress (±%)", 0, 30, 20)
     spot_stress= st.slider("Spot Stress (±%)", 0, 30, 20)
     st.markdown("---")
-    st.markdown("### Load Curve Upload")
     st.markdown("### Load Curve")
-    uploaded = st.file_uploader("Hourly Production", type=["xlsx", "csv"], label_visibility="collapsed")
+    uploaded = st.file_uploader("", type=["xlsx", "csv"], label_visibility="hidden")
     st.caption("Columns: Date | Prod_MWh")
     st.markdown("---")
     if st.button("Clear Cache"):
