@@ -1,1 +1,5 @@
-Initial data loaded — automatic updates will start after GitHub Actions setup.
+Last update : 2026-04-09 07:37 UTC
+Status      : Updated
+New rows    : 2,857
+Total rows  : 107,520
+Data through: 2026-04-08
