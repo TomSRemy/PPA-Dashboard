@@ -112,10 +112,10 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stDownloadButton > button {{ background: linear-gradient(135deg, {C3}, {C4}) !important; color: {C1} !important; border: none !important; font-weight: 700 !important; }}
 .stAlert {{ background-color: {C3L} !important; border: 1px solid {C3} !important; border-radius: 6px !important; }}
 .stAlert > div {{ color: {C1} !important; }}
-[data-testid="stFileUploaderDropzoneInstructions"] span[data-testid="stIconMaterial"] {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
-[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; }}
+[data-testid="stFileUploaderDropzone"] {{ display: flex !important; align-items: center !important; justify-content: center !important; }}
+[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; font-weight: 600; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
