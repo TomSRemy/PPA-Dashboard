@@ -90,8 +90,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid {WHT}; padding-bottom: 6px; }}
 
-[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(1) {{ background:{C3} !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(2) {{ background:transparent !important; }}
+[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(1) {{ background:transparent !important; }}
+[data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(2) {{ background:{C3} !important; }}
 [data-testid="stSlider"] div[role="slider"] {{ background:{C3} !important; border:2px solid {WHT} !important; box-shadow:none !important; }}
 
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
