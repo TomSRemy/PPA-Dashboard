@@ -93,7 +93,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
 .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247, 220, 111, 0.5) !important; }}
 .stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; background: {C3L} !important; }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {C2} !important; font-weight: 700 !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {C2} !important; font-weight: 700 !important;;font-size: 15.5px !important;}}
 div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C3} !important; }}
 
 .stButton > button {{
