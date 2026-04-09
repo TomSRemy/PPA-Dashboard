@@ -5,6 +5,9 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -16,16 +19,17 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - run: pip install entsoe-py pandas requests
+      - name: Install dependencies
+        run: pip install entsoe-py pandas requests
 
-      - name: Run update
+      - name: Run ENTSO-E update
         env:
           ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
         run: python ppa_dashboard/scripts/update_entsoe.py
 
-      - name: Commit data
+      - name: Commit updated data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
