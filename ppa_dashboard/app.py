@@ -90,8 +90,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSlider"] > div > div > div {{ background: linear-gradient(90deg, {C3}, {C4}) !important; }}
 [data-testid="stSlider"] > div > div > div > div {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: 0 2px 8px rgba(255,215,0,0.5) !important; }}
 
-.stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; color: {C4} !important; padding: 10px 20px !important; }}
-.stTabs [aria-selected="true"] {{ border-bottom: 3px solid {C2} !important; color: {C1} !important; background: {C3} !important; }}
+.stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; color: {C3} !important; padding: 10px 20px !important; }}
+.stTabs [aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; color: {C2} !important; background: {C3L} !important; }}
 
 div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C1} !important; }}
 
