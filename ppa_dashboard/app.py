@@ -477,7 +477,7 @@ with tab1:
     with r1a:
         section("Historical Captured Price — 2014 onwards")
         desc("Bars: CP% by year. Gold bar = current year YTD (excluded from regression). Bottom panel: EUR/MWh.")
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.14,
                             subplot_titles=["CP% (% of spot average)","CP (EUR/MWh)"],
                             row_heights=[0.55,0.45])
         ny = nat_ref["year"].tolist(); ncp = nat_ref["cp_nat_pct"].tolist()
@@ -516,9 +516,10 @@ with tab1:
                                  line=dict(color=C2,width=2.5),mode="lines+markers",
                                  marker=dict(size=7,color=C2,symbol="square",line=dict(width=1.5,color=WHT))),
                       row=2, col=1)
-        fig.update_yaxes(tickformat=".0%", row=1, col=1)
+        fig.update_yaxes(tickformat=".0%", title_text="<b>CP% (% of spot average)</b>", row=1, col=1)
+        fig.update_yaxes(title_text="<b>CP (EUR/MWh)</b>", row=2, col=1)
         fig.update_layout(barmode="group")
-        plotly_base(fig, h=580)
+        plotly_base(fig, h=640)
         st.plotly_chart(fig, use_container_width=True)
 
     with r1b:
