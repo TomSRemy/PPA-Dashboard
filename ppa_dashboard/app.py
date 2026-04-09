@@ -22,7 +22,7 @@ st.set_page_config(
 # PALETTE — change THEME to switch
 # ══════════════════════════════════════════════════════════════════════════════
 
-THEME = "EMERALD"   # ← change here: "SLATE" | "MIDNIGHT" | "EMERALD"
+THEME = "MIDNIGHT"   # ← change here: "SLATE" | "MIDNIGHT" | "EMERALD"
 
 _THEMES = {
     "SLATE": {
