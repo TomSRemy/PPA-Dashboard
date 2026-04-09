@@ -83,14 +83,30 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     border-radius: 8px; padding: 12px 18px; color: {C1} !important; font-weight: 500; margin: 10px 0;
 }}
 
-[data-testid="stSidebar"] {{ background: linear-gradient(90deg, {C1}, #152A36) !important; }}
+[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {C1}, #152A36) !important; }}
 [data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
-[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid {WHT}; padding-bottom: 6px; }}
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
+
+/* Update pill — dark background, white text */
+.update-pill {{ background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important; padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important; display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important; }}
+
+/* Slider — inactive track transparent, active track yellow */
 [data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(2) {{ background-color: rgba(255,255,255,0.15) !important; }}
 [data-testid="stSlider"] [data-baseweb="slider"] > div > div:nth-child(1) {{ background-color: {C3} !important; border-radius: 4px !important; }}
-[data-testid="stSlider"] div[role="slider"] {{ background-color: {C3} !important; border: 3px solid {WHT} !important; box-shadow: 0 0 0 3px rgba(255,215,0,0.35), 0 2px 8px rgba(0,0,0,0.2) !important; border-radius: 50% !important; width: 20px !important; height: 20px !important; }}
-[data-testid="stSlider"] div[role="slider"]:hover {{ box-shadow: 0 0 0 5px rgba(255,215,0,0.45) !important; transform: scale(1.1) !important; }}
+
+/* Thumb — small, yellow, white border, no shadow */
+[data-testid="stSlider"] div[role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; border-radius: 50% !important; width: 14px !important; height: 14px !important; }}
+[data-testid="stSlider"] div[role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
+
+/* File uploader — fix text size */
+[data-testid="stFileUploader"] label {{ font-size: 13px !important; }}
+[data-testid="stFileUploader"] section {{ font-size: 12px !important; }}
+[data-testid="stFileUploader"] button {{ font-size: 12px !important; padding: 4px 12px !important; }}
+[data-testid="stFileUploader"] span {{ font-size: 11px !important; }}
+
+/* Hide keyboard_double_arrow icon text if it appears as raw text */
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 
 
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
