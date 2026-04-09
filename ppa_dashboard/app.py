@@ -1,5 +1,5 @@
 """
-PPA Pricing Dashboard — KAL-EL v2.2
+PPA Pricing Dashboard —  v2.2
 v2.2: Rolling M0 computed on raw hourly windows (not daily averages)
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 import io
 
 st.set_page_config(
-    page_title="KAL-EL PPA Pricing Dashboard",
+    page_title="  PPA Pricing Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -90,8 +90,27 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSlider"] > div > div > div {{ background: linear-gradient(90deg, {C3}, {C4}) !important; }}
 [data-testid="stSlider"] > div > div > div > div {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: 0 2px 8px rgba(255,215,0,0.5) !important; }}
 
-.stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; color: {C1} !important; padding: 10px 20px !important; }}
-.stTabs [aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; color: {C2} !important; background: {C3L} !important; }}
+.stTabs [data-baseweb="tab"] {
+    font-family: Calibri, Arial, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 600;
+    color: {C4} !important;                 /* texte inactif = gold light */
+    background-color: transparent !important;
+    padding: 10px 20px !important;
+    border-radius: 6px 6px 0 0;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: {C3} !important;                 /* hover = gold fort */
+    background-color: {C3L} !important;     /* fond hover léger */
+}
+
+.stTabs [aria-selected="true"] {
+    color: {C1} !important;                 /* texte actif = bleu foncé */
+    background: linear-gradient(135deg, {C3}, {C4}) !important;  /* gradient gold */
+    border-bottom: 3px solid {C2} !important;
+    box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+}
 
 div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C1} !important; }}
 
@@ -308,7 +327,7 @@ def build_excel(nat_ref, hourly, asset_ann, has_asset, asset_name,
 # ══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("### KAL-EL Dashboard")
+    st.markdown("###   Dashboard")
     st.markdown(f'<div class="update-pill">{load_log().split(chr(10))[0]}</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("### Market Settings")
@@ -423,7 +442,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab1:
-    st.markdown("## KAL-EL PPA Pricing Dashboard — France Solar")
+    st.markdown("## PPA Pricing Dashboard — France Solar")
     ca, cb = st.columns([3,1])
     with ca:
         ytd_note = f" — <span class='ytd-badge'>2026 YTD included</span>" if current_year in partial_years else ""
@@ -1093,7 +1112,7 @@ st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
 st.markdown(
     f'<span style="font-size:12px;color:#888;font-family:Calibri,Arial,sans-serif;">'
-    f'KAL-EL v2.2 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
+    f' v2.2 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — '
     f'Daily automatic updates (GitHub Actions) — '
     f'Rolling M0: sum(NatMW×Spot)/sum(NatMW) on raw hourly windows'
