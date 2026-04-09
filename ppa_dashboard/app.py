@@ -88,9 +88,11 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
 [data-testid="stSlider"] > div > div > div {{ background: #D9D9D9 !important; }}
-[data-testid="stSlider"] div[role="slider"] {{ background-color: {C3} !important; border: 1px solid {WHT} !important; box-shadow: none !important; }}
-[data-testid="stSlider"] div[role="slider"]:hover {{ background-color: {C3} !important; }}
-[data-testid="stSlider"] div[role="slider"]:focus {{ background-color: {C3} !important; box-shadow: none !important; }}
+[data-testid="stSlider"] div[data-baseweb="slider"] > div > div {{ background: #D9D9D9 !important; }}
+[data-testid="stSlider"] div[data-baseweb="slider"] > div > div > div {{ background: #D9D9D9 !important; }}
+[data-testid="stSlider"] div[data-baseweb="slider"] div[role="slider"] {{ background-color: {C3} !important; border: 1px solid {WHT} !important; box-shadow: none !important; }}
+[data-testid="stSlider"] div[data-baseweb="slider"] div[role="slider"]:hover {{ background-color: {C3} !important; }}
+[data-testid="stSlider"] div[data-baseweb="slider"] div[role="slider"]:focus {{ background-color: {C3} !important; box-shadow: none !important; }}
 
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
 .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247, 220, 111, 0.5) !important; }}
