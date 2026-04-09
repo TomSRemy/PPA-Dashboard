@@ -114,8 +114,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stAlert > div {{ color: {C1} !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
-[data-testid="stFileUploaderDropzone"] {{ display: flex !important; align-items: center !important; justify-content: center !important; }}
-[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; font-weight: 600; }}
+[data-testid="stFileUploaderDropzone"] {{ display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-height: 60px !important; }}
+[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; font-weight: 600; line-height: 1; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
