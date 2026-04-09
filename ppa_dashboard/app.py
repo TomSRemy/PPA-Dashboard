@@ -113,6 +113,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stAlert {{ background-color: {C3L} !important; border: 1px solid {C3} !important; border-radius: 6px !important; }}
 .stAlert > div {{ color: {C1} !important; }}
 [data-testid="stFileUploaderDropzoneInstructions"] span[data-testid="stIconMaterial"] {{ display: none !important; }}
+[data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
+[data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -333,7 +335,7 @@ with st.sidebar:
     spot_stress= st.slider("Spot Stress (±%)", 0, 30, 20)
     st.markdown("---")
     st.markdown("### Load Curve Upload")
-    uploaded = st.file_uploader("", type=["xlsx", "csv"], label_visibility=" ")
+    uploaded = st.file_uploader("", type=["xlsx", "csv"], label_visibility="hidden")
     st.caption("Columns: Date | Prod_MWh")
     st.markdown("---")
     if st.button("Clear Cache"):
