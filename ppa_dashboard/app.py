@@ -115,6 +115,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stFileUploaderDropzoneInstructions"] span[data-testid="stIconMaterial"] {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
+[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
