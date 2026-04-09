@@ -334,7 +334,8 @@ with st.sidebar:
     spot_stress= st.slider("Spot Stress (±%)", 0, 30, 20)
     st.markdown("---")
     st.markdown("### Load Curve Upload")
-    uploaded = st.file_uploader("Hourly Production", type=["xlsx","csv"])
+    st.markdown("### Load Curve")
+    uploaded = st.file_uploader("Hourly Production", type=["xlsx", "csv"], label_visibility="collapsed")
     st.caption("Columns: Date | Prod_MWh")
     st.markdown("---")
     if st.button("Clear Cache"):
