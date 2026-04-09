@@ -18,21 +18,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+import streamlit.components.v1 as components
+components.html("""
 <script>
-setTimeout(() => {
-    const slider = document.querySelector('[data-baseweb="slider"]');
+setTimeout(function() {
+    const slider = window.parent.document.querySelector('[data-baseweb="slider"]');
     if (slider) {
         const divs = slider.querySelectorAll('div');
         let info = '';
-        divs.forEach((d, i) => {
-            info += i + ': ' + d.className + ' | style=' + d.getAttribute('style') + '\\n';
+        divs.forEach(function(d, i) {
+            info += i + ': class=[' + d.className + '] style=[' + d.getAttribute('style') + ']\\n';
         });
-        document.body.insertAdjacentHTML('afterbegin', '<pre style="position:fixed;top:0;left:0;z-index:9999;background:white;font-size:10px;max-height:300px;overflow:auto;">' + info + '</pre>');
+        const pre = window.parent.document.createElement('pre');
+        pre.style = 'position:fixed;top:0;left:200px;z-index:9999;background:white;color:black;font-size:10px;max-height:300px;overflow:auto;padding:10px;';
+        pre.textContent = info;
+        window.parent.document.body.appendChild(pre);
     }
-}, 2000);
+}, 3000);
 </script>
-""", unsafe_allow_html=True)
+""", height=0)
 
 C1  = "#1D3A4A"
 C2  = "#2A9D8F"
