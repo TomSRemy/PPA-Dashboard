@@ -55,6 +55,8 @@ C4L = _THEMES[THEME]["C4L"]
 C5L = _THEMES[THEME]["C5L"]
 WHT = "#FFFFFF"
 
+st.write(f"C1={C1} C2={C2} C3={C3}")  # ← temporaire pour debug
+
 st.markdown(f"""<style>
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
