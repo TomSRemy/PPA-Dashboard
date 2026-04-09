@@ -332,7 +332,7 @@ with st.sidebar:
     vol_stress = st.slider("Volume Stress (±%)", 0, 30, 20)
     spot_stress= st.slider("Spot Stress (±%)", 0, 30, 20)
     st.markdown("---")
-    st.markdown("### Load Curve")
+   st.markdown("### Load Curve Upload")
     uploaded = st.file_uploader("", type=["xlsx", "csv"], label_visibility="hidden")
     st.caption("Columns: Date | Prod_MWh")
     st.markdown("---")
