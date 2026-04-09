@@ -83,12 +83,12 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     border-radius: 8px; padding: 12px 18px; color: {C1} !important; font-weight: 500; margin: 10px 0;
 }}
 
-[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {C1}, #152A36) !important; }}
+[data-testid="stSidebar"] {{ background: linear-gradient(0 deg, {C1}, #152A36) !important; }}
 [data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
-[data-testid="stSlider"] > div > div > div {{ background: linear-gradient(90deg, {C3}, {C4}) !important; }}
-[data-testid="stSlider"] > div > div > div > div {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: 0 2px 8px rgba(255,215,0,0.5) !important; }}
+[data-testid="stSlider"] > div > div > div {{ background: linear-gradient(90deg, {C3}, {C3}) !important; }}
+[data-testid="stSlider"] > div > div > div > div {{ background-color: {C3} !important; border: 2px solid {WHT} !important; }}
 
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
 .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247, 220, 111, 0.7) !important; }}
