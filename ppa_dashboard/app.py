@@ -1,5 +1,5 @@
 """
-PPA Pricing Dashboard —  v2.2
+PPA Pricing Dashboard — v2.2
 v2.2: Rolling M0 computed on raw hourly windows (not daily averages)
 """
 
@@ -13,17 +13,16 @@ from pathlib import Path
 import io
 
 st.set_page_config(
-    page_title="  PPA Pricing Dashboard",
+    page_title="PPA Pricing Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PALETTE — change THEME to switch
 # ══════════════════════════════════════════════════════════════════════════════
 
-THEME = "EMERALD"   # ← change here: "SLATE" | "MIDNIGHT" | "EMERALD"
+THEME = "SLATE"   # ← change here: "SLATE" | "MIDNIGHT" | "EMERALD"
 
 _THEMES = {
     "SLATE": {
@@ -55,8 +54,6 @@ C4L = _THEMES[THEME]["C4L"]
 C5L = _THEMES[THEME]["C5L"]
 WHT = "#FFFFFF"
 
-st.write(f"C1={C1} C2={C2} C3={C3}")  # ← temporaire pour debug
-
 st.markdown(f"""<style>
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
@@ -70,7 +67,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 
 .section-title {{
     font-size: 13px !important; font-weight: 700; color: {WHT};
-    background: linear-gradient(135deg, {C1}, #2A4A5A);
+    background: linear-gradient(135deg, {C1}, {C2});
     padding: 8px 14px; border-radius: 4px; margin: 24px 0 10px 0;
     letter-spacing: 0.06em; text-transform: uppercase; display: block;
     border-left: 4px solid {C3};
@@ -82,9 +79,9 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     margin: 0 0 16px 0; line-height: 1.6; font-family: Calibri, Arial, sans-serif;
 }}
 .ppa-card {{
-    background: linear-gradient(135deg, {C2}, #238B7D); color: {WHT};
+    background: linear-gradient(135deg, {C2}, {C1}); color: {WHT};
     padding: 20px 22px; border-radius: 10px; text-align: center;
-    box-shadow: 0 4px 12px rgba(42,157,143,0.3);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }}
 .ppa-card .val {{ font-size: 32px; font-weight: 700; color: {WHT} !important; font-family: Calibri, Arial, sans-serif; }}
 .ppa-card .lbl {{ font-size: 11px; color: {WHT} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
@@ -97,8 +94,9 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .kpi-red {{ border-left-color: {C5} !important; }}
 .kpi-gold {{ border-left-color: {C3} !important; }}
 .update-pill {{
-    background: {C3L}; border: 1px solid {C3}; border-radius: 20px; padding: 5px 16px;
-    font-size: 12px; color: {C1}; display: inline-block; font-family: Calibri, Arial, sans-serif; font-weight: 600;
+    background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important;
+    padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important;
+    display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important;
 }}
 .ytd-badge {{
     font-size: 10px; font-weight: 700; color: {C1}; background: {C3};
@@ -106,65 +104,64 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 }}
 .tbl-note {{ font-size: 12px; color: #555; font-style: italic; margin-top: 6px; font-family: Calibri, Arial, sans-serif; }}
 .status-msg {{
-    background: linear-gradient(135deg, {C2L}, #E8F5F3); border: 1px solid {C2};
+    background: linear-gradient(135deg, {C2L}, {BG}); border: 1px solid {C2};
     border-radius: 8px; padding: 12px 18px; color: {C1} !important; font-weight: 500; margin: 10px 0;
 }}
 
-[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {C1}, #152A36) !important; }}
+[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {C1}, {C1}CC) !important; }}
 [data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
-.update-pill {{ background: {C1} !important; border: 1px solid {C3} !important; border-radius: 20px !important; padding: 5px 16px !important; font-size: 12px !important; color: {C3} !important; display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important; }}
-[data-baseweb="slider"] [role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; border-radius: 50% !important; width: 14px !important; height: 14px !important; }}
-[data-testid="stFileUploader"] label {{ font-size: 13px !important; }}
-[data-testid="stFileUploader"] section {{ font-size: 12px !important; }}
-[data-testid="stFileUploader"] button {{ font-size: 12px !important; padding: 4px 12px !important; }}
-[data-testid="stFileUploader"] span {{ font-size: 11px !important; }}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 
+[data-baseweb="slider"] [role="slider"] {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: none !important; border-radius: 50% !important; width: 14px !important; height: 14px !important; }}
+[data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
-.stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247, 220, 111, 0.7) !important; }}
+.stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247,220,111,0.7) !important; }}
 .stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; background: {C3L} !important; }}
 .stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {C2} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
 
+div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C1} !important; }}
+
 .stButton > button {{
-    background: linear-gradient(135deg, {C2}, #238B7D) !important; color: {WHT} !important;
+    background: linear-gradient(135deg, {C2}, {C1}) !important; color: {WHT} !important;
     border: none !important; border-radius: 6px !important; font-family: Calibri, Arial, sans-serif !important;
     font-size: 14px !important; font-weight: 600 !important; padding: 10px 24px !important;
-    box-shadow: 0 2px 8px rgba(42,157,143,0.3) !important; transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important; transition: all 0.2s ease !important;
 }}
-.stButton > button:hover {{ background: linear-gradient(135deg, {C1}, #2A4A5A) !important; transform: translateY(-1px) !important; }}
+.stButton > button:hover {{ background: linear-gradient(135deg, {C1}, {C2}) !important; transform: translateY(-1px) !important; }}
 .stDownloadButton > button {{ background: linear-gradient(135deg, {C3}, {C4}) !important; color: {C1} !important; border: none !important; font-weight: 700 !important; }}
 .stAlert {{ background-color: {C3L} !important; border: 1px solid {C3} !important; border-radius: 6px !important; }}
 .stAlert > div {{ color: {C1} !important; }}
+
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
-[data-testid="stFileUploaderDropzone"] {{ 
-    display: flex !important; 
-    flex-direction: column !important; 
-    align-items: center !important; 
-    justify-content: center !important; 
+[data-testid="stFileUploaderDropzone"] {{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
     min-height: 60px !important;
-    background: linear-gradient(135deg, {C2}, #238B7D) !important;
+    background: linear-gradient(135deg, {C2}, {C1}) !important;
     border: none !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(42,157,143,0.4), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.15) !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
 }}
 [data-testid="stFileUploaderDropzone"]:hover {{
-    box-shadow: 0 6px 16px rgba(42,157,143,0.5), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2) !important;
     transform: translateY(-1px) !important;
 }}
-[data-testid="stFileUploaderDropzone"]::before {{ 
-    content: "Upload"; 
-    font-family: Calibri, Arial, sans-serif; 
-    font-size: 14px; 
-    color: {WHT}; 
-    font-weight: 700; 
+[data-testid="stFileUploaderDropzone"]::before {{
+    content: "Upload";
+    font-family: Calibri, Arial, sans-serif;
+    font-size: 14px;
+    color: {WHT};
+    font-weight: 700;
     letter-spacing: 0.05em;
 }}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -238,8 +235,6 @@ def compute_rolling_m0(hourly_df, windows=(30, 90, 365)):
     M0_N(t)       = sum(NatMW * Spot) / sum(NatMW)   over hours in [t-N, t]
     Baseload_N(t) = sum(Spot) / count(hours)           over hours in [t-N, t]
     CP%_N(t)      = M0_N(t) / Baseload_N(t)
-
-    Requires at least half the window filled (min_periods = N*12 hours).
     """
     h = hourly_df.copy()
     h["Date"] = pd.to_datetime(h["Date"])
@@ -248,37 +243,25 @@ def compute_rolling_m0(hourly_df, windows=(30, 90, 365)):
     h["Date_d"]  = h["Date"].dt.normalize()
 
     dates = sorted(h["Date_d"].unique())
-    max_window = max(windows)
-
-    # Pre-index by date for fast slicing
-    h_indexed = h.set_index("Date_d")
-
     rows = {w: [] for w in windows}
 
     for d in dates:
         for w in windows:
             cutoff = pd.Timestamp(d) - pd.Timedelta(days=w)
-            # Select rows where Date_d is in (cutoff, d] — inclusive on d
             mask = (h["Date_d"] > cutoff) & (h["Date_d"] <= d)
             window = h[mask]
-
-            min_h = w * 12   # require at least half the window
+            min_h = w * 12
             if len(window) < min_h:
-                rows[w].append({"Date": d, f"m0_{w}d": np.nan,
-                                f"bl_{w}d": np.nan, f"cp_{w}d": np.nan})
+                rows[w].append({"Date": d, f"m0_{w}d": np.nan, f"bl_{w}d": np.nan, f"cp_{w}d": np.nan})
                 continue
-
             sum_rev  = window["Rev_nat"].sum()
             sum_prod = window["NatMW"].sum()
             sum_spot = window["Spot"].sum()
             count_h  = len(window)
-
             m0 = sum_rev / sum_prod if sum_prod > 0 else np.nan
             bl = sum_spot / count_h
             cp = m0 / bl if bl and bl != 0 else np.nan
-
-            rows[w].append({"Date": d, f"m0_{w}d": m0,
-                            f"bl_{w}d": bl, f"cp_{w}d": cp})
+            rows[w].append({"Date": d, f"m0_{w}d": m0, f"bl_{w}d": bl, f"cp_{w}d": cp})
 
     dfs = [pd.DataFrame(rows[w]).set_index("Date") for w in windows]
     out = pd.concat(dfs, axis=1).reset_index()
@@ -299,10 +282,10 @@ def compute_asset_annual(hourly, asset_df):
         neg_hours=("Spot", lambda x: (x < 0).sum()),
         nat_mw=("NatMW", "mean"),
     ).reset_index()
-    ann["prod_gwh"]  = ann["prod_mwh"] / 1000
-    ann["cp_eur"]    = ann["revenue"] / ann["prod_mwh"].replace(0, np.nan)
-    ann["cp_pct"]    = ann["cp_eur"] / ann["spot_avg"]
-    ann["shape_disc"]= 1 - ann["cp_pct"]
+    ann["prod_gwh"]   = ann["prod_mwh"] / 1000
+    ann["cp_eur"]     = ann["revenue"] / ann["prod_mwh"].replace(0, np.nan)
+    ann["cp_pct"]     = ann["cp_eur"] / ann["spot_avg"]
+    ann["shape_disc"] = 1 - ann["cp_pct"]
     return ann.dropna(subset=["cp_pct"])
 
 def fit_reg(ann, n, ex22):
@@ -542,7 +525,7 @@ with tab1:
         ny = nat_ref["year"].tolist(); ncp = nat_ref["cp_nat_pct"].tolist()
         ne = nat_ref["cp_nat"].tolist(); ns  = nat_ref["spot"].tolist()
         is_partial   = nat_ref["partial"].tolist() if "partial" in nat_ref.columns else [False]*len(ny)
-        bar_colors   = ["rgba(255,215,0,0.55)" if p else "rgba(42,157,143,0.5)" for p in is_partial]
+        bar_colors   = [f"rgba(255,215,0,0.55)" if p else f"rgba(42,157,143,0.5)" for p in is_partial]
         bar_outlines = [C3 if p else C2 for p in is_partial]
         bar_texts    = [f"<b>{v*100:.0f}%</b>"+(" YTD" if p else "") for v,p in zip(ncp,is_partial)]
         fig.add_trace(go.Bar(x=ny, y=ncp, name="M0 National",
@@ -552,7 +535,7 @@ with tab1:
         if has_asset:
             ay=asset_ann["Year"].tolist(); acp=asset_ann["cp_pct"].tolist(); ae=asset_ann["cp_eur"].tolist()
             fig.add_trace(go.Bar(x=ay, y=acp, name=asset_name,
-                                 marker_color=["rgba(231,111,81,0.6)"]*len(ay),
+                                 marker_color=[f"rgba(231,111,81,0.6)"]*len(ay),
                                  marker_line_color=C5, marker_line_width=1.5,
                                  text=[f"<b>{v*100:.0f}%</b>" for v in acp], textposition="outside",
                                  textfont=dict(size=11,color=C5,family="Calibri")), row=1, col=1)
@@ -575,8 +558,7 @@ with tab1:
                                  line=dict(color=C2,width=2.5),mode="lines+markers",
                                  marker=dict(size=7,color=C2,symbol="square",line=dict(width=1.5,color=WHT))),
                       row=2, col=1)
-        fig.update_yaxes(tickformat=".0%", title_text="<b>CP% (% of spot average)</b>", row=1, col=1)
-        fig.update_yaxes(title_text="<b>CP (EUR/MWh)</b>", row=2, col=1)
+        fig.update_yaxes(tickformat=".0%", row=1, col=1)
         fig.update_layout(barmode="group")
         plotly_base(fig, h=640)
         st.plotly_chart(fig, use_container_width=True)
@@ -683,7 +665,8 @@ with tab2:
         st.dataframe(pd.DataFrame(rows_ppa), use_container_width=True, hide_index=True)
         fig_fwd = go.Figure()
         fig_fwd.add_trace(go.Bar(x=fwd_df_live["year"],y=fwd_df_live["forward"],
-                                 marker_color="rgba(42,157,143,0.7)",marker_line_color=C2,marker_line_width=2,
+                                 marker_color=[f"rgba(42,157,143,0.7)"]*len(fwd_df_live),
+                                 marker_line_color=C2,marker_line_width=2,
                                  text=[f"<b>{v:.1f}</b>" for v in fwd_df_live["forward"]],
                                  textposition="outside",textfont=dict(size=14,color=C1,family="Calibri"),
                                  name="EEX Forward"))
@@ -875,7 +858,7 @@ with tab4:
                                   "P50 (k EUR)":f"{p50t:+.0f}k","P90 (k EUR)":f"{p90t:+.0f}k"})
     fig4 = go.Figure()
     fig4.add_trace(go.Bar(name="P50",x=sn,y=sv50,
-                          marker_color=["rgba(42,157,143,0.80)" if v>=0 else "rgba(231,111,81,0.80)" for v in sv50],
+                          marker_color=[f"rgba(42,157,143,0.80)" if v>=0 else f"rgba(231,111,81,0.80)" for v in sv50],
                           marker_line_color=WHT,marker_line_width=1,
                           text=[f"<b>{v:+.0f}k</b>" for v in sv50],textposition="outside",
                           textfont=dict(size=12,color=C1,family="Calibri")))
@@ -926,7 +909,7 @@ with tab6:
     st.markdown("## Market Evolution — Rolling Capture Rate")
     desc(
         "All metrics computed on RAW hourly data over rolling windows of 30, 90 and 365 days. "
-        "For each day t:   M0(t) = sum(NatMW × Spot) / sum(NatMW)   over the last N×24 hours. "
+        "For each day t:   M0(t) = sum(NatMW x Spot) / sum(NatMW)   over the last Nx24 hours. "
         "Baseload(t) = sum(Spot) / count(hours)   over the same window. "
         "CP%(t) = M0(t) / Baseload(t). "
         "This is NOT a mean of daily ratios — every raw hourly observation counts."
@@ -938,45 +921,29 @@ with tab6:
     if roll is None or len(roll) < 10:
         st.warning("Not enough data to compute rolling windows.")
     else:
-        W_COLOR = {30: C2,       90: C3,      365: C1}
-        W_DASH  = {30: "dot",    90: "dash",  365: "solid"}
-        W_WIDTH = {30: 1.5,      90: 2.0,     365: 2.5}
-
+        W_COLOR = {30: C2, 90: C3, 365: C1}
+        W_DASH  = {30: "dot", 90: "dash", 365: "solid"}
+        W_WIDTH = {30: 1.5, 90: 2.0, 365: 2.5}
         ann_x = [pd.Timestamp(f"{int(y)}-07-01") for y in nat_ref_complete["year"]]
 
-        # ── Chart 1 — CP% ─────────────────────────────────────────────────────
         section("Rolling Capture Rate — M0 / Baseload (%)")
-        desc(
-            "Solar weighted-average price as % of simple average spot (baseload). "
-            "100% = no cannibalization. "
-            "30d (teal dotted) = short-term. 365d (dark blue solid) = structural trend. "
-            "Diamond markers = annual M0 from complete years. Star = YTD."
-        )
+        desc("Solar weighted-average price as % of baseload. 100% = no cannibalization. 30d dotted = short-term. 365d solid = structural trend.")
 
         fig_cp = go.Figure()
         fig_cp.add_hline(y=1.0, line=dict(color="#CCCCCC", width=1.5, dash="dot"),
                          annotation_text="100% — no cannibalization",
                          annotation_font=dict(color="#999999", size=11, family="Calibri"),
                          annotation_position="top left")
-
         for w in [365, 90, 30]:
             col = f"cp_{w}d"
             d = roll.dropna(subset=[col])
             if len(d) == 0:
                 continue
-            fig_cp.add_trace(go.Scatter(
-                x=d["Date"], y=d[col],
-                name=f"{w}d rolling",
-                mode="lines",
-                line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w]),
-            ))
-
-        fig_cp.add_trace(go.Scatter(
-            x=ann_x, y=nat_ref_complete["cp_nat_pct"].tolist(),
-            name="Annual M0 (complete years)", mode="markers",
-            marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT)),
-        ))
-
+            fig_cp.add_trace(go.Scatter(x=d["Date"], y=d[col], name=f"{w}d rolling",
+                                        mode="lines", line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
+        fig_cp.add_trace(go.Scatter(x=ann_x, y=nat_ref_complete["cp_nat_pct"].tolist(),
+                                    name="Annual M0 (complete years)", mode="markers",
+                                    marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT))))
         for _, ytd_row in nat_ref[nat_ref["partial"] == True].iterrows():
             fig_cp.add_trace(go.Scatter(
                 x=[pd.Timestamp(f"{int(ytd_row['year'])}-04-01")],
@@ -986,9 +953,7 @@ with tab6:
                 marker=dict(size=13, color=C3, symbol="star", line=dict(width=2, color=C1)),
                 text=[f"<b>{int(ytd_row['year'])} YTD: {ytd_row['cp_nat_pct']*100:.0f}%</b>"],
                 textposition="top right",
-                textfont=dict(size=11, color=C1, family="Calibri"),
-            ))
-
+                textfont=dict(size=11, color=C1, family="Calibri")))
         fig_cp.update_yaxes(tickformat=".0%", title_text="Capture Rate  M0 / Baseload")
         fig_cp.update_xaxes(title_text="Date")
         plotly_base(fig_cp, h=500)
@@ -997,44 +962,25 @@ with tab6:
 
         st.markdown("---")
 
-        # ── Chart 2 — EUR/MWh ─────────────────────────────────────────────────
         section("Rolling Captured Price — M0 (EUR/MWh)")
-        desc(
-            "Absolute M0 in EUR/MWh over rolling windows. "
-            "Grey dashed = baseload 365d (for reference). "
-            "Gap between baseload and M0 = shape discount in EUR/MWh. "
-            "A widening gap even when spot rises signals growing cannibalization."
-        )
+        desc("Absolute M0 in EUR/MWh. Grey dashed = baseload 365d. Gap = shape discount in EUR/MWh.")
 
         fig_eur = go.Figure()
-
         bl_365 = roll.dropna(subset=["bl_365d"])
         if len(bl_365) > 0:
-            fig_eur.add_trace(go.Scatter(
-                x=bl_365["Date"], y=bl_365["bl_365d"],
-                name="Baseload 365d (ref)",
-                mode="lines",
-                line=dict(color="#AAAAAA", width=2, dash="dash"),
-            ))
-
+            fig_eur.add_trace(go.Scatter(x=bl_365["Date"], y=bl_365["bl_365d"],
+                                         name="Baseload 365d (ref)", mode="lines",
+                                         line=dict(color="#AAAAAA", width=2, dash="dash")))
         for w in [365, 90, 30]:
             col = f"m0_{w}d"
             d = roll.dropna(subset=[col])
             if len(d) == 0:
                 continue
-            fig_eur.add_trace(go.Scatter(
-                x=d["Date"], y=d[col],
-                name=f"M0 {w}d",
-                mode="lines",
-                line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w]),
-            ))
-
-        fig_eur.add_trace(go.Scatter(
-            x=ann_x, y=nat_ref_complete["cp_nat"].tolist(),
-            name="Annual M0 (complete years)", mode="markers",
-            marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT)),
-        ))
-
+            fig_eur.add_trace(go.Scatter(x=d["Date"], y=d[col], name=f"M0 {w}d",
+                                         mode="lines", line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
+        fig_eur.add_trace(go.Scatter(x=ann_x, y=nat_ref_complete["cp_nat"].tolist(),
+                                     name="Annual M0 (complete years)", mode="markers",
+                                     marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT))))
         fig_eur.update_yaxes(title_text="EUR/MWh")
         fig_eur.update_xaxes(title_text="Date")
         plotly_base(fig_eur, h=500)
@@ -1042,8 +988,6 @@ with tab6:
         st.plotly_chart(fig_eur, use_container_width=True)
 
         st.markdown("---")
-
-        # ── Summary table ─────────────────────────────────────────────────────
         section("Recent Period Summary")
         desc("Values computed on raw hourly data for the last 30, 90 and 365 days.")
 
@@ -1062,15 +1006,14 @@ with tab6:
             bl_val   = sum_spot / n_h
             cp_val   = m0_val / bl_val if bl_val else np.nan
             sum_rows.append({
-                "Window":                  f"Last {w} days",
-                "From":                    cutoff.strftime("%d/%m/%Y"),
-                "To":                      latest_date.strftime("%d/%m/%Y"),
-                "Baseload (EUR/MWh)":      f"{bl_val:.2f}",
-                "M0 Captured (EUR/MWh)":   f"{m0_val:.2f}",
-                "Capture Rate":            f"{cp_val*100:.1f}%",
-                "Shape Discount":          f"{(1-cp_val)*100:.1f}%",
+                "Window":                f"Last {w} days",
+                "From":                  cutoff.strftime("%d/%m/%Y"),
+                "To":                    latest_date.strftime("%d/%m/%Y"),
+                "Baseload (EUR/MWh)":    f"{bl_val:.2f}",
+                "M0 Captured (EUR/MWh)": f"{m0_val:.2f}",
+                "Capture Rate":          f"{cp_val*100:.1f}%",
+                "Shape Discount":        f"{(1-cp_val)*100:.1f}%",
             })
-
         if sum_rows:
             def hi_sum(row):
                 if "365" in row["Window"]: return [f"background-color:{C2L}"]*len(row)
@@ -1152,8 +1095,8 @@ st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
 st.markdown(
     f'<span style="font-size:12px;color:#888;font-family:Calibri,Arial,sans-serif;">'
-    f' v2.2 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
+    f'v2.2 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — '
     f'Daily automatic updates (GitHub Actions) — '
-    f'Rolling M0: sum(NatMW×Spot)/sum(NatMW) on raw hourly windows'
+    f'Rolling M0: sum(NatMW x Spot)/sum(NatMW) on raw hourly windows'
     f'</span>', unsafe_allow_html=True)
