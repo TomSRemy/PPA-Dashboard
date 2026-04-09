@@ -114,8 +114,31 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .stAlert > div {{ color: {C1} !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg {{ display: none !important; }}
-[data-testid="stFileUploaderDropzone"] {{ display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-height: 60px !important; }}
-[data-testid="stFileUploaderDropzone"]::before {{ content: "Upload"; font-family: Calibri, Arial, sans-serif; font-size: 13px; color: {WHT}; font-weight: 600; line-height: 1; }}
+[data-testid="stFileUploaderDropzone"] {{ 
+    display: flex !important; 
+    flex-direction: column !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    min-height: 60px !important;
+    background: linear-gradient(135deg, {C2}, #238B7D) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(42,157,143,0.4), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}}
+[data-testid="stFileUploaderDropzone"]:hover {{
+    box-shadow: 0 6px 16px rgba(42,157,143,0.5), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+    transform: translateY(-1px) !important;
+}}
+[data-testid="stFileUploaderDropzone"]::before {{ 
+    content: "Upload"; 
+    font-family: Calibri, Arial, sans-serif; 
+    font-size: 14px; 
+    color: {WHT}; 
+    font-weight: 700; 
+    letter-spacing: 0.05em;
+}}
 </style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
