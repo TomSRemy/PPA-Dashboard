@@ -19,16 +19,40 @@ st.set_page_config(
 )
 
 
-C1  = "#1D3A4A"
-C2  = "#2A9D8F"
-C3  = "#FFD700"
-C4  = "#F7DC6F"
-C5  = "#E76F51"
-BG  = "#F7F4F0"
-C2L = "#D4EDEA"
-C3L = "#FFF8DC"
-C4L = "#FFFACD"
-C5L = "#FAEAE6"
+# ══════════════════════════════════════════════════════════════════════════════
+# PALETTE — change THEME to switch
+# ══════════════════════════════════════════════════════════════════════════════
+
+THEME = "SLATE"   # ← change here: "SLATE" | "MIDNIGHT" | "EMERALD"
+
+_THEMES = {
+    "SLATE": {
+        "C1": "#1D3A4A", "C2": "#2A9D8F", "C3": "#FFD700",
+        "C4": "#F7DC6F", "C5": "#E76F51", "BG": "#F7F4F0",
+        "C2L": "#D4EDEA", "C3L": "#FFF8DC", "C4L": "#FFFACD", "C5L": "#FAEAE6",
+    },
+    "MIDNIGHT": {
+        "C1": "#0F1923", "C2": "#0077FF", "C3": "#00D4FF",
+        "C4": "#B3E8FF", "C5": "#FF4757", "BG": "#F0F4F8",
+        "C2L": "#B3D4FF", "C3L": "#E0F7FA", "C4L": "#E3F2FD", "C5L": "#FFE0E0",
+    },
+    "EMERALD": {
+        "C1": "#1A1A2E", "C2": "#00B894", "C3": "#FDCB6E",
+        "C4": "#FFEAA7", "C5": "#D63031", "BG": "#F5F5F0",
+        "C2L": "#C8F5ED", "C3L": "#FFF6E0", "C4L": "#FFFBE6", "C5L": "#FFE5E5",
+    },
+}
+
+C1  = _THEMES[THEME]["C1"]
+C2  = _THEMES[THEME]["C2"]
+C3  = _THEMES[THEME]["C3"]
+C4  = _THEMES[THEME]["C4"]
+C5  = _THEMES[THEME]["C5"]
+BG  = _THEMES[THEME]["BG"]
+C2L = _THEMES[THEME]["C2L"]
+C3L = _THEMES[THEME]["C3L"]
+C4L = _THEMES[THEME]["C4L"]
+C5L = _THEMES[THEME]["C5L"]
 WHT = "#FFFFFF"
 
 st.markdown(f"""<style>
