@@ -328,6 +328,7 @@ def build_excel(nat_ref, hourly, asset_ann, has_asset, asset_name,
 
 with st.sidebar:
     st.markdown("###   Dashboard")
+    st.sidebar.caption(st.__version__)
     st.markdown(f'<div class="update-pill">{load_log().split(chr(10))[0]}</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("### Market Settings")
