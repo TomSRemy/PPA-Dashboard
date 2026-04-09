@@ -87,12 +87,13 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 [data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: {WHT} !important; font-size: 15px !important; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px; }}
+[data-testid="stSlider"] > div > div > div {{ background: linear-gradient(90deg, {C3}, {C4}) !important; }}
+[data-testid="stSlider"] > div > div > div > div {{ background-color: {C3} !important; border: 2px solid {WHT} !important; box-shadow: 0 2px 8px rgba(255,215,0,0.5) !important; }}
 
-[data-testid="stSlider"] [data-baseweb="slider"] > div:first-child {{ background: #D9D9D9 !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] > div:first-child > div {{ background: {C3} !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {{ background: {C3} !important; border: 1px solid {WHT} !important; box-shadow: none !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"]:hover {{ background: {C3} !important; }}
-[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"]:focus {{ background: {C3} !important; box-shadow: none !important; }}
+.stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
+.stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247, 220, 111, 0.7) !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {C3} !important; background: {C3L} !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {C2} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
 
 .stButton > button {{
     background: linear-gradient(135deg, {C2}, #238B7D) !important; color: {WHT} !important;
