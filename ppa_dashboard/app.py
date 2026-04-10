@@ -552,8 +552,9 @@ with tab5:
         if row["Type"] == "Base":     return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
         if row["Type"] == "Addition": return [f"background-color:{C2L}"]*len(row)
         return [""] * len(row)
-    st.dataframe(params_df.drop(columns=["Type"]).style.apply(_style_params, axis=1),
-                 use_container_width=True, hide_index=True)
+    styled = params_df.style.apply(_style_params, axis=1)
+    st.dataframe(styled, use_container_width=True, hide_index=True,
+                 column_order=["Component","Value","Unit"])
 
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
