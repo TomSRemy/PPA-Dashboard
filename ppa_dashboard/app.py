@@ -548,7 +548,11 @@ with tab6:
          f"M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days.")
 
     with st.spinner("Computing rolling windows — please wait..."):
-        roll = compute_rolling_m0(hourly, prod_col=prod_col_roll, windows=(30, 90, 365))
+        roll = compute_rolling_m0(
+        hourly[["Date", "Spot", prod_col_roll]].copy(),
+        prod_col=prod_col_roll,
+        windows=(30, 90, 365)
+        )(hourly, prod_col=prod_col_roll, windows=(30, 90, 365))
 
     if roll is None or len(roll) < 10:
         st.warning("Not enough data to compute rolling windows.")
