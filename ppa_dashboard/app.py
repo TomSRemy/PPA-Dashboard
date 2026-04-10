@@ -73,7 +73,7 @@ with st.sidebar:
     st.markdown(f"### {cfg['label']} Asset Upload")
     uploaded = st.file_uploader("", type=["xlsx","csv"], label_visibility="hidden")
     st.caption("Columns: Date | Prod_MWh")
-
+    
     st.markdown("---")
     if st.button("Clear Cache"):
         st.cache_data.clear()
@@ -563,6 +563,57 @@ with tab7:
         section("Expected Load Curve Format")
         st.code("Date,Prod_MWh\n2024-01-01 00:00:00,0.0\n2024-01-01 10:00:00,4.2", language="text")
 
+    st.markdown("---")
+    section("Load Curve Converter")
+    desc("Upload any Excel or CSV, map your columns to Date and Prod_MWh, download the converted file.")
+
+    uploaded_conv = st.file_uploader("Upload file to convert",
+                                      type=["xlsx","csv","xls"],
+                                      key="converter")
+    if uploaded_conv:
+        try:
+            df_conv = (pd.read_csv(uploaded_conv)
+                       if uploaded_conv.name.endswith(".csv")
+                       else pd.read_excel(uploaded_conv))
+
+            st.markdown(f"**{len(df_conv):,} rows — {len(df_conv.columns)} columns detected**")
+            st.dataframe(df_conv.head(5), use_container_width=True)
+
+            cols = df_conv.columns.tolist()
+            c1, c2 = st.columns(2)
+            with c1:
+                date_col = st.selectbox("Date column", cols, key="conv_date")
+            with c2:
+                prod_col_conv = st.selectbox("Production column (MWh or kWh)",
+                                              cols, key="conv_prod")
+
+            unit = st.radio("Unit of production column",
+                            ["MWh", "kWh"], horizontal=True, key="conv_unit")
+
+            if st.button("Convert", key="conv_btn"):
+                out = df_conv[[date_col, prod_col_conv]].copy()
+                out.columns = ["Date", "Prod_MWh"]
+                out["Date"] = pd.to_datetime(out["Date"], errors="coerce")
+                out["Prod_MWh"] = pd.to_numeric(out["Prod_MWh"], errors="coerce")
+                if unit == "kWh":
+                    out["Prod_MWh"] = out["Prod_MWh"] / 1000
+                out = out.dropna(subset=["Date","Prod_MWh"])
+                out = out.sort_values("Date").reset_index(drop=True)
+
+                # Preview
+                st.success(f"{len(out):,} rows converted — "
+                           f"{out['Prod_MWh'].sum():,.0f} MWh total")
+                st.dataframe(out.head(10), use_container_width=True)
+
+                st.download_button(
+                    label="Download converted file",
+                    data=out.to_csv(index=False).encode("utf-8"),
+                    file_name="load_curve_converted.csv",
+                    mime="text/csv",
+                )
+        except Exception as e:
+            st.error(f"Error: {e}")
+    
     st.markdown("---")
     section("SPOT Data Extractor — ENTSO-E")
     col_ex1, col_ex2 = st.columns(2)
