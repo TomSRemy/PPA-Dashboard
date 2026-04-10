@@ -70,10 +70,10 @@ html, body, [class*="css"] {{
     font-size: 15px !important;
     background-color: {BG} !important;
 }}
-h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {C1} !important; font-family: Calibri, Arial, sans-serif !important; }}
-h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {C1} !important; }}
-h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {C1} !important; }}
-p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {C1} !important; }}
+h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {C4} !important; font-family: Calibri, Arial, sans-serif !important; }}
+h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {C4} !important; }}
+h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {C4} !important; }}
+p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {C4} !important; }}
 .section-title {{
     font-size: 13px !important; font-weight: 700; color: {WHT};
     background: linear-gradient(90deg, {C2}, {C2});
