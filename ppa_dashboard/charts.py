@@ -598,15 +598,15 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 5 — Price Waterfall
 # ══════════════════════════════════════════════════════════════════════════════
-
-def chart_waterfall(ref_fwd: float, sd_ch: float,
-                    imb_eur: float, tech_lbl: str) -> go.Figure:
+def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
+                    vol_risk_pct: float = 0.025,
+                    price_risk_pct: float = 0.030,
+                    cannib_risk_pct: float = 0.020,
+                    goo_value: float = 3.0) -> go.Figure:
     shape_disc_eur  = ref_fwd * sd_ch
-    vol_risk_eur    = ref_fwd * 0.025
-    price_risk_eur  = ref_fwd * 0.030
-    cannib_risk_eur = ref_fwd * 0.020
-    goo_value       = 3.0
-
+    vol_risk_eur    = ref_fwd * vol_risk_pct
+    price_risk_eur  = ref_fwd * price_risk_pct
+    cannib_risk_eur = ref_fwd * cannib_risk_pct
     wf = [
         ("Baseload Forward", ref_fwd,           "absolute"),
         ("Shape Discount",   -shape_disc_eur,   "relative"),
@@ -617,7 +617,6 @@ def chart_waterfall(ref_fwd: float, sd_ch: float,
         ("GoO Value",         goo_value,         "relative"),
         ("PPA Price",         0,                 "total"),
     ]
-
     fig = go.Figure(go.Waterfall(
         name="", orientation="v",
         measure=[d[2] for d in wf],
