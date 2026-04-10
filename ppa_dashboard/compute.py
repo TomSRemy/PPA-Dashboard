@@ -1,6 +1,7 @@
 """
-compute.py — KAL-EL PPA Dashboard v3
+compute.py — KAL-EL PPA Dashboard v4
 PPA pricing logic, regression, projection, asset annual stats.
+v4: unified PPA formula including all premiums + margin
 """
 
 import pandas as pd
@@ -55,19 +56,11 @@ def fit_reg(ann: pd.DataFrame, n: int, ex22: bool):
 def project_cp(sl: float, ic: float, last_yr: int,
                n: int = 5, sig: float = 0.04,
                anchor_val: float = None) -> pd.DataFrame:
-    """
-    Project CP% with cumulative uncertainty bands (P10/P25/P50/P75/P90).
-
-    anchor_val: if provided, the P50 at last_yr+1 is anchored to this value
-                (last observed asset CP%), and subsequent years follow the slope.
-                If None, projection uses the regression line directly.
-    """
     rows = []
     for t, yr in enumerate(range(last_yr + 1, last_yr + n + 1)):
         if anchor_val is not None:
-            # t=0 → first projected year: anchor - slope (loss vs last year)
-            # t=1 → second year: anchor - 2*slope, etc.
-            fsd = (1 - anchor_val) + sl * (t + 1)
+            anchor_fsd = 1 - anchor_val
+            fsd = anchor_fsd + sl * (t + 1)
         else:
             fsd = ic + sl * yr
         cs = sig * np.sqrt(t + 1)
@@ -83,13 +76,43 @@ def project_cp(sl: float, ic: float, last_yr: int,
 
 
 def compute_ppa(ref_fwd: float, sd_ch: float,
-                imb_eur: float, add_disc: float) -> dict:
-    imb_pct    = imb_eur / ref_fwd if ref_fwd > 0 else 0.0
-    tot_disc   = sd_ch + imb_pct + add_disc
-    multiplier = 1 - tot_disc
-    ppa        = ref_fwd * multiplier - imb_eur
-    return {"imb_pct": imb_pct, "tot_disc": tot_disc,
-            "multiplier": multiplier, "ppa": ppa}
+                imb_eur: float, add_disc: float,
+                vol_risk_pct: float = 0.0,
+                price_risk_pct: float = 0.0,
+                goo_value: float = 1.0,
+                margin: float = 1.0) -> dict:
+    """
+    Unified PPA formula:
+    PPA = Forward
+          - Forward x Shape Disc
+          - Forward x Add. Discount
+          - Forward x Vol Risk
+          - Forward x Price Risk
+          - Imbalance
+          + GoO
+          + Margin
+    """
+    shape_disc_eur  = ref_fwd * sd_ch
+    add_disc_eur    = ref_fwd * add_disc
+    vol_risk_eur    = ref_fwd * vol_risk_pct
+    price_risk_eur  = ref_fwd * price_risk_pct
+    tot_deductions  = shape_disc_eur + add_disc_eur + vol_risk_eur + price_risk_eur + imb_eur
+    ppa             = ref_fwd - tot_deductions + goo_value + margin
+    multiplier      = ppa / ref_fwd if ref_fwd > 0 else 0.0
+    tot_disc        = tot_deductions / ref_fwd if ref_fwd > 0 else 0.0
+
+    return {
+        "ppa":            ppa,
+        "multiplier":     multiplier,
+        "tot_disc":       tot_disc,
+        "shape_disc_eur": shape_disc_eur,
+        "add_disc_eur":   add_disc_eur,
+        "vol_risk_eur":   vol_risk_eur,
+        "price_risk_eur": price_risk_eur,
+        "imb_eur":        imb_eur,
+        "goo_value":      goo_value,
+        "margin":         margin,
+    }
 
 
 def compute_pnl_curve(ref_fwd: float, ppa: float, vol_mwh: float,
