@@ -2,19 +2,10 @@
 update_entsoe.py v2.5
 Incremental by default. Auto full refresh if WindMW missing or all-zero.
 GitHub Actions runs this every morning at 08:00 UTC automatically.
+
+Run manually:
+  ENTSOE_API_KEY=your_key python scripts/update_entsoe.py
 """
-
-from entsoe import EntsoePandasClient
-import pandas as pd
-
-client = EntsoePandasClient(api_key="TON_API_KEY")
-start  = pd.Timestamp("2024-01-01", tz="Europe/Paris")
-end    = pd.Timestamp("2024-02-01", tz="Europe/Paris")
-
-result = client.query_generation("FR", start=start, end=end, psr_type="B19")
-print(type(result))
-print(result.head())
-print(result.sum())
 
 import os, sys, time, logging
 from datetime import datetime, timezone
@@ -52,7 +43,6 @@ def _get_client():
 
 
 def _fetch(client, fetch_fn, label, start, end):
-    """Annual-chunked fetch with retry. Returns hourly UTC Series."""
     chunks = []
     cur    = start
     while cur < end:
@@ -79,31 +69,37 @@ def _fetch(client, fetch_fn, label, start, end):
 
 
 def fetch_prices(client, start, end):
-    s = _fetch(client, lambda s,e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
+    s = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
                "DA prices", start, end)
-    s.name = "Spot"; return s
+    s.name = "Spot"
+    return s
 
 
 def fetch_solar(client, start, end):
-    s = _fetch(client, lambda s,e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
+    s = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
                "Solar B16", start, end)
-    s.name = "NatMW"; return s
+    s.name = "NatMW"
+    return s
 
 
 def fetch_wind(client, start, end):
-    on  = _fetch(client, lambda s,e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B19"),
+    on  = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B19"),
                  "Wind B19", start, end)
-    off = _fetch(client, lambda s,e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
+    off = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
                  "Wind B18", start, end)
     if on.empty and off.empty:
         return pd.Series(dtype=float, name="WindMW")
-    combined = (on.add(off, fill_value=0) if not on.empty and not off.empty
-                else (off if on.empty else on))
-    combined.name = "WindMW"; return combined
+    if on.empty:
+        combined = off
+    elif off.empty:
+        combined = on
+    else:
+        combined = on.add(off, fill_value=0)
+    combined.name = "WindMW"
+    return combined
 
 
 def load_existing():
-    """Returns (df, full_refresh_needed)."""
     if not SPOT_CSV.exists():
         log.info("No CSV found — full refresh needed.")
         return pd.DataFrame(), True
@@ -119,12 +115,15 @@ def load_existing():
 
 def get_range(existing, full_refresh):
     end = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
-    start = FETCH_FROM if (full_refresh or existing.empty) else \
-            (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
+    if full_refresh or existing.empty:
+        start = FETCH_FROM
+    else:
+        start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
     if start >= end:
         log.info("Already up to date.")
         return None, None
-    log.info(f"Fetch range: {start.date()} -> {end.date()} ({'FULL' if full_refresh else 'incremental'})")
+    mode = "FULL" if full_refresh else "incremental"
+    log.info(f"Fetch range: {start.date()} -> {end.date()} ({mode})")
     return start, end
 
 
@@ -139,7 +138,8 @@ def build_rows(client, start, end):
     df = df.join(wind  if not wind.empty  else pd.Series(name="WindMW", dtype=float), how="left")
     df = df.reset_index().rename(columns={"index": "Date", "utc_time": "Date"})
     if "Date" not in df.columns:
-        df = df.reset_index(); df.columns = ["Date"] + list(df.columns[1:])
+        df = df.reset_index()
+        df.columns = ["Date"] + list(df.columns[1:])
     df["Date"]   = pd.to_datetime(df["Date"], utc=True)
     df["Year"]   = df["Date"].dt.year
     df["Month"]  = df["Date"].dt.month
@@ -167,31 +167,34 @@ def recompute_nat(hourly):
     has_wind      = h["WindMW"].sum() > 0
     if has_wind:
         h["Rev_wind"] = h["WindMW"] * h["Spot"]
-
     current_year   = pd.Timestamp.now().year
     hpy            = h.groupby("Year")["Spot"].count()
     min_h          = {yr: (500 if yr == current_year else 8000) for yr in hpy.index}
     complete       = [yr for yr, cnt in hpy.items() if cnt >= min_h[yr]]
-
-    agg = {"spot":("Spot","mean"), "prod_nat":("NatMW","sum"), "rev_nat":("Rev_nat","sum"),
-           "neg_h":("Spot", lambda x: (x<0).sum()), "n_hours":("Spot","count")}
+    agg = {
+        "spot":     ("Spot",    "mean"),
+        "prod_nat": ("NatMW",   "sum"),
+        "rev_nat":  ("Rev_nat", "sum"),
+        "neg_h":    ("Spot",    lambda x: (x < 0).sum()),
+        "n_hours":  ("Spot",    "count"),
+    }
     if has_wind:
-        agg["prod_wind"] = ("WindMW","sum"); agg["rev_wind"] = ("Rev_wind","sum")
-
+        agg["prod_wind"] = ("WindMW",   "sum")
+        agg["rev_wind"]  = ("Rev_wind", "sum")
     ann = h[h["Year"].isin(complete)].groupby("Year").agg(**agg).reset_index()
     ann["cp_nat"]     = ann["rev_nat"] / ann["prod_nat"].replace(0, np.nan)
     ann["cp_nat_pct"] = ann["cp_nat"] / ann["spot"]
     ann["shape_disc"] = 1 - ann["cp_nat_pct"]
-
     if has_wind:
         ann["cp_wind"]         = ann["rev_wind"] / ann["prod_wind"].replace(0, np.nan)
         ann["cp_wind_pct"]     = ann["cp_wind"] / ann["spot"]
         ann["shape_disc_wind"] = 1 - ann["cp_wind_pct"]
     else:
-        ann["cp_wind"] = ann["cp_wind_pct"] = ann["shape_disc_wind"] = np.nan
-
+        ann["cp_wind"]         = np.nan
+        ann["cp_wind_pct"]     = np.nan
+        ann["shape_disc_wind"] = np.nan
     ann["partial"] = ann["Year"] == current_year
-    ann = ann.rename(columns={"Year":"year"}).dropna(subset=["cp_nat_pct"])
+    ann = ann.rename(columns={"Year": "year"}).dropna(subset=["cp_nat_pct"])
     keep = ["year","spot","cp_nat","cp_nat_pct","shape_disc",
             "cp_wind","cp_wind_pct","shape_disc_wind","neg_h","n_hours","partial"]
     ann = ann[[c for c in keep if c in ann.columns]]
@@ -203,13 +206,13 @@ def save(df):
     out = df.copy()
     out["Date_str"] = out["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
     out[["Date_str","Year","Month","Hour","Spot","NatMW","WindMW"]].rename(
-        columns={"Date_str":"Date"}).to_csv(SPOT_CSV, index=False)
+        columns={"Date_str": "Date"}).to_csv(SPOT_CSV, index=False)
     log.info(f"Saved {len(out):,} rows -> {SPOT_CSV}")
 
 
 def write_log(df, full_refresh, new_rows):
-    now   = datetime.now(timezone.utc)
-    mode  = "Full refresh (2014->yesterday)" if full_refresh else "Incremental"
+    now  = datetime.now(timezone.utc)
+    mode = "Full refresh (2014->yesterday)" if full_refresh else "Incremental"
     lines = [
         f"Last update : {now.strftime('%Y-%m-%d %H:%M UTC')}",
         f"Mode        : {mode}",
@@ -226,29 +229,23 @@ def main():
     log.info("=" * 60)
     log.info("ENTSO-E Update v2.5")
     log.info("=" * 60)
-
     existing, full_refresh = load_existing()
     start, end = get_range(existing, full_refresh)
-
     if start is None:
         if not existing.empty:
             recompute_nat(existing).to_csv(NAT_CSV, index=False)
         write_log(existing, False, 0)
         return
-
     client   = _get_client()
     new_rows = build_rows(client, start, end)
-
     if new_rows.empty:
         log.warning("Nothing fetched.")
         write_log(existing, full_refresh, 0)
         return
-
     combined = combine(existing, new_rows, full_refresh)
     save(combined)
     recompute_nat(combined).to_csv(NAT_CSV, index=False)
     write_log(combined, full_refresh, len(new_rows))
-
     log.info("=" * 60)
     log.info("Done.")
     log.info("=" * 60)
