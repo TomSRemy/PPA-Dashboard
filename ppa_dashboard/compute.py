@@ -65,8 +65,9 @@ def project_cp(sl: float, ic: float, last_yr: int,
     rows = []
     for t, yr in enumerate(range(last_yr + 1, last_yr + n + 1)):
         if anchor_val is not None:
-            # Anchor first point on last asset value, then apply slope
-            fsd = (1 - anchor_val) + sl * t
+            # t=0 → first projected year: anchor - slope (loss vs last year)
+            # t=1 → second year: anchor - 2*slope, etc.
+            fsd = (1 - anchor_val) + sl * (t + 1)
         else:
             fsd = ic + sl * yr
         cs = sig * np.sqrt(t + 1)
