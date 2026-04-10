@@ -722,3 +722,130 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
     fig.update_layout(title=dict(
         text=f"<b>Rolling Captured Price M0 (EUR/MWh) — {tech_lbl}</b>"))
     return fig
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Asset Production Profile
+# ══════════════════════════════════════════════════════════════════════════════
+
+def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
+    """Average MW by hour of day, one line per month — national data."""
+    h = hourly[hourly[prod_col] > 0].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    h["Hour"] = h["Date"].dt.hour
+    month_avg = h.groupby(["Month","Hour"])[prod_col].mean().reset_index()
+    colors = [
+        "#1D3A4A","#2A9D8F","#E9C46A","#F4A261","#E76F51","#5B8DEF",
+        "#8ECAE6","#219EBC","#023047","#FFB703","#FB8500","#6A994E"
+    ]
+    fig = go.Figure()
+    for m in range(1, 13):
+        d = month_avg[month_avg["Month"] == m].sort_values("Hour")
+        if len(d) == 0:
+            continue
+        fig.add_trace(go.Scatter(
+            x=d["Hour"], y=d[prod_col],
+            mode="lines", name=MONTH_NAMES[m-1],
+            line=dict(color=colors[m-1], width=2),
+        ))
+    fig.update_xaxes(title_text="Hour", tickmode="array",
+                     tickvals=list(range(0, 24, 2)),
+                     ticktext=[f"{h}h" for h in range(0, 24, 2)])
+    fig.update_yaxes(title_text="Avg MW")
+    plotly_base(fig, h=420)
+    fig.update_layout(title=dict(text=f"<b>Daily Profile — National {tech_lbl}</b>"))
+    return fig
+
+
+def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
+    """Average MW by hour of day, one line per month — asset upload."""
+    a = asset_raw.copy()
+    a["Date"]  = pd.to_datetime(a["Date"])
+    a["Hour"]  = a["Date"].dt.hour
+    a["Month"] = a["Date"].dt.month
+    a = a[a["Prod_MWh"] > 0]
+    month_avg = a.groupby(["Month","Hour"])["Prod_MWh"].mean().reset_index()
+    colors = [
+        "#1D3A4A","#2A9D8F","#E9C46A","#F4A261","#E76F51","#5B8DEF",
+        "#8ECAE6","#219EBC","#023047","#FFB703","#FB8500","#6A994E"
+    ]
+    fig = go.Figure()
+    for m in range(1, 13):
+        d = month_avg[month_avg["Month"] == m].sort_values("Hour")
+        if len(d) == 0:
+            continue
+        fig.add_trace(go.Scatter(
+            x=d["Hour"], y=d["Prod_MWh"],
+            mode="lines", name=MONTH_NAMES[m-1],
+            line=dict(color=colors[m-1], width=2, dash="dot"),
+        ))
+    fig.update_xaxes(title_text="Hour", tickmode="array",
+                     tickvals=list(range(0, 24, 2)),
+                     ticktext=[f"{h}h" for h in range(0, 24, 2)])
+    fig.update_yaxes(title_text="Avg MW")
+    plotly_base(fig, h=420)
+    fig.update_layout(title=dict(text=f"<b>Daily Profile — {asset_name}</b>"))
+    return fig
+
+
+def chart_monthly_production(hourly, asset_raw, prod_col,
+                              tech_clr, asset_name, has_asset):
+    """Monthly production: bars = asset GWh, point = national avg MW."""
+    fig = go.Figure()
+    nat = hourly[hourly[prod_col] > 0].copy()
+    nat_avg = nat.groupby("Month")[prod_col].mean().reset_index()
+    fig.add_trace(go.Scatter(
+        x=[MONTH_NAMES[m-1] for m in nat_avg["Month"]],
+        y=nat_avg[prod_col],
+        mode="markers", name="National avg MW",
+        marker=dict(size=12, color=C1, symbol="circle",
+                    line=dict(width=2, color=WHT)),
+        yaxis="y2",
+    ))
+    if has_asset and asset_raw is not None:
+        a = asset_raw.copy()
+        a["Date"]  = pd.to_datetime(a["Date"])
+        a["Month"] = a["Date"].dt.month
+        asset_mo   = a.groupby("Month")["Prod_MWh"].sum().reset_index()
+        n_years    = a["Date"].dt.year.nunique()
+        asset_mo["GWh"] = asset_mo["Prod_MWh"] / 1000 / max(n_years, 1)
+        fig.add_trace(go.Bar(
+            x=[MONTH_NAMES[m-1] for m in asset_mo["Month"]],
+            y=asset_mo["GWh"],
+            name=f"{asset_name} (GWh)",
+            marker_color=rgba(tech_clr, 0.7),
+            marker_line_color=tech_clr, marker_line_width=1.5,
+            text=[f"<b>{v:.0f}</b>" for v in asset_mo["GWh"]],
+            textposition="outside",
+            textfont=dict(size=11, color=C1, family="Calibri"),
+        ))
+    fig.update_layout(
+        yaxis=dict(title="Avg GWh/month", side="left"),
+        yaxis2=dict(title="National avg MW", side="right",
+                    overlaying="y", showgrid=False),
+        barmode="group",
+    )
+    fig.update_xaxes(title_text="Month")
+    plotly_base(fig, h=420)
+    fig.update_layout(title=dict(text="<b>Monthly Production Profile</b>"))
+    return fig
+
+
+def chart_annual_production(hourly, asset_ann, prod_col,
+                             tech_clr, asset_name, has_asset, partial_years):
+    """Annual production: bars = asset GWh only."""
+    fig = go.Figure()
+    if has_asset and asset_ann is not None:
+        fig.add_trace(go.Bar(
+            x=asset_ann["Year"], y=asset_ann["prod_gwh"],
+            name=f"{asset_name} (GWh)",
+            marker_color=rgba(tech_clr, 0.7),
+            marker_line_color=tech_clr, marker_line_width=1.5,
+            text=[f"<b>{v:.0f}</b>" for v in asset_ann["prod_gwh"]],
+            textposition="outside",
+            textfont=dict(size=11, color=C1, family="Calibri"),
+        ))
+    fig.update_xaxes(title_text="Year")
+    fig.update_yaxes(title_text="GWh")
+    plotly_base(fig, h=420)
+    fig.update_layout(title=dict(text="<b>Annual Production</b>"))
+    return fig
