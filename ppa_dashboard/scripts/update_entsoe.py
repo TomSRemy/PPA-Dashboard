@@ -1,322 +1,261 @@
 """
-update_entsoe.py — Daily ENTSO-E data update
-=============================================
-Called by GitHub Actions every morning at 08:00 UTC.
+update_entsoe.py — Daily ENTSO-E data update  (v2.3)
 
-What it does:
-1. Reads the existing hourly_spot.csv to find the last date already stored
-2. Fetches only the missing days from ENTSO-E API (incremental — fast)
-3. Computes updated national annual reference (nat_reference.csv)
-4. Writes last_update.txt with timestamp and row count
+Changes vs v2.2:
+- Adds fetch_wind_generation() fetching B18 (offshore) + B19 (onshore)
+- Saves WindMW column in hourly_spot.csv
+- Computes cp_wind / cp_wind_pct / shape_disc_wind in nat_reference.csv
+- Backward-compatible: adds WindMW=NaN for existing rows when column missing
 
 Run manually:
-    ENTSOE_API_KEY=your_key python scripts/update_entsoe.py
+  ENTSOE_API_KEY=your_key python scripts/update_entsoe.py
 """
 
-import os
-import sys
-import time
-import logging
-from datetime import datetime, timedelta, timezone
+import os, sys, time, logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import numpy as np
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s  %(levelname)s  %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger(__name__)
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-ROOT      = Path(__file__).parent.parent
-DATA_DIR  = ROOT / "data"
+ROOT     = Path(__file__).parent.parent
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
+SPOT_CSV = DATA_DIR / "hourly_spot.csv"
+NAT_CSV  = DATA_DIR / "nat_reference.csv"
+LOG_TXT  = DATA_DIR / "last_update.txt"
+COUNTRY  = "FR"
+TZ_LOCAL = "Europe/Paris"
 
-SPOT_CSV  = DATA_DIR / "hourly_spot.csv"
-NAT_CSV   = DATA_DIR / "nat_reference.csv"
-LOG_TXT   = DATA_DIR / "last_update.txt"
-
-# ── ENTSO-E settings ──────────────────────────────────────────────────────────
-COUNTRY   = "FR"
-DOMAIN    = "10YFR-RTE------C"    # France bidding zone
-TZ_LOCAL  = "Europe/Paris"
-
-# ── API key ───────────────────────────────────────────────────────────────────
 API_KEY = os.environ.get("ENTSOE_API_KEY", "")
 if not API_KEY:
     log.error("ENTSOE_API_KEY environment variable not set.")
-    log.error("Set it with: export ENTSOE_API_KEY=your_key_here")
     sys.exit(1)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  ENTSOE FETCH (with retry + annual chunking)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── Fetch helpers ─────────────────────────────────────────────────────────────
 
-def fetch_da_prices(start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
-    """
-    Fetch Day-Ahead prices from ENTSO-E for France.
-    Chunks into annual requests to stay within API limits.
-    Returns hourly Series EUR/MWh, UTC index.
-    """
+def _get_client():
     try:
         from entsoe import EntsoePandasClient
-        client = EntsoePandasClient(api_key=API_KEY)
+        return EntsoePandasClient(api_key=API_KEY)
     except ImportError:
-        log.error("entsoe-py not installed. Run: pip install entsoe-py")
+        log.error("entsoe-py not installed.")
         raise
 
-    all_prices = []
+
+def _fetch_series(client, fetch_fn, label, start, end):
+    """Generic chunked fetcher with retry. Returns hourly Series."""
+    all_chunks = []
     current    = start
-
     while current < end:
         chunk_end = min(current + pd.DateOffset(years=1), end)
-        log.info(f"  Fetching DA prices {current.date()} → {chunk_end.date()}")
-
+        log.info(f"  Fetching {label} {current.date()} -> {chunk_end.date()}")
         for attempt in range(3):
             try:
-                prices = client.query_day_ahead_prices(
-                    COUNTRY, start=current, end=chunk_end)
-                all_prices.append(prices)
+                result = fetch_fn(current, chunk_end)
+                if isinstance(result, pd.DataFrame):
+                    result = result.sum(axis=1)
+                result = result.resample("1h").mean()
+                all_chunks.append(result)
                 break
             except Exception as e:
                 if attempt == 2:
-                    log.warning(f"  Failed after 3 attempts: {e}")
+                    log.warning(f"  {label} failed after 3 attempts: {e}")
                 else:
-                    log.warning(f"  Attempt {attempt+1} failed: {e} — retrying in 5s")
+                    log.warning(f"  {label} attempt {attempt+1} failed — retrying in 5s")
                     time.sleep(5)
-
-        current = chunk_end
-        time.sleep(1)   # be polite with the API
-
-    if not all_prices:
-        return pd.Series(dtype=float)
-
-    series = pd.concat(all_prices)
-    series = series[~series.index.duplicated(keep="first")]
-    series = series.resample("1h").mean()
-    series.name = "Spot"
-    return series
-
-
-def fetch_solar_generation(start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
-    """
-    Fetch national solar generation (B16) from ENTSO-E.
-    Returns hourly Series in MW, UTC index.
-    """
-    try:
-        from entsoe import EntsoePandasClient
-        client = EntsoePandasClient(api_key=API_KEY)
-    except ImportError:
-        raise
-
-    all_gen = []
-    current = start
-
-    while current < end:
-        chunk_end = min(current + pd.DateOffset(years=1), end)
-        log.info(f"  Fetching solar generation {current.date()} → {chunk_end.date()}")
-
-        for attempt in range(3):
-            try:
-                gen = client.query_generation(
-                    COUNTRY, start=current, end=chunk_end, psr_type="B16")
-                # May return DataFrame or Series
-                if isinstance(gen, pd.DataFrame):
-                    gen = gen.sum(axis=1)
-                gen = gen.resample("1h").mean()
-                all_gen.append(gen)
-                break
-            except Exception as e:
-                if attempt == 2:
-                    log.warning(f"  Solar gen fetch failed: {e}")
-                    all_gen.append(pd.Series(dtype=float))
-                else:
-                    time.sleep(5)
-
         current = chunk_end
         time.sleep(1)
-
-    if not all_gen:
+    if not all_chunks:
         return pd.Series(dtype=float)
-
-    series = pd.concat(all_gen)
-    series = series[~series.index.duplicated(keep="first")]
-    series.name = "NatMW"
-    return series
+    s = pd.concat(all_chunks)
+    s = s[~s.index.duplicated(keep="first")].resample("1h").mean()
+    return s
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  INCREMENTAL UPDATE
-# ═══════════════════════════════════════════════════════════════════════════════
+def fetch_da_prices(start, end):
+    client = _get_client()
+    s = _fetch_series(client,
+                      lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
+                      "DA prices", start, end)
+    s.name = "Spot"
+    return s
 
-def load_existing() -> pd.DataFrame:
-    """Load existing hourly_spot.csv, return empty DataFrame if not found."""
+
+def fetch_solar_generation(start, end):
+    client = _get_client()
+    s = _fetch_series(client,
+                      lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
+                      "Solar B16", start, end)
+    s.name = "NatMW"
+    return s
+
+
+def fetch_wind_generation(start, end):
+    """Fetch onshore (B19) + offshore (B18) wind, return combined hourly Series."""
+    client = _get_client()
+    s_on  = _fetch_series(client,
+                          lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B19"),
+                          "Wind onshore B19", start, end)
+    s_off = _fetch_series(client,
+                          lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
+                          "Wind offshore B18", start, end)
+    if s_on.empty and s_off.empty:
+        return pd.Series(dtype=float, name="WindMW")
+    if s_on.empty:
+        combined = s_off
+    elif s_off.empty:
+        combined = s_on
+    else:
+        combined = s_on.add(s_off, fill_value=0)
+    combined.name = "WindMW"
+    return combined
+
+
+# ── Load / merge ──────────────────────────────────────────────────────────────
+
+def load_existing():
     if not SPOT_CSV.exists():
-        log.info("No existing data file — will fetch from 2014-01-01")
+        log.info("No existing data — will fetch from 2014-01-01")
         return pd.DataFrame()
-
     df = pd.read_csv(SPOT_CSV, parse_dates=["Date"])
     df["Date"] = pd.to_datetime(df["Date"], utc=True)
-    log.info(f"Existing data: {len(df):,} rows, "
-             f"{df['Date'].min().date()} → {df['Date'].max().date()}")
+    if "WindMW" not in df.columns:
+        log.info("WindMW column not found — adding as NaN (will be filled on next full fetch)")
+        df["WindMW"] = np.nan
+    log.info(f"Existing: {len(df):,} rows, {df['Date'].min().date()} -> {df['Date'].max().date()}")
     return df
 
 
-def find_missing_range(existing: pd.DataFrame) -> tuple:
-    """
-    Determine what date range needs to be fetched.
-    Returns (start, end) as UTC Timestamps, or (None, None) if up to date.
-    """
-    now_utc = pd.Timestamp.now(tz="UTC")
-
-    # DA prices for J-1 are published by 13:00 CET → available by 12:00 UTC
-    # We fetch up to yesterday
+def find_missing_range(existing):
+    now_utc    = pd.Timestamp.now(tz="UTC")
     target_end = (now_utc - pd.Timedelta(hours=12)).floor("D")
-
     if existing.empty:
         start = pd.Timestamp("2014-01-01", tz="UTC")
     else:
-        last = existing["Date"].max()
-        start = (last + pd.Timedelta(hours=1)).floor("h")
-
+        start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
     if start >= target_end:
         log.info("Data already up to date.")
         return None, None
-
-    log.info(f"Need to fetch: {start.date()} → {target_end.date()} "
-             f"({(target_end-start).days} days)")
+    log.info(f"Need to fetch: {start.date()} -> {target_end.date()} ({(target_end-start).days} days)")
     return start, target_end
 
 
-def build_new_rows(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Fetch prices + solar gen, merge into hourly DataFrame."""
+def build_new_rows(start, end):
     prices = fetch_da_prices(start, end)
     solar  = fetch_solar_generation(start, end)
+    wind   = fetch_wind_generation(start, end)
 
     if prices.empty:
-        log.warning("No price data fetched — nothing to add.")
+        log.warning("No price data — nothing to add.")
         return pd.DataFrame()
 
     df = pd.DataFrame({"Spot": prices})
-
     if not solar.empty:
         df = df.join(solar.rename("NatMW"), how="left")
     else:
         df["NatMW"] = np.nan
+    if not wind.empty:
+        df = df.join(wind.rename("WindMW"), how="left")
+    else:
+        df["WindMW"] = np.nan
 
     df = df.reset_index().rename(columns={"index": "Date", "utc_time": "Date"})
     if "Date" not in df.columns:
         df = df.reset_index()
         df.columns = ["Date"] + list(df.columns[1:])
 
-    df["Date"]  = pd.to_datetime(df["Date"], utc=True)
-    df["Year"]  = df["Date"].dt.year
-    df["Month"] = df["Date"].dt.month
-    df["Hour"]  = df["Date"].dt.hour
-    df["NatMW"] = df["NatMW"].fillna(0.0)
-
-    df = df[df["Spot"] > -500].copy()   # remove obviously wrong values
+    df["Date"]   = pd.to_datetime(df["Date"], utc=True)
+    df["Year"]   = df["Date"].dt.year
+    df["Month"]  = df["Date"].dt.month
+    df["Hour"]   = df["Date"].dt.hour
+    df["NatMW"]  = df["NatMW"].fillna(0.0)
+    df["WindMW"] = df["WindMW"].fillna(0.0)
+    df = df[df["Spot"] > -500].copy()
     log.info(f"Built {len(df):,} new rows")
     return df
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  NATIONAL REFERENCE (annual table)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── National reference ────────────────────────────────────────────────────────
 
-def recompute_nat_reference(hourly: pd.DataFrame) -> pd.DataFrame:
-    """
-    Recompute annual national M0 from hourly data.
-    M0 = volume-weighted average price = sum(NatMW x Spot) / sum(NatMW)
-
-    Complete years  : >= 8000 hours required (filters out partial past years)
-    Current year    : >= 500 hours required  (included as partial / YTD)
-    A 'partial' flag is added so the dashboard can label it accordingly.
-    """
+def recompute_nat_reference(hourly):
     h = hourly[hourly["Spot"] > 0].copy()
-    h["Rev_nat"] = h["NatMW"] * h["Spot"]
+    h["Rev_nat"]  = h["NatMW"]  * h["Spot"]
+    has_wind = "WindMW" in h.columns and h["WindMW"].sum() > 0
+    if has_wind:
+        h["Rev_wind"] = h["WindMW"] * h["Spot"]
 
-    hours_per_year = h.groupby("Year")["Spot"].count()
     current_year   = pd.Timestamp.now().year
+    hours_per_year = h.groupby("Year")["Spot"].count()
+    min_hours = {yr: (500 if yr == current_year else 8000) for yr in hours_per_year.index}
+    complete_years = [yr for yr, cnt in hours_per_year.items() if cnt >= min_hours[yr]]
 
-    # Threshold: 8 000h for past years, 500h for the current year
-    min_hours = {
-        yr: (500 if yr == current_year else 8000)
-        for yr in hours_per_year.index
+    agg = {
+        "spot":     ("Spot",    "mean"),
+        "prod_nat": ("NatMW",   "sum"),
+        "rev_nat":  ("Rev_nat", "sum"),
+        "neg_h":    ("Spot",    lambda x: (x < 0).sum()),
+        "n_hours":  ("Spot",    "count"),
     }
-    complete_years = [
-        yr for yr, cnt in hours_per_year.items()
-        if cnt >= min_hours[yr]
-    ]
+    if has_wind:
+        agg["prod_wind"] = ("WindMW",   "sum")
+        agg["rev_wind"]  = ("Rev_wind", "sum")
 
-    ann = h[h["Year"].isin(complete_years)].groupby("Year").agg(
-        spot     = ("Spot",    "mean"),
-        prod_nat = ("NatMW",   "sum"),
-        rev_nat  = ("Rev_nat", "sum"),
-        neg_h    = ("Spot",    lambda x: (x < 0).sum()),
-        n_hours  = ("Spot",    "count"),
-    ).reset_index()
-
+    ann = h[h["Year"].isin(complete_years)].groupby("Year").agg(**agg).reset_index()
     ann["cp_nat"]     = ann["rev_nat"] / ann["prod_nat"].replace(0, np.nan)
     ann["cp_nat_pct"] = ann["cp_nat"] / ann["spot"]
     ann["shape_disc"] = 1 - ann["cp_nat_pct"]
-    ann["partial"]    = ann["Year"] == current_year   # True = YTD only
-    ann = ann.rename(columns={"Year": "year"})
 
-    ann = ann.dropna(subset=["cp_nat_pct"])
-    ann = ann[["year", "spot", "cp_nat", "cp_nat_pct", "shape_disc",
-               "neg_h", "n_hours", "partial"]]
+    if has_wind:
+        ann["cp_wind"]         = ann["rev_wind"] / ann["prod_wind"].replace(0, np.nan)
+        ann["cp_wind_pct"]     = ann["cp_wind"] / ann["spot"]
+        ann["shape_disc_wind"] = 1 - ann["cp_wind_pct"]
+    else:
+        ann["cp_wind"]         = np.nan
+        ann["cp_wind_pct"]     = np.nan
+        ann["shape_disc_wind"] = np.nan
 
-    log.info(
-        f"National reference: {len(ann)} years "
-        f"({ann['year'].min()}–{ann['year'].max()}), "
-        f"including {ann['partial'].sum()} partial year(s)"
-    )
+    ann["partial"] = ann["Year"] == current_year
+    ann = ann.rename(columns={"Year": "year"}).dropna(subset=["cp_nat_pct"])
+    keep = ["year","spot","cp_nat","cp_nat_pct","shape_disc",
+            "cp_wind","cp_wind_pct","shape_disc_wind","neg_h","n_hours","partial"]
+    ann = ann[[c for c in keep if c in ann.columns]]
+    log.info(f"National reference: {len(ann)} years ({ann['year'].min()}-{ann['year'].max()})")
     return ann
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  MAIN
-# ═══════════════════════════════════════════════════════════════════════════════
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     log.info("=" * 60)
-    log.info("ENTSO-E Daily Update")
+    log.info("ENTSO-E Daily Update v2.3")
     log.info("=" * 60)
 
-    # 1. Load existing data
     existing = load_existing()
-
-    # 2. Determine what's missing
     start, end = find_missing_range(existing)
 
     if start is None:
-        log.info("Nothing to update.")
-        # Still recompute nat_reference in case current year has grown
         if not existing.empty:
             nat_ref = recompute_nat_reference(existing)
             nat_ref.to_csv(NAT_CSV, index=False)
-            log.info(f"Refreshed national reference: {NAT_CSV}")
         _write_log(existing, updated=False)
         return
 
-    # 3. Fetch new data
     new_rows = build_new_rows(start, end)
-
     if new_rows.empty:
-        log.warning("No new rows fetched — keeping existing data.")
+        log.warning("No new rows — keeping existing data.")
         _write_log(existing, updated=False)
         return
 
-    # 4. Merge and save
     if existing.empty:
         combined = new_rows
     else:
-        # Ensure same columns
         for col in new_rows.columns:
             if col not in existing.columns:
                 existing[col] = np.nan
@@ -324,19 +263,15 @@ def main():
         combined = combined.drop_duplicates(subset=["Date"], keep="last")
         combined = combined.sort_values("Date").reset_index(drop=True)
 
-    # Convert Date to string for CSV (remove timezone info for compatibility)
     combined["Date_str"] = combined["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    save_cols = ["Date_str", "Year", "Month", "Hour", "Spot", "NatMW"]
-    save_df   = combined[save_cols].rename(columns={"Date_str": "Date"})
+    save_cols = [c for c in ["Date_str","Year","Month","Hour","Spot","NatMW","WindMW"]
+                 if c in combined.columns]
+    save_df = combined[save_cols].rename(columns={"Date_str": "Date"})
     save_df.to_csv(SPOT_CSV, index=False)
     log.info(f"Saved {len(save_df):,} rows to {SPOT_CSV}")
 
-    # 5. Recompute national reference
     nat_ref = recompute_nat_reference(combined)
     nat_ref.to_csv(NAT_CSV, index=False)
-    log.info(f"Saved national reference: {NAT_CSV}")
-
-    # 6. Write update log
     _write_log(combined, updated=True, new_rows=len(new_rows))
 
     log.info("=" * 60)
@@ -344,15 +279,10 @@ def main():
     log.info("=" * 60)
 
 
-def _write_log(df: pd.DataFrame, updated: bool, new_rows: int = 0):
-    now = datetime.now(timezone.utc)
-    if df.empty:
-        last_date = "N/A"
-        total     = 0
-    else:
-        last_date = str(df["Date"].max())[:10] if "Date" in df.columns else "N/A"
-        total     = len(df)
-
+def _write_log(df, updated, new_rows=0):
+    now       = datetime.now(timezone.utc)
+    last_date = str(df["Date"].max())[:10] if not df.empty and "Date" in df.columns else "N/A"
+    total     = len(df) if not df.empty else 0
     lines = [
         f"Last update : {now.strftime('%Y-%m-%d %H:%M UTC')}",
         f"Status      : {'Updated' if updated else 'Already up to date'}",
