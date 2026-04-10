@@ -547,6 +547,7 @@ with tab5:
         {"Component": "Price Risk",        "Value": f"{price_risk_pct*100:.1f}%","Unit": f"= {ref_fwd*price_risk_pct:.2f} EUR/MWh", "Type": "Deduction"},
         {"Component": "Balancing Cost",    "Value": f"{imb_eur:.2f}",           "Unit": "EUR/MWh", "Type": "Deduction"},
         {"Component": "GoO Value",         "Value": f"{goo_value:.2f}",         "Unit": "EUR/MWh", "Type": "Addition"},
+        {"Component": "PPA Price",         "Value": f"{ppa_final:.2f}",         "Unit": "EUR/MWh", "Type": "Total"},
     ])
     def _style_params(row):
         if row["Type"] == "Base":     return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
