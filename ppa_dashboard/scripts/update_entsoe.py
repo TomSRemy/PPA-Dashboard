@@ -1,10 +1,7 @@
 """
-update_entsoe.py v2.5
-Incremental by default. Auto full refresh if WindMW missing or all-zero.
-GitHub Actions runs this every morning at 08:00 UTC automatically.
-
-Run manually:
-  ENTSOE_API_KEY=your_key python scripts/update_entsoe.py
+update_entsoe.py — Incremental daily update
+Fetches only missing days (Spot + NatMW + WindMW).
+Called automatically every morning at 08:00 UTC via GitHub Actions.
 """
 
 import os, sys, time, logging
@@ -25,7 +22,6 @@ SPOT_CSV   = DATA_DIR / "hourly_spot.csv"
 NAT_CSV    = DATA_DIR / "nat_reference.csv"
 LOG_TXT    = DATA_DIR / "last_update.txt"
 COUNTRY    = "FR"
-FETCH_FROM = pd.Timestamp("2014-01-01", tz="UTC")
 
 API_KEY = os.environ.get("ENTSOE_API_KEY", "")
 if not API_KEY:
@@ -88,6 +84,7 @@ def fetch_wind(client, start, end):
     off = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
                  "Wind B18", start, end)
     if on.empty and off.empty:
+        log.warning("Wind B18+B19 both empty.")
         return pd.Series(dtype=float, name="WindMW")
     if on.empty:
         combined = off
@@ -101,29 +98,24 @@ def fetch_wind(client, start, end):
 
 def load_existing():
     if not SPOT_CSV.exists():
-        log.info("No CSV found — full refresh needed.")
-        return pd.DataFrame(), True
+        log.error("No CSV found — run update_entsoe_full.py first.")
+        sys.exit(1)
     df = pd.read_csv(SPOT_CSV, parse_dates=["Date"])
     df["Date"] = pd.to_datetime(df["Date"], utc=True)
-    wind_ok = "WindMW" in df.columns and df["WindMW"].sum() > 0
-    if not wind_ok:
-        log.info("WindMW missing or all-zero — full refresh needed.")
-        return df, True
-    log.info(f"Existing: {len(df):,} rows, {df['Date'].min().date()} -> {df['Date'].max().date()}")
-    return df, False
+    if "WindMW" not in df.columns:
+        df["WindMW"] = 0.0
+    log.info(f"Existing: {len(df):,} rows, "
+             f"{df['Date'].min().date()} -> {df['Date'].max().date()}")
+    return df
 
 
-def get_range(existing, full_refresh):
-    end = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
-    if full_refresh or existing.empty:
-        start = FETCH_FROM
-    else:
-        start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
+def get_range(existing):
+    end   = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
+    start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
     if start >= end:
         log.info("Already up to date.")
         return None, None
-    mode = "FULL" if full_refresh else "incremental"
-    log.info(f"Fetch range: {start.date()} -> {end.date()} ({mode})")
+    log.info(f"Fetch range: {start.date()} -> {end.date()} (incremental)")
     return start, end
 
 
@@ -147,18 +139,8 @@ def build_rows(client, start, end):
     df["NatMW"]  = df["NatMW"].fillna(0.0)
     df["WindMW"] = df["WindMW"].fillna(0.0)
     df = df[df["Spot"] > -500].copy()
-    log.info(f"Fetched {len(df):,} rows")
+    log.info(f"Fetched {len(df):,} new rows")
     return df
-
-
-def combine(existing, new_rows, full_refresh):
-    if full_refresh or existing.empty:
-        return new_rows
-    if "WindMW" not in existing.columns:
-        existing["WindMW"] = 0.0
-    out = pd.concat([existing, new_rows], ignore_index=True)
-    out = out.drop_duplicates(subset=["Date"], keep="last")
-    return out.sort_values("Date").reset_index(drop=True)
 
 
 def recompute_nat(hourly):
@@ -210,12 +192,11 @@ def save(df):
     log.info(f"Saved {len(out):,} rows -> {SPOT_CSV}")
 
 
-def write_log(df, full_refresh, new_rows):
+def write_log(df, new_rows):
     now  = datetime.now(timezone.utc)
-    mode = "Full refresh (2014->yesterday)" if full_refresh else "Incremental"
     lines = [
         f"Last update : {now.strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Mode        : {mode}",
+        f"Mode        : Incremental",
         f"New rows    : {new_rows:,}",
         f"Total rows  : {len(df):,}",
         f"Data through: {str(df['Date'].max())[:10] if not df.empty else 'N/A'}",
@@ -227,25 +208,35 @@ def write_log(df, full_refresh, new_rows):
 
 def main():
     log.info("=" * 60)
-    log.info("ENTSO-E Update v2.5")
+    log.info("ENTSO-E Incremental Update")
     log.info("=" * 60)
-    existing, full_refresh = load_existing()
-    start, end = get_range(existing, full_refresh)
+
+    existing = load_existing()
+    start, end = get_range(existing)
+
     if start is None:
-        if not existing.empty:
-            recompute_nat(existing).to_csv(NAT_CSV, index=False)
-        write_log(existing, False, 0)
+        recompute_nat(existing).to_csv(NAT_CSV, index=False)
+        write_log(existing, 0)
         return
+
     client   = _get_client()
     new_rows = build_rows(client, start, end)
+
     if new_rows.empty:
         log.warning("Nothing fetched.")
-        write_log(existing, full_refresh, 0)
+        write_log(existing, 0)
         return
-    combined = combine(existing, new_rows, full_refresh)
+
+    if "WindMW" not in existing.columns:
+        existing["WindMW"] = 0.0
+    combined = pd.concat([existing, new_rows], ignore_index=True)
+    combined = combined.drop_duplicates(subset=["Date"], keep="last")
+    combined = combined.sort_values("Date").reset_index(drop=True)
+
     save(combined)
     recompute_nat(combined).to_csv(NAT_CSV, index=False)
-    write_log(combined, full_refresh, len(new_rows))
+    write_log(combined, len(new_rows))
+
     log.info("=" * 60)
     log.info("Done.")
     log.info("=" * 60)
