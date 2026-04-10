@@ -130,12 +130,12 @@ if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0
 if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
 if "margin"         not in st.session_state: st.session_state.margin         = 1.0
  
-imb_eur        = st.session_state.imb_eur
-add_disc       = st.session_state.add_disc / 100
-vol_risk_pct   = st.session_state.vol_risk_pct / 100
-price_risk_pct = st.session_state.price_risk_pct / 100
-goo_value      = st.session_state.goo_value
-margin         = st.session_state.margin
+imb_eur        = float(st.session_state.imb_eur)
+add_disc       = float(st.session_state.add_disc) / 100
+vol_risk_pct   = float(st.session_state.vol_risk_pct) / 100
+price_risk_pct = float(st.session_state.price_risk_pct) / 100
+goo_value      = float(st.session_state.goo_value)
+margin         = float(st.session_state.margin)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA & COMPUTE
