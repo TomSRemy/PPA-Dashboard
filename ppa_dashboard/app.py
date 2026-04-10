@@ -550,8 +550,12 @@ with tab5:
         {"Component": "PPA Price",         "Value": f"{ppa_final:.2f}",         "Unit": "EUR/MWh", "Type": "Total"},
     ])
     def _style_params(row):
-        if row["Type"] == "Base":     return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
-        if row["Type"] == "Addition": return [f"background-color:{C2L}"]*len(row)
+        if row["Type"] == "Base":
+            return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
+        if row["Type"] == "Addition":
+            return [f"background-color:{C2L}"]*len(row)
+        if row["Type"] == "Total":
+            return [f"background-color:{C3};color:{C1};font-weight:bold"]*len(row)
         return [""] * len(row)
     styled = params_df.style.apply(_style_params, axis=1)
     st.dataframe(styled, use_container_width=True, hide_index=True,
