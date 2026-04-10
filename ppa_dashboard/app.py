@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 # ── Imports from modules ──────────────────────────────────────────────────────
-from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT
+from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT, EXAMPLE_CSV
 from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd
 from compute import compute_asset_annual, fit_reg, project_cp, compute_ppa, compute_pnl_curve, compute_scenarios
 from charts  import (
