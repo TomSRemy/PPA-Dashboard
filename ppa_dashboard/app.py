@@ -73,6 +73,17 @@ with st.sidebar:
     add_disc = st.slider("Additional Discount (%)", 0.0, 10.0, 0.0, 0.25) / 100
 
     st.markdown("---")
+    st.markdown("### Pricing Tenor")
+    _nat_tmp    = load_nat()
+    _last_yr    = int(_nat_tmp[_nat_tmp["partial"] == False]["year"].max())
+    tenor_start = st.number_input("Tenor start (year)",
+                                   min_value=_last_yr+1, max_value=_last_yr+20,
+                                   value=_last_yr+1, step=1, key="tenor_start")
+    tenor_end   = st.number_input("Tenor end (year)",
+                                   min_value=_last_yr+1, max_value=_last_yr+20,
+                                   value=_last_yr+5, step=1, key="tenor_end")
+    
+    st.markdown("---")
     st.markdown("### Sensitivity Analysis")
     chosen_pct  = st.slider("Selected Percentile", 1, 100, 74)
     proj_n      = st.slider("Projection Horizon (years)", 1, 10, 5)
@@ -192,7 +203,7 @@ else:
     sl_u, ic_u, r2_u = sl_nat_u, ic_nat_u, r2_nat_u
 
 last_yr_complete = int(nat_ref_complete["year"].max()) if len(nat_ref_complete) > 0 else int(nat_ref["year"].max())
-last_yr_proj     = last_yr_complete
+last_yr_proj = int(asset_ann["Year"].max()) if has_asset else last_yr_complete
 
 # Anchor for projection — last asset CP% value
 anchor_val = asset_ann["cp_pct"].iloc[-1] if has_asset else None
