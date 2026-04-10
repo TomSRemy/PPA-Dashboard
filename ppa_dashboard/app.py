@@ -128,7 +128,7 @@ nat_ref = load_nat()
 hourly  = load_hourly()
 
 # Apply year range filter
-hourly = hourly[(hourly["Year"] >= yr_range[0]) & (hourly["Year"] <= yr_range[1])]
+hourly = hourly[hourly["Year"].between(yr_range[0], yr_range[1])]
 
 data_end      = pd.to_datetime(hourly["Date"]).max()
 data_start    = pd.to_datetime(hourly["Date"]).min()
@@ -162,6 +162,10 @@ if uploaded and sb_date_col and sb_prod_col:
 has_asset = asset_ann is not None and len(asset_ann) >= 2
 
 nat_ref_complete = nat_ref[nat_ref["partial"] == False] if "partial" in nat_ref.columns else nat_ref
+
+# Apply year range filter to national reference
+nat_ref          = nat_ref[nat_ref["year"].between(yr_range[0], yr_range[1])]
+nat_ref_complete = nat_ref_complete[nat_ref_complete["year"].between(yr_range[0], yr_range[1])]
 
 # Regression — two slopes: asset and national
 work_nat = nat_ref.rename(columns={"year":"Year"}).copy()
