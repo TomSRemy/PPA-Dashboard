@@ -535,18 +535,33 @@ with tab5:
         st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, step=0.1,
                          key="goo_value", help="Suggested: 1.0 EUR/MWh")
 
-    st.markdown(
-        f'<span style="font-size:13px;color:#555;font-style:italic;">'
-        f'Shape Disc P{chosen_pct}: <b>{sd_ch*100:.1f}%</b> | '
-        f'Forward avg {tenor_start}-{tenor_end}: <b>{ref_fwd:.1f} EUR/MWh</b>'
-        f'</span>', unsafe_allow_html=True)
+# Paramètres récap — tableau pro
+    ppa_final = ref_fwd * (1 - sd_ch - add_disc
+                           - vol_risk_pct - price_risk_pct
+                           - imb_eur/ref_fwd) + goo_value - imb_eur
+    params_df = pd.DataFrame([
+        {"Component": "Baseload Forward",  "Value": f"{ref_fwd:.2f}",          "Unit": "EUR/MWh", "Type": "Base"},
+        {"Component": "Shape Discount",    "Value": f"{sd_ch*100:.1f}%",        "Unit": f"= {ref_fwd*sd_ch:.2f} EUR/MWh", "Type": "Deduction"},
+        {"Component": "Add. Discount",     "Value": f"{add_disc*100:.1f}%",     "Unit": f"= {ref_fwd*add_disc:.2f} EUR/MWh", "Type": "Deduction"},
+        {"Component": "Volume Risk",       "Value": f"{vol_risk_pct*100:.1f}%", "Unit": f"= {ref_fwd*vol_risk_pct:.2f} EUR/MWh", "Type": "Deduction"},
+        {"Component": "Price Risk",        "Value": f"{price_risk_pct*100:.1f}%","Unit": f"= {ref_fwd*price_risk_pct:.2f} EUR/MWh", "Type": "Deduction"},
+        {"Component": "Balancing Cost",    "Value": f"{imb_eur:.2f}",           "Unit": "EUR/MWh", "Type": "Deduction"},
+        {"Component": "GoO Value",         "Value": f"{goo_value:.2f}",         "Unit": "EUR/MWh", "Type": "Addition"},
+    ])
+    def _style_params(row):
+        if row["Type"] == "Base":     return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
+        if row["Type"] == "Addition": return [f"background-color:{C2L}"]*len(row)
+        return [""] * len(row)
+    st.dataframe(params_df.drop(columns=["Type"]).style.apply(_style_params, axis=1),
+                 use_container_width=True, hide_index=True)
 
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
                         vol_risk_pct=vol_risk_pct,
                         price_risk_pct=price_risk_pct,
                         cannib_risk_pct=0.0,
-                        goo_value=goo_value),
+                        goo_value=goo_value,
+                        add_disc=add_disc),
         use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
