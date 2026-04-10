@@ -1,7 +1,12 @@
 """
-PPA Pricing Dashboard
-Modular architecture: app.py is layout-only (~200 lines).
-Logic in compute.py | charts.py | data.py | ui.py | config.py | excel.py
+PPA Pricing Dashboard — KAL-EL v2.4
+Modular architecture. Logic in compute.py | charts.py | data.py | ui.py | config.py | excel.py
+Changes v2.4:
+- Projection anchored on last asset point, slope chosen (Asset/National radio)
+- 4 production charts moved to Overview tab
+- Year range slider in sidebar
+- Annual production: asset only (no national)
+- Monthly production: rounded to 0 decimal
 """
 
 import streamlit as st
@@ -15,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── Imports from modules ──────────────────────────────────────────────────────
 from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT, EXAMPLE_CSV
 from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd
 from compute import compute_asset_annual, fit_reg, project_cp, compute_ppa, compute_pnl_curve, compute_scenarios
@@ -28,13 +32,13 @@ from charts  import (
     chart_pnl_percentile, chart_scenarios,
     chart_waterfall,
     chart_rolling_cp, chart_rolling_eur,
-    chart_daily_profile_national, 
+    chart_daily_profile_national,
     chart_daily_profile_asset,
-    chart_monthly_production, 
+    chart_monthly_production,
     chart_annual_production,
 )
-from ui     import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-from excel  import build_excel
+from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
+from excel import build_excel
 
 st.markdown(get_css(), unsafe_allow_html=True)
 
@@ -57,6 +61,12 @@ with st.sidebar:
     n_reg = st.slider("Regression Years", 2, 12, 3)
     ex22  = st.toggle("Exclude 2022", value=False)
 
+    # Year range slider — loaded after data
+    _hourly_full = load_hourly()
+    _yr_min = int(_hourly_full["Year"].min())
+    _yr_max = int(_hourly_full["Year"].max())
+    yr_range = st.slider("Year range", _yr_min, _yr_max, (_yr_min, _yr_max), key="yr_range")
+
     st.markdown("---")
     st.markdown("### PPA Parameters")
     imb_eur  = st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, 1.9, 0.1)
@@ -68,6 +78,12 @@ with st.sidebar:
     proj_n      = st.slider("Projection Horizon (years)", 1, 10, 5)
     vol_stress  = st.slider("Volume Stress (+/-%%)", 0, 30, 20)
     spot_stress = st.slider("Spot Stress (+/-%%)", 0, 30, 20)
+
+    st.markdown("---")
+    st.markdown("### Projection Settings")
+    reg_basis = st.radio("Regression basis", ["Asset","National"],
+                         horizontal=True, key="reg_basis",
+                         help="Which slope to use for CP% projection")
 
     st.markdown("---")
     st.markdown(f"### {cfg['label']} Asset Upload")
@@ -88,18 +104,15 @@ with st.sidebar:
             _cols = _raw.columns.tolist()
             sb_date_col = st.selectbox(
                 "Date column", _cols,
-                index=next((i for i, c in enumerate(_cols)
-                            if "date" in c.lower()), 0),
+                index=next((i for i, c in enumerate(_cols) if "date" in c.lower()), 0),
                 key="sb_date_col")
             sb_prod_col = st.selectbox(
                 "Production column", _cols,
                 index=next((i for i, c in enumerate(_cols)
-                            if any(k in c.lower()
-                                   for k in ["prod","mwh","actual","gen","kwh"])),
+                            if any(k in c.lower() for k in ["prod","mwh","actual","gen","kwh"])),
                            min(1, len(_cols)-1)),
                 key="sb_prod_col")
-            sb_unit = st.radio("Unit", ["MWh","kWh"],
-                               horizontal=True, key="sb_unit")
+            sb_unit = st.radio("Unit", ["MWh","kWh"], horizontal=True, key="sb_unit")
         except Exception as e:
             st.error(f"Error reading file: {e}")
 
@@ -107,14 +120,18 @@ with st.sidebar:
     if st.button("Clear Cache"):
         st.cache_data.clear()
         st.rerun()
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA & COMPUTE
 # ══════════════════════════════════════════════════════════════════════════════
 nat_ref = load_nat()
 hourly  = load_hourly()
 
-data_end   = pd.to_datetime(hourly["Date"]).max()
-data_start = pd.to_datetime(hourly["Date"]).min()
+# Apply year range filter
+hourly = hourly[(hourly["Year"] >= yr_range[0]) & (hourly["Year"] <= yr_range[1])]
+
+data_end      = pd.to_datetime(hourly["Date"]).max()
+data_start    = pd.to_datetime(hourly["Date"]).min()
 current_year  = pd.Timestamp.now().year
 partial_years = nat_ref[nat_ref["partial"] == True]["year"].tolist() if "partial" in nat_ref.columns else []
 has_wind      = wind_available(hourly)
@@ -123,6 +140,7 @@ has_wind      = wind_available(hourly)
 asset_ann  = None
 asset_name = cfg["label"] + " Asset"
 asset_raw  = None
+
 if uploaded and sb_date_col and sb_prod_col:
     try:
         raw = (pd.read_csv(uploaded) if uploaded.name.endswith(".csv")
@@ -145,18 +163,35 @@ has_asset = asset_ann is not None and len(asset_ann) >= 2
 
 nat_ref_complete = nat_ref[nat_ref["partial"] == False] if "partial" in nat_ref.columns else nat_ref
 
-# Regression source
-work = nat_ref.rename(columns={"year":"Year"}).copy()
-work["shape_disc"] = work[cfg["nat_sd"]].fillna(work["shape_disc"])
-if has_asset:
-    work = asset_ann.copy()
+# Regression — two slopes: asset and national
+work_nat = nat_ref.rename(columns={"year":"Year"}).copy()
+work_nat["shape_disc"] = work_nat[cfg["nat_sd"]].fillna(work_nat["shape_disc"])
 
-sl,  ic,  r2  = fit_reg(work, n_reg, False)
-sl2, ic2, r22 = fit_reg(work, n_reg, True)
-sl_u, ic_u, r2_u = (sl2, ic2, r22) if ex22 else (sl, ic, r2)
+sl_nat,  ic_nat,  r2_nat  = fit_reg(work_nat, n_reg, False)
+sl_nat2, ic_nat2, r2_nat2 = fit_reg(work_nat, n_reg, True)
+sl_nat_u = sl_nat2 if ex22 else sl_nat
+ic_nat_u = ic_nat2 if ex22 else ic_nat
+r2_nat_u = r2_nat2 if ex22 else r2_nat
+
+sl_ast = sl_nat_u; ic_ast = ic_nat_u; r2_ast = r2_nat_u
+if has_asset:
+    sl_ast,  ic_ast,  r2_ast  = fit_reg(asset_ann, n_reg, False)
+    sl_ast2, ic_ast2, r2_ast2 = fit_reg(asset_ann, n_reg, True)
+    sl_ast = sl_ast2 if ex22 else sl_ast
+    ic_ast = ic_ast2 if ex22 else ic_ast
+    r2_ast = r2_ast2 if ex22 else r2_ast
+
+# Active slope based on radio
+if reg_basis == "Asset" and has_asset:
+    sl_u, ic_u, r2_u = sl_ast, ic_ast, r2_ast
+else:
+    sl_u, ic_u, r2_u = sl_nat_u, ic_nat_u, r2_nat_u
 
 last_yr_complete = int(nat_ref_complete["year"].max()) if len(nat_ref_complete) > 0 else int(nat_ref["year"].max())
-last_yr_proj = last_yr_complete
+last_yr_proj     = last_yr_complete
+
+# Anchor for projection — last asset CP% value
+anchor_val = asset_ann["cp_pct"].iloc[-1] if has_asset else None
 
 # Shape discount series
 if has_asset:
@@ -172,7 +207,9 @@ if len(hist_sd_f) == 0:
 
 sd_ch   = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f) > 0 else 0.15
 vol_mwh = asset_ann["prod_mwh"].mean() if has_asset else 52000.0
-proj    = project_cp(sl_u, ic_u, last_yr_proj, proj_n)
+
+# Projection — anchored on last asset point
+proj = project_cp(sl_u, ic_u, last_yr_proj, proj_n, anchor_val=anchor_val)
 
 # Forward curve
 fwd_df    = pd.DataFrame([{"year": yr, "forward": float(DEFAULT_FWD.get(yr, 52.0))}
@@ -180,40 +217,31 @@ fwd_df    = pd.DataFrame([{"year": yr, "forward": float(DEFAULT_FWD.get(yr, 52.0
 fwd_curve = dict(zip(fwd_df["year"], fwd_df["forward"]))
 ref_fwd   = fwd_df["forward"].iloc[0] if len(fwd_df) > 0 else 55.0
 
-# PPA price
 pricing   = compute_ppa(ref_fwd, sd_ch, imb_eur, add_disc)
 ppa       = pricing["ppa"]
 
-# P&L curve
 pcts    = list(range(1, 101))
 sd_vals = [float(np.percentile(hist_sd_f, p)) if len(hist_sd_f) > 0 else 0.15 for p in pcts]
 cp_vals = [ref_fwd * (1-s) for s in sd_vals]
 pnl_v   = compute_pnl_curve(ref_fwd, ppa, vol_mwh, sd_vals)
 be      = next((p for p, v in zip(pcts, pnl_v) if v < 0), None)
 
-# Scenarios
 scenarios = compute_scenarios(ref_fwd, ppa, vol_mwh, hist_sd_f, proj_n, vol_stress, spot_stress)
 
-# National series for charts
-nat_cp_list  = nat_series(nat_ref, cfg["nat_cp"],  "cp_nat_pct")
-nat_eur_list = nat_series(nat_ref, cfg["nat_eur"],  "cp_nat")
+nat_cp_list      = nat_series(nat_ref,          cfg["nat_cp"],  "cp_nat_pct")
+nat_eur_list     = nat_series(nat_ref,          cfg["nat_eur"],  "cp_nat")
 nat_cp_complete  = nat_series(nat_ref_complete, cfg["nat_cp"],  "cp_nat_pct")
 nat_eur_complete = nat_series(nat_ref_complete, cfg["nat_eur"], "cp_nat")
 
-# Wind data flag
-wind_ready = techno == "Wind" and has_wind
+wind_ready    = techno == "Wind" and has_wind
 prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "Overview",
-    "Forward Curve & Pricing",
-    "Market Dynamics",
-    "Sensitivity & Scenarios",
-    "Price Waterfall",
-    "Market Evolution",
+    "Overview", "Forward Curve & Pricing", "Market Dynamics",
+    "Sensitivity & Scenarios", "Price Waterfall", "Market Evolution",
     "Export & SPOT Extractor",
 ])
 
@@ -222,7 +250,9 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # ══════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.markdown(
-        f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])}',
+        f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])} '
+        f'<span style="font-size:13px;color:#888;font-weight:400">'
+        f'{yr_range[0]}–{yr_range[1]}</span>',
         unsafe_allow_html=True)
 
     ca, cb = st.columns([3, 1])
@@ -247,13 +277,12 @@ with tab1:
 
     st.markdown("---")
 
-    # KPI row
     k1, k2, k3, k4, k5 = st.columns(5)
     with k1:
         ppa_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}")
     with k2:
         if has_asset:
-            cp_l = asset_ann["cp_pct"].iloc[-1] * 100
+            cp_l  = asset_ann["cp_pct"].iloc[-1] * 100
             kpi_yr = int(asset_ann["Year"].iloc[-1])
         else:
             row_l  = nat_ref_complete.iloc[-1] if len(nat_ref_complete) > 0 else nat_ref.iloc[-1]
@@ -279,21 +308,23 @@ with tab1:
     st.markdown("---")
     c1a, c1b = st.columns(2)
     with c1a:
-        section(f"Historical Captured Price — {cfg['label']} — 2014 onwards")
-        desc(f"Bars: CP% by year. Gold = YTD (excluded from regression).")
-        fig = chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
-                                   cfg["color"], cfg["label"], nat_cp_list, nat_eur_list,
-                                   partial_years)
-        st.plotly_chart(fig, use_container_width=True)
-
+        section(f"Historical Captured Price — {cfg['label']} — {yr_range[0]} onwards")
+        desc("Bars: CP% by year. Gold = YTD (excluded from regression).")
+        st.plotly_chart(
+            chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
+                                cfg["color"], cfg["label"], nat_cp_list, nat_eur_list,
+                                partial_years),
+            use_container_width=True)
     with c1b:
         section(f"Projection — {cfg['label']} CP% with Uncertainty Bands")
-        desc("Regression on last N complete years. Shaded = P10-P90 cumulative uncertainty.")
-        fig = chart_projection(nat_ref, asset_ann, has_asset, proj,
-                               nat_cp_list, nat_ref_complete, cfg["nat_cp"],
-                               cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
-                               last_yr_proj, proj_n, ex22)
-        st.plotly_chart(fig, use_container_width=True)
+        desc(f"Anchored on last asset point. {reg_basis} regression slope. Shaded = P10-P90.")
+        st.plotly_chart(
+            chart_projection(nat_ref, asset_ann, has_asset, proj,
+                             nat_cp_list, nat_ref_complete, cfg["nat_cp"],
+                             cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
+                             last_yr_proj, proj_n, ex22,
+                             reg_basis=reg_basis, anchor_val=anchor_val),
+            use_container_width=True)
 
     st.markdown("---")
     section(f"Reference Table — {cfg['label']} Shape Discount and P&L by Percentile")
@@ -307,8 +338,8 @@ with tab1:
         cpa  = ref_fwd * (1 - sda) if sda is not None else None
         pnla = vol_mwh * (cpa - ppa) / 1000 if cpa is not None else None
         row  = {"Pct": f"P{p}",
-                f"Shape Disc Nat.": f"{sdn*100:.1f}%",
-                f"CP Nat.": f"{(1-sdn)*100:.0f}%"}
+                "Shape Disc Nat.": f"{sdn*100:.1f}%",
+                "CP Nat.":         f"{(1-sdn)*100:.0f}%"}
         if has_asset:
             row["Shape Disc Asset"] = f"{sda*100:.1f}%"
             row["CP Asset"]         = f"{(1-sda)*100:.0f}%"
@@ -322,6 +353,43 @@ with tab1:
         if p == 74:           return [f"background-color:{C3L}"] * len(row)
         return [""] * len(row)
     st.dataframe(tdf.style.apply(_hi, axis=1), use_container_width=True, height=440)
+
+    # ── Production Profile (4 charts) ─────────────────────────────────────────
+    st.markdown("---")
+    section(f"Production Profile — National vs Asset")
+    d1, d2 = st.columns(2)
+    with d1:
+        section(f"Daily Profile — National {cfg['label']}")
+        desc("Average MW by hour of day, one line per month. National ENTSO-E data.")
+        st.plotly_chart(
+            chart_daily_profile_national(hourly, cfg["prod_col"], cfg["color"], cfg["label"]),
+            use_container_width=True)
+    with d2:
+        section(f"Daily Profile — {asset_name}")
+        desc("Same chart for the uploaded asset.")
+        if has_asset and asset_raw is not None:
+            st.plotly_chart(
+                chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
+                use_container_width=True)
+        else:
+            st.info("Upload an asset load curve in the sidebar to see its daily profile.")
+
+    m1, m2 = st.columns(2)
+    with m1:
+        section("Monthly Production")
+        desc("Bars = asset avg GWh/month. Points = national avg MW.")
+        st.plotly_chart(
+            chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
+                                      cfg["color"], asset_name, has_asset),
+            use_container_width=True)
+    with m2:
+        section("Annual Production")
+        desc("Bars = asset GWh/year.")
+        st.plotly_chart(
+            chart_annual_production(hourly, asset_ann, cfg["prod_col"],
+                                     cfg["color"], asset_name, has_asset,
+                                     partial_years),
+            use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — Forward Curve & Pricing
@@ -344,55 +412,17 @@ with tab2:
             fsd    = ic_u + sl_u * row["year"]
             cp     = row["forward"] * (1 - fsd)
             ppa_yr = row["forward"] * (1 - fsd - imb_eur / row["forward"]) - imb_eur
-            rows_ppa.append({"Year": int(row["year"]), "Forward": f"{row['forward']:.2f}",
+            rows_ppa.append({"Year": int(row["year"]),
+                             "Forward": f"{row['forward']:.2f}",
                              f"{cfg['label']} Proj. SD": f"{fsd*100:.1f}%",
                              "Captured (EUR/MWh)": f"{cp:.2f}",
                              "PPA Price (EUR/MWh)": f"{ppa_yr:.2f}",
                              "P&L/MWh": f"{cp-ppa_yr:+.2f}"})
         st.dataframe(pd.DataFrame(rows_ppa), use_container_width=True, hide_index=True)
     st.plotly_chart(chart_forward(fwd_df_live), use_container_width=True)
-    if has_asset or True:   # national toujours affiché
-        st.markdown("---")
-        section("Production Profile — National vs Asset")
-
-        d1, d2 = st.columns(2)
-        with d1:
-            section(f"Daily Profile — National {cfg['label']}")
-            desc("Average MW by hour of day, one line per month. National ENTSO-E data.")
-            st.plotly_chart(
-                chart_daily_profile_national(hourly, cfg["prod_col"],
-                                              cfg["color"], cfg["label"]),
-                use_container_width=True)
-        with d2:
-            section(f"Daily Profile — {asset_name}")
-            desc("Same chart for the uploaded asset. Upload a load curve in the sidebar.")
-            if has_asset and asset_raw is not None:
-                st.plotly_chart(
-                    chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
-                    use_container_width=True)
-            else:
-                st.info("Upload an asset load curve to see its daily profile.")
-
-        st.markdown("---")
-        m1, m2 = st.columns(2)
-        with m1:
-            section("Monthly Production")
-            desc("Bars = asset avg GWh/month. Points = national avg MW.")
-            st.plotly_chart(
-                chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
-                                          cfg["color"], asset_name, has_asset),
-                use_container_width=True)
-        with m2:
-            section("Annual Production")
-            desc("Bars = asset GWh/year. Points = national GWh/year.")
-            st.plotly_chart(
-                chart_annual_production(hourly, asset_ann, cfg["prod_col"],
-                                         cfg["color"], asset_name, has_asset,
-                                         partial_years),
-                use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Market Dynamics  (ex Cannibalization & Market + Jomaux charts)
+# TAB 3 — Market Dynamics
 # ══════════════════════════════════════════════════════════════════════════════
 with tab3:
     section("Negative Price Hours — by Year")
@@ -419,7 +449,7 @@ with tab3:
 
     st.markdown("---")
     section(f"Annual Shape Discount Change — {cfg['label']}")
-    desc("Year-on-year delta in shape discount (percentage points). Positive = more cannibalization.")
+    desc("Year-on-year delta in shape discount (pp). Positive = more cannibalization.")
     st.plotly_chart(chart_shape_disc_delta(nat_ref, cfg["nat_sd"], cfg["color"], cfg["label"]),
                     use_container_width=True)
 
@@ -429,17 +459,12 @@ with tab3:
     st.plotly_chart(chart_heatmap(monthly_agg, cfg["color"], cfg["label"]),
                     use_container_width=True)
 
-    # ── Jomaux Charts ─────────────────────────────────────────────────────────
     st.markdown("---")
     st.markdown(f'<div class="section-title">Market Value Analysis — Jomaux / GEM Energy Analytics</div>',
                 unsafe_allow_html=True)
-
     section(f"Market Value vs {cfg['label']} Generation Output")
-    desc(
-        f"Average day-ahead price for each MW bin of instantaneous {cfg['label'].lower()} generation. "
-        f"As {cfg['label'].lower()} output rises, the spot price it faces falls — the cannibalization mechanism. "
-        f"Method: GEM Energy Analytics 'The decreasing market value of renewables' (Oct 2024)."
-    )
+    desc(f"Average day-ahead price per MW bin. Cannibalization mechanism. "
+         f"Method: GEM Energy Analytics 'The decreasing market value of renewables' (Oct 2024).")
     st.plotly_chart(
         chart_market_value_vs_penetration(hourly, cfg["prod_col"], cfg["color"],
                                            cfg["label"], partial_years),
@@ -448,26 +473,17 @@ with tab3:
     st.markdown("---")
     j1, j2 = st.columns(2)
     with j1:
-        season_lbl = "Apr–Sep" if cfg["duck_months"] == list(range(4,10)) else "All months"
+        season_lbl = "Apr-Sep" if cfg["duck_months"] == list(range(4,10)) else "All months"
         section(f"Duck / Canyon Curve — {cfg['label']} ({season_lbl})")
-        desc(
-            f"Normalised day-ahead prices by hour of day, one line per year. "
-            f"Normalisation: each hour / monthly average (all hours) — removes absolute price level. "
-            f"Allows year-over-year comparison independent of the 2022 energy crisis. "
-            f"The deepening midday trough is the duck becoming a canyon. "
-            f"Method: GEM Energy Analytics 'The duck is growing' (Mar 2025)."
-        )
+        desc("Normalised day-ahead prices by hour of day, one line per year. "
+             "Normalisation: each hour / monthly average. "
+             "Method: GEM Energy Analytics 'The duck is growing' (Mar 2025).")
         st.plotly_chart(
             chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"]),
             use_container_width=True)
-
     with j2:
         section(f"Canyon Curve — Last 4 Years ({cfg['label']})")
-        desc(
-            f"Same normalisation as duck curve, but showing only the last 4 complete years. "
-            f"Grey lines = older years, {cfg['label'].lower()} colour = most recent year. "
-            f"Highlights the year-on-year deepening of the midday price trough."
-        )
+        desc("Same normalisation, last 4 complete years only. Grey = older, colour = most recent.")
         st.plotly_chart(
             chart_canyon_curve(hourly, cfg["color"], cfg["label"],
                                cfg["duck_months"], recent_years=4),
@@ -478,7 +494,7 @@ with tab3:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
     section(f"Annual P&L by Cannibalization Percentile — {cfg['label']}")
-    desc(f"P&L = (Captured Price - PPA Price) x Volume. Shaded band = +/-{vol_stress}% volume stress.")
+    desc(f"P&L = (Captured Price - PPA Price) x Volume. Shaded = +/-{vol_stress}% volume stress.")
     st.plotly_chart(
         chart_pnl_percentile(pcts, pnl_v, cp_vals, ppa, vol_mwh,
                               chosen_pct, vol_stress, be, cfg["label"]),
@@ -488,7 +504,7 @@ with tab4:
 
     st.markdown("---")
     section(f"Stress Scenarios — Cumulative P&L over {proj_n} Years")
-    desc("P50 bars. Triangles = P10 (down) / P90 (up). 9 scenarios across cannibalization, spot, and volume stress.")
+    desc("P50 bars. Triangles = P10 (down) / P90 (up).")
     st.plotly_chart(chart_scenarios(scenarios, proj_n, cfg["label"]), use_container_width=True)
 
     st.markdown("---")
@@ -505,24 +521,20 @@ with tab4:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
-    desc("Waterfall from baseload forward to final PPA price. Shape discount uses selected percentile.")
+    desc("Waterfall from baseload forward to final PPA price.")
     st.plotly_chart(chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"]),
                     use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Market Evolution (Rolling M0)
+# TAB 6 — Market Evolution
 # ══════════════════════════════════════════════════════════════════════════════
 with tab6:
     st.markdown(f"## Market Evolution — Rolling Capture Rate ({cfg['label']})")
     if techno == "Wind" and not has_wind:
         status_msg("Wind data not yet available — run the ENTSO-E update script. "
                    "Solar rolling M0 shown as fallback.", kind="wind")
-
-    desc(
-        f"Rolling M0 on RAW hourly data. "
-        f"M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days. "
-        f"CP%(t) = M0(t) / Baseload(t). Not a mean of daily ratios."
-    )
+    desc(f"Rolling M0 on RAW hourly data. "
+         f"M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days.")
 
     with st.spinner("Computing rolling windows — please wait..."):
         roll = compute_rolling_m0(hourly, prod_col=prod_col_roll, windows=(30, 90, 365))
@@ -531,7 +543,7 @@ with tab6:
         st.warning("Not enough data to compute rolling windows.")
     else:
         section(f"Rolling Capture Rate — M0 / Baseload (%) — {cfg['label']}")
-        desc(f"100% = no cannibalization. 30d (dotted) = short-term. 365d (solid) = structural trend.")
+        desc("100% = no cannibalization. 30d dotted = short-term. 365d solid = structural trend.")
         st.plotly_chart(
             chart_rolling_cp(roll, nat_ref_complete, nat_ref, cfg["nat_cp"],
                               nat_cp_complete, cfg["color"], cfg["label"], partial_years),
@@ -539,7 +551,7 @@ with tab6:
 
         st.markdown("---")
         section(f"Rolling Captured Price — M0 (EUR/MWh) — {cfg['label']}")
-        desc("Gap between grey baseload and coloured M0 = shape discount in EUR/MWh.")
+        desc("Gap between grey baseload and M0 = shape discount in EUR/MWh.")
         st.plotly_chart(
             chart_rolling_eur(roll, nat_ref_complete, nat_eur_complete,
                                cfg["color"], cfg["label"]),
@@ -547,7 +559,7 @@ with tab6:
 
         st.markdown("---")
         section("Recent Period Summary")
-        latest = pd.to_datetime(hourly["Date"]).max().normalize()
+        latest  = pd.to_datetime(hourly["Date"]).max().normalize()
         sum_rows = []
         for w in [30, 90, 365]:
             cutoff  = latest - pd.Timedelta(days=w)
@@ -560,11 +572,11 @@ with tab6:
             cp_val   = m0_val / bl_val if bl_val else np.nan
             sum_rows.append({"Window": f"Last {w} days",
                              "From": cutoff.strftime("%d/%m/%Y"),
-                             "To": latest.strftime("%d/%m/%Y"),
-                             "Baseload (EUR/MWh)": f"{bl_val:.2f}",
+                             "To":   latest.strftime("%d/%m/%Y"),
+                             "Baseload (EUR/MWh)":    f"{bl_val:.2f}",
                              "M0 Captured (EUR/MWh)": f"{m0_val:.2f}",
-                             "Capture Rate": f"{cp_val*100:.1f}%",
-                             "Shape Discount": f"{(1-cp_val)*100:.1f}%"})
+                             "Capture Rate":          f"{cp_val*100:.1f}%",
+                             "Shape Discount":        f"{(1-cp_val)*100:.1f}%"})
         if sum_rows:
             def _hi_sum(row):
                 if "365" in row["Window"]: return [f"background-color:{C2L}"] * len(row)
@@ -596,54 +608,38 @@ with tab7:
     st.markdown("---")
     section("Load Curve Converter")
     desc("Upload any Excel or CSV, map your columns to Date and Prod_MWh, download the converted file.")
-
-    uploaded_conv = st.file_uploader("Upload file to convert",
-                                      type=["xlsx","csv","xls"],
+    uploaded_conv = st.file_uploader("Upload file to convert", type=["xlsx","csv","xls"],
                                       key="converter")
     if uploaded_conv:
         try:
-            df_conv = (pd.read_csv(uploaded_conv)
-                       if uploaded_conv.name.endswith(".csv")
+            df_conv = (pd.read_csv(uploaded_conv) if uploaded_conv.name.endswith(".csv")
                        else pd.read_excel(uploaded_conv))
-
             st.markdown(f"**{len(df_conv):,} rows — {len(df_conv.columns)} columns detected**")
             st.dataframe(df_conv.head(5), use_container_width=True)
-
             cols = df_conv.columns.tolist()
             c1, c2 = st.columns(2)
             with c1:
                 date_col = st.selectbox("Date column", cols, key="conv_date")
             with c2:
-                prod_col_conv = st.selectbox("Production column (MWh or kWh)",
-                                              cols, key="conv_prod")
-
-            unit = st.radio("Unit of production column",
-                            ["MWh", "kWh"], horizontal=True, key="conv_unit")
-
+                prod_col_conv = st.selectbox("Production column (MWh or kWh)", cols, key="conv_prod")
+            unit = st.radio("Unit of production column", ["MWh","kWh"], horizontal=True, key="conv_unit")
             if st.button("Convert", key="conv_btn"):
                 out = df_conv[[date_col, prod_col_conv]].copy()
-                out.columns = ["Date", "Prod_MWh"]
-                out["Date"] = pd.to_datetime(out["Date"], errors="coerce")
+                out.columns = ["Date","Prod_MWh"]
+                out["Date"]     = pd.to_datetime(out["Date"], errors="coerce")
                 out["Prod_MWh"] = pd.to_numeric(out["Prod_MWh"], errors="coerce")
                 if unit == "kWh":
                     out["Prod_MWh"] = out["Prod_MWh"] / 1000
                 out = out.dropna(subset=["Date","Prod_MWh"])
                 out = out.sort_values("Date").reset_index(drop=True)
-
-                # Preview
-                st.success(f"{len(out):,} rows converted — "
-                           f"{out['Prod_MWh'].sum():,.0f} MWh total")
+                st.success(f"{len(out):,} rows converted — {out['Prod_MWh'].sum():,.0f} MWh total")
                 st.dataframe(out.head(10), use_container_width=True)
-
-                st.download_button(
-                    label="Download converted file",
-                    data=out.to_csv(index=False).encode("utf-8"),
-                    file_name="load_curve_converted.csv",
-                    mime="text/csv",
-                )
+                st.download_button("Download converted file",
+                                   data=out.to_csv(index=False).encode("utf-8"),
+                                   file_name="load_curve_converted.csv", mime="text/csv")
         except Exception as e:
             st.error(f"Error: {e}")
-    
+
     st.markdown("---")
     section("SPOT Data Extractor — ENTSO-E")
     col_ex1, col_ex2 = st.columns(2)
@@ -667,7 +663,7 @@ with tab7:
                     prices = client.query_day_ahead_prices(country_c, start=start, end=end)
                     prices = prices.resample("1h").mean()
                     df_out = pd.DataFrame({"Spot": prices}).reset_index()
-                    df_out.columns  = ["Date", "Spot"]
+                    df_out.columns  = ["Date","Spot"]
                     df_out["Date"]  = df_out["Date"].dt.tz_localize(None)
                     df_out["Year"]  = df_out["Date"].dt.year
                     df_out["Month"] = df_out["Date"].dt.month
@@ -687,7 +683,6 @@ with tab7:
                             df_out["NatMW"] = df_out["_s"].fillna(0)
                             df_out = df_out.drop(columns=["_s"]).reset_index()
                         except Exception as e2: st.warning(f"Solar unavailable: {e2}")
-
                     if incl_wind:
                         try:
                             on  = _fetch_gen("B19"); on.index  = on.index.tz_localize(None)
@@ -713,7 +708,7 @@ st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
 st.markdown(
     f'<span style="font-size:12px;color:#888;font-family:Calibri,Arial,sans-serif;">'
-    f'v2.3 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
+    f'v2.4 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — Technology: {cfg["label"]} — '
-    f'Daily automatic updates (GitHub Actions)'
+    f'Regression: {reg_basis} — Year range: {yr_range[0]}–{yr_range[1]}'
     f'</span>', unsafe_allow_html=True)
