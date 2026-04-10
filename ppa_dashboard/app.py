@@ -533,8 +533,31 @@ with tab4:
 with tab5:
     section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
     desc("Waterfall from baseload forward to final PPA price.")
-    st.plotly_chart(chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"]),
-                    use_container_width=True)
+    st.markdown("#### Risk Premiums — enter values or use suggestions")
+    w1, w2, w3 = st.columns(3)
+    with w1:
+        vol_risk_pct    = st.number_input("Volume Risk (%)", 0.0, 10.0, 2.5, 0.1,
+                                           help="Suggested: 2.5%") / 100
+        price_risk_pct  = st.number_input("Price Risk (%)",  0.0, 10.0, 3.0, 0.1,
+                                           help="Suggested: 3.0%") / 100
+    with w2:
+        cannib_risk_pct = st.number_input("Cannib. Risk (%)", 0.0, 10.0, 2.0, 0.1,
+                                           help="Suggested: 2.0%") / 100
+        goo_value       = st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, 3.0, 0.1,
+                                           help="Suggested: 3.0 EUR/MWh")
+    with w3:
+        st.markdown("**Linked to sidebar:**")
+        st.markdown(f"Imbalance: **{imb_eur:.1f} EUR/MWh**")
+        st.markdown(f"Shape Disc (P{chosen_pct}): **{sd_ch*100:.1f}%**")
+        st.markdown(f"Forward (CAL {tenor_start}): **{ref_fwd:.1f} EUR/MWh**")
+
+    st.plotly_chart(
+        chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
+                        vol_risk_pct=vol_risk_pct,
+                        price_risk_pct=price_risk_pct,
+                        cannib_risk_pct=cannib_risk_pct,
+                        goo_value=goo_value),
+        use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 6 — Market Evolution
