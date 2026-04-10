@@ -4,6 +4,18 @@ Incremental by default. Auto full refresh if WindMW missing or all-zero.
 GitHub Actions runs this every morning at 08:00 UTC automatically.
 """
 
+from entsoe import EntsoePandasClient
+import pandas as pd
+
+client = EntsoePandasClient(api_key="TON_API_KEY")
+start  = pd.Timestamp("2024-01-01", tz="Europe/Paris")
+end    = pd.Timestamp("2024-02-01", tz="Europe/Paris")
+
+result = client.query_generation("FR", start=start, end=end, psr_type="B19")
+print(type(result))
+print(result.head())
+print(result.sum())
+
 import os, sys, time, logging
 from datetime import datetime, timezone
 from pathlib import Path
