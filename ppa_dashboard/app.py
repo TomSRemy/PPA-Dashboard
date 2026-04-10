@@ -1,5 +1,5 @@
 """
-PPA Pricing Dashboard — KAL-EL v2.4
+PPA Pricing Dashboard v2.4
 Modular architecture. Logic in compute.py | charts.py | data.py | ui.py | config.py | excel.py
 """
 
@@ -40,7 +40,7 @@ st.markdown(get_css(), unsafe_allow_html=True)
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("### KAL-EL Dashboard")
+    st.markdown("###  Dashboard")
     st.markdown(f'<div class="update-pill">{load_log().split(chr(10))[0]}</div>',
                 unsafe_allow_html=True)
     st.markdown("---")
@@ -128,12 +128,14 @@ if "add_disc"       not in st.session_state: st.session_state.add_disc       = 0
 if "vol_risk_pct"   not in st.session_state: st.session_state.vol_risk_pct   = 0.0
 if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0.0
 if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
-
+if "margin"         not in st.session_state: st.session_state.margin         = 1.0
+ 
 imb_eur        = st.session_state.imb_eur
 add_disc       = st.session_state.add_disc / 100
 vol_risk_pct   = st.session_state.vol_risk_pct / 100
 price_risk_pct = st.session_state.price_risk_pct / 100
 goo_value      = st.session_state.goo_value
+margin         = st.session_state.margin
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA & COMPUTE
@@ -223,8 +225,12 @@ fwd_df    = pd.DataFrame([{"year": yr, "forward": float(DEFAULT_FWD.get(yr, 52.0
 fwd_curve = dict(zip(fwd_df["year"], fwd_df["forward"]))
 ref_fwd   = fwd_df["forward"].mean() if len(fwd_df) > 0 else 55.0
 
-pricing   = compute_ppa(ref_fwd, sd_ch, imb_eur, add_disc)
-ppa       = pricing["ppa"]
+pricing = compute_ppa(ref_fwd, sd_ch, imb_eur, add_disc,
+                      vol_risk_pct=vol_risk_pct,
+                      price_risk_pct=price_risk_pct,
+                      goo_value=goo_value,
+                      margin=margin)
+ppa = pricing["ppa"]
 
 pcts    = list(range(1, 101))
 sd_vals = [float(np.percentile(hist_sd_f, p)) if len(hist_sd_f) > 0 else 0.15 for p in pcts]
@@ -256,7 +262,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # ══════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.markdown(
-        f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])} '
+        f'##  France {cfg["label"]} {tech_badge(cfg["label"])} '
         f'<span style="font-size:13px;color:#888;font-weight:400">'
         f'{yr_range[0]}–{yr_range[1]}</span>',
         unsafe_allow_html=True)
@@ -519,7 +525,7 @@ with tab4:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
-    desc("Adjust premiums below. Values update the PPA price and P&L on next interaction.")
+    desc("Adjust premiums below. All values feed into the PPA price used across all tabs.")
 
     w1, w2 = st.columns(2)
     with w1:
@@ -534,32 +540,41 @@ with tab5:
                    key="add_disc")
         st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, step=0.1,
                          key="goo_value", help="Suggested: 1.0 EUR/MWh")
+        st.number_input("Margin (EUR/MWh)", 0.0, 10.0, step=0.1,
+                         key="margin", help="Suggested: 1.0 EUR/MWh")
 
-# Paramètres récap — tableau pro
-    ppa_final = ref_fwd * (1 - sd_ch - add_disc
-                           - vol_risk_pct - price_risk_pct
-                           - imb_eur/ref_fwd) + goo_value - imb_eur
+    st.markdown("---")
+
+    ppa_wf = (ref_fwd
+              - ref_fwd * sd_ch
+              - ref_fwd * add_disc
+              - ref_fwd * vol_risk_pct
+              - ref_fwd * price_risk_pct
+              - imb_eur
+              + goo_value
+              + margin)
+
     params_df = pd.DataFrame([
-        {"Component": "Baseload Forward",  "Value": f"{ref_fwd:.2f}",          "Unit": "EUR/MWh", "Type": "Base"},
-        {"Component": "Shape Discount",    "Value": f"{sd_ch*100:.1f}%",        "Unit": f"= {ref_fwd*sd_ch:.2f} EUR/MWh", "Type": "Deduction"},
-        {"Component": "Add. Discount",     "Value": f"{add_disc*100:.1f}%",     "Unit": f"= {ref_fwd*add_disc:.2f} EUR/MWh", "Type": "Deduction"},
-        {"Component": "Volume Risk",       "Value": f"{vol_risk_pct*100:.1f}%", "Unit": f"= {ref_fwd*vol_risk_pct:.2f} EUR/MWh", "Type": "Deduction"},
-        {"Component": "Price Risk",        "Value": f"{price_risk_pct*100:.1f}%","Unit": f"= {ref_fwd*price_risk_pct:.2f} EUR/MWh", "Type": "Deduction"},
-        {"Component": "Balancing Cost",    "Value": f"{imb_eur:.2f}",           "Unit": "EUR/MWh", "Type": "Deduction"},
-        {"Component": "GoO Value",         "Value": f"{goo_value:.2f}",         "Unit": "EUR/MWh", "Type": "Addition"},
-        {"Component": "PPA Price",         "Value": f"{ppa_final:.2f}",         "Unit": "EUR/MWh", "Type": "Total"},
+        {"Component": "Baseload Forward", "Value (EUR/MWh)": f"{ref_fwd:.2f}",               "Type": "Base"},
+        {"Component": "Shape Discount",   "Value (EUR/MWh)": f"-{ref_fwd*sd_ch:.2f}",        "Type": "Deduction"},
+        {"Component": "Add. Discount",    "Value (EUR/MWh)": f"-{ref_fwd*add_disc:.2f}",     "Type": "Deduction"},
+        {"Component": "Volume Risk",      "Value (EUR/MWh)": f"-{ref_fwd*vol_risk_pct:.2f}", "Type": "Deduction"},
+        {"Component": "Price Risk",       "Value (EUR/MWh)": f"-{ref_fwd*price_risk_pct:.2f}","Type": "Deduction"},
+        {"Component": "Balancing Cost",   "Value (EUR/MWh)": f"-{imb_eur:.2f}",              "Type": "Deduction"},
+        {"Component": "GoO Value",        "Value (EUR/MWh)": f"+{goo_value:.2f}",            "Type": "Addition"},
+        {"Component": "Margin",           "Value (EUR/MWh)": f"+{margin:.2f}",               "Type": "Addition"},
+        {"Component": "PPA Price",        "Value (EUR/MWh)": f"{ppa_wf:.2f}",                "Type": "Total"},
     ])
+
     def _style_params(row):
-        if row["Type"] == "Base":
-            return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
-        if row["Type"] == "Addition":
-            return [f"background-color:{C2L}"]*len(row)
-        if row["Type"] == "Total":
-            return [f"background-color:{C3};color:{C1};font-weight:bold"]*len(row)
+        if row["Type"] == "Base":     return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
+        if row["Type"] == "Addition": return [f"background-color:{C2L}"]*len(row)
+        if row["Type"] == "Total":    return [f"background-color:{C1};color:white;font-weight:bold"]*len(row)
         return [""] * len(row)
+
     styled = params_df.style.apply(_style_params, axis=1)
     st.dataframe(styled, use_container_width=True, hide_index=True,
-                 column_order=["Component","Value","Unit"])
+                 column_order=["Component","Value (EUR/MWh)"])
 
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
@@ -567,7 +582,8 @@ with tab5:
                         price_risk_pct=price_risk_pct,
                         cannib_risk_pct=0.0,
                         goo_value=goo_value,
-                        add_disc=add_disc),
+                        add_disc=add_disc,
+                        margin=margin),
         use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
