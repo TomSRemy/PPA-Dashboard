@@ -602,17 +602,19 @@ def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
                     vol_risk_pct: float = 0.025,
                     price_risk_pct: float = 0.030,
                     cannib_risk_pct: float = 0.020,
-                    goo_value: float = 3.0) -> go.Figure:
+                    goo_value: float = 3.0,
+                    add_disc: float = 0.0) -> go.Figure:
     shape_disc_eur  = ref_fwd * sd_ch
     vol_risk_eur    = ref_fwd * vol_risk_pct
     price_risk_eur  = ref_fwd * price_risk_pct
     cannib_risk_eur = ref_fwd * cannib_risk_pct
+    add_disc_eur = ref_fwd * add_disc
     wf = [
-        ("Baseload Forward", ref_fwd,           "absolute"),
-        ("Shape Discount",   -shape_disc_eur,   "relative"),
+        ("Baseload Forward",  ref_fwd,           "absolute"),
+        ("Shape Discount",   -shape_disc_eur,    "relative"),
+        ("Add. Discount",    -add_disc_eur,      "relative"),
         ("Volume Risk",      -vol_risk_eur,      "relative"),
         ("Price Risk",       -price_risk_eur,    "relative"),
-        ("Cannib. Risk",     -cannib_risk_eur,   "relative"),
         ("Balancing Cost",   -imb_eur,           "relative"),
         ("GoO Value",         goo_value,         "relative"),
         ("PPA Price",         0,                 "total"),
