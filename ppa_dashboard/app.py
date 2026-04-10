@@ -302,7 +302,7 @@ with tab1:
         c_kpi = C2 if cp_proj_avg > 80 else (C4 if cp_proj_avg > 65 else C5)
         kpi_card(f"Capture Rate — {tenor_start}-{tenor_end}",
                  f"{cp_proj_avg:.0f}%", color=c_kpi)
-   with k3:
+    with k3:
         sd_proj_avg = (1 - proj_tenor["p50"].mean()) * 100 if len(proj_tenor) > 0 else sd_cur
         c_sd = C5 if sd_proj_avg > 25 else (C3 if sd_proj_avg > 15 else C2)
         kpi_card("Shape Discount", f"{sd_proj_avg:.1f}%", color=c_sd, extra_cls="kpi-gold")
