@@ -553,8 +553,8 @@ with tab6:
                 prod_col=prod_col_roll,
                 windows=(30, 90, 365)
             )
-        else:
-            roll = None
+    else:
+        roll = None
 
     if roll is None or len(roll) < 10:
         st.warning("Not enough data to compute rolling windows.")
