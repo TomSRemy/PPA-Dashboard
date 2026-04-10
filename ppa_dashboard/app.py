@@ -296,20 +296,16 @@ with tab1:
     with k1:
         ppa_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}")
     with k2:
-        if has_asset:
-            cp_l  = asset_ann["cp_pct"].iloc[-1] * 100
-            kpi_yr = int(asset_ann["Year"].iloc[-1])
-        else:
-            row_l  = nat_ref_complete.iloc[-1] if len(nat_ref_complete) > 0 else nat_ref.iloc[-1]
-            cp_key = cfg["nat_cp"] if cfg["nat_cp"] in row_l.index and not pd.isna(row_l[cfg["nat_cp"]]) else "cp_nat_pct"
-            cp_l   = row_l[cp_key] * 100
-            kpi_yr = int(row_l["year"])
-        c_kpi = C2 if cp_l > 80 else (C4 if cp_l > 65 else C5)
-        kpi_card(f"Capture Rate — {kpi_yr}", f"{cp_l:.0f}%", color=c_kpi)
-    with k3:
-        sd_cur = (1 - cp_l / 100) * 100
-        c_sd   = C5 if sd_cur > 25 else (C3 if sd_cur > 15 else C2)
-        kpi_card("Shape Discount", f"{sd_cur:.1f}%", color=c_sd, extra_cls="kpi-gold")
+        # Average projected CP% over tenor period
+        proj_tenor = proj[proj["year"].between(tenor_start, tenor_end)]
+        cp_proj_avg = proj_tenor["p50"].mean() * 100 if len(proj_tenor) > 0 else cp_l
+        c_kpi = C2 if cp_proj_avg > 80 else (C4 if cp_proj_avg > 65 else C5)
+        kpi_card(f"Capture Rate — {tenor_start}-{tenor_end}",
+                 f"{cp_proj_avg:.0f}%", color=c_kpi)
+   with k3:
+        sd_proj_avg = (1 - proj_tenor["p50"].mean()) * 100 if len(proj_tenor) > 0 else sd_cur
+        c_sd = C5 if sd_proj_avg > 25 else (C3 if sd_proj_avg > 15 else C2)
+        kpi_card("Shape Discount", f"{sd_proj_avg:.1f}%", color=c_sd, extra_cls="kpi-gold")
     with k4:
         p50_pnl = (vol_mwh * (ref_fwd * (1 - float(np.percentile(hist_sd_f, 50))) - ppa) / 1000
                    if len(hist_sd_f) > 0 else 0)
