@@ -76,7 +76,7 @@ h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {C1} !impo
 p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {C1} !important; }}
 .section-title {{
     font-size: 13px !important; font-weight: 700; color: {WHT};
-    background: linear-gradient(90deg, {C1}, {C2});
+    background: linear-gradient(90deg, {C2}, {C2});
     padding: 8px 14px; border-radius: 4px; margin: 24px 0 10px 0;
     letter-spacing: 0.06em; text-transform: uppercase; display: block;
     border-left: 4px solid {C3};
@@ -88,7 +88,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     margin: 0 0 16px 0; line-height: 1.6; font-family: Calibri, Arial, sans-serif;
 }}
 .ppa-card {{
-    background: linear-gradient(90deg, {C2}, {C1}); color: {WHT};
+    background: linear-gradient(90deg, {C1}, {C1}); color: {WHT};
     padding: 20px 22px; border-radius: 10px; text-align: center;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }}
@@ -122,11 +122,11 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle;
 }}
 .status-msg {{
-    background: linear-gradient(90deg, {C2L}, {BG}); border: 1px solid {C2};
+    background: linear-gradient(90deg, {C2L}, {C2L}); border: 1px solid {C2};
     border-radius: 8px; padding: 12px 18px; color: {C1} !important; font-weight: 500; margin: 10px 0;
 }}
 .wind-msg {{
-    background: linear-gradient(90deg, {C_WIND_L}, {BG}); border: 1px solid {C_WIND};
+    background: linear-gradient(90deg, {C_WIND_L}, {C_WIND_L}); border: 1px solid {C_WIND};
     border-radius: 8px; padding: 12px 18px; color: {C1} !important; font-weight: 500; margin: 10px 0;
 }}
 [data-testid="stSidebar"] {{ background: linear-gradient(1890deg, {C1}, {C1}CC) !important; }}
@@ -151,14 +151,14 @@ div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{
     font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {C1} !important;
 }}
 .stButton > button {{
-    background: linear-gradient(90deg, {C2}, {C1}) !important; color: {WHT} !important;
+    background: linear-gradient(90deg, {C2}, {C2}) !important; color: {WHT} !important;
     border: none !important; border-radius: 6px !important;
     font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important;
     font-weight: 600 !important; padding: 10px 24px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important; transition: all 0.2s ease !important;
 }}
-.stButton > button:hover {{ background: linear-gradient(90deg, {C1}, {C2}) !important; transform: translateY(-1px) !important; }}
-.stDownloadButton > button {{ background: linear-gradient(90deg, {C3}, {C4}) !important; color: {C1} !important; border: none !important; font-weight: 700 !important; }}
+.stButton > button:hover {{ background: linear-gradient(90deg, {C2}, {C2}) !important; transform: translateY(-1px) !important; }}
+.stDownloadButton > button {{ background: linear-gradient(90deg, {C3}, {C3}) !important; color: {C1} !important; border: none !important; font-weight: 700 !important; }}
 .stAlert {{ background-color: {C3L} !important; border: 1px solid {C3} !important; border-radius: 6px !important; }}
 .stAlert > div {{ color: {C1} !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
@@ -167,7 +167,7 @@ div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{
     display: flex !important; flex-direction: column !important;
     align-items: center !important; justify-content: center !important;
     min-height: 60px !important;
-    background: linear-gradient(90deg, {C2}, {C1}) !important;
+    background: linear-gradient(90deg, {C2}, {C2}) !important;
     border: none !important; border-radius: 8px !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
     cursor: pointer !important; transition: all 0.2s ease !important;
