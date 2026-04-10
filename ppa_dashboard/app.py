@@ -246,6 +246,20 @@ nat_eur_complete = nat_series(nat_ref_complete, cfg["nat_eur"], "cp_nat")
 wind_ready    = techno == "Wind" and has_wind
 prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW"
 
+# ── PPA premiums — session_state defaults ─────────────────────────────────
+if "imb_eur"        not in st.session_state: st.session_state.imb_eur        = 1.9
+if "add_disc"       not in st.session_state: st.session_state.add_disc       = 0.0
+if "vol_risk_pct"   not in st.session_state: st.session_state.vol_risk_pct   = 0.0
+if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0.0
+if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
+
+imb_eur        = st.session_state.imb_eur
+add_disc       = st.session_state.add_disc / 100
+vol_risk_pct   = st.session_state.vol_risk_pct / 100
+price_risk_pct = st.session_state.price_risk_pct / 100
+goo_value      = st.session_state.goo_value
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -527,28 +541,30 @@ with tab4:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
-    desc("Waterfall from baseload forward to final PPA price.")
-    st.markdown("#### Risk Premiums — enter values or use suggestions")
-    w1, w2, w3 = st.columns(3)
+    desc("Set your premiums below. Values feed into the PPA price and P&L on next interaction.")
+
+    w1, w2 = st.columns(2)
     with w1:
-        vol_risk_pct    = st.number_input("Volume Risk (%)", 0.0, 10.0, 2.5, 0.1,
-                                           help="Suggested: 2.5%") / 100
-        price_risk_pct  = st.number_input("Price Risk (%)",  0.0, 10.0, 3.0, 0.1,
-                                           help="Suggested: 3.0%") / 100
+        st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, step=0.1,
+                         key="imb_eur")
+        st.number_input("Volume Risk (%)", 0.0, 10.0, step=0.1,
+                         key="vol_risk_pct")
+        st.number_input("Price Risk (%)", 0.0, 10.0, step=0.1,
+                         key="price_risk_pct")
     with w2:
-        imb_eur         = st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, 1.9, 0.1)
-        goo_value       = st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, 3.0, 0.1,
-                                           help="Suggested: 3.0 EUR/MWh")
-    with w3:
-        add_disc        = st.slider("Additional Discount (%)", 0.0, 10.0, 0.0, 0.25) / 100
-        st.markdown(f"Shape Disc (P{chosen_pct}): **{sd_ch*100:.1f}%**")
-        st.markdown(f"Forward (CAL {tenor_start}): **{ref_fwd:.1f} EUR/MWh**")
-    
+        st.slider("Additional Discount (%)", 0.0, 10.0, step=0.25,
+                   key="add_disc")
+        st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, step=0.1,
+                         key="goo_value")
+
+    st.markdown(f"*Shape Disc P{chosen_pct}: **{sd_ch*100:.1f}%** | "
+                f"Forward CAL {tenor_start}: **{ref_fwd:.1f} EUR/MWh***")
+
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
                         vol_risk_pct=vol_risk_pct,
                         price_risk_pct=price_risk_pct,
-                        cannib_risk_pct=cannib_risk_pct,
+                        cannib_risk_pct=0.0,
                         goo_value=goo_value),
         use_container_width=True)
 
