@@ -1,12 +1,6 @@
 """
 PPA Pricing Dashboard — KAL-EL v2.4
 Modular architecture. Logic in compute.py | charts.py | data.py | ui.py | config.py | excel.py
-Changes v2.4:
-- Projection anchored on last asset point, slope chosen (Asset/National radio)
-- 4 production charts moved to Overview tab
-- Year range slider in sidebar
-- Annual production: asset only (no national)
-- Monthly production: rounded to 0 decimal
 """
 
 import streamlit as st
@@ -61,7 +55,6 @@ with st.sidebar:
     n_reg = st.slider("Regression Years", 2, 12, 3)
     ex22  = st.toggle("Exclude 2022", value=False)
 
-    # Year range slider — loaded after data
     _hourly_full = load_hourly()
     _yr_min = int(_hourly_full["Year"].min())
     _yr_max = int(_hourly_full["Year"].max())
@@ -69,15 +62,15 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### Pricing Tenor")
-    _nat_tmp    = load_nat()
-    _last_yr    = int(_nat_tmp[_nat_tmp["partial"] == False]["year"].max())
+    _nat_tmp = load_nat()
+    _last_yr = int(_nat_tmp[_nat_tmp["partial"] == False]["year"].max())
     tenor_start = st.number_input("Tenor start (year)",
                                    min_value=_last_yr+1, max_value=_last_yr+20,
                                    value=_last_yr+1, step=1, key="tenor_start")
     tenor_end   = st.number_input("Tenor end (year)",
                                    min_value=_last_yr+1, max_value=_last_yr+20,
                                    value=_last_yr+5, step=1, key="tenor_end")
-    
+
     st.markdown("---")
     st.markdown("### Sensitivity Analysis")
     chosen_pct  = st.slider("Selected Percentile", 1, 100, 74)
@@ -128,12 +121,26 @@ with st.sidebar:
         st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PPA PREMIUMS — session_state (defined before compute)
+# ══════════════════════════════════════════════════════════════════════════════
+if "imb_eur"        not in st.session_state: st.session_state.imb_eur        = 1.9
+if "add_disc"       not in st.session_state: st.session_state.add_disc       = 0.0
+if "vol_risk_pct"   not in st.session_state: st.session_state.vol_risk_pct   = 0.0
+if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0.0
+if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
+
+imb_eur        = st.session_state.imb_eur
+add_disc       = st.session_state.add_disc / 100
+vol_risk_pct   = st.session_state.vol_risk_pct / 100
+price_risk_pct = st.session_state.price_risk_pct / 100
+goo_value      = st.session_state.goo_value
+
+# ══════════════════════════════════════════════════════════════════════════════
 # DATA & COMPUTE
 # ══════════════════════════════════════════════════════════════════════════════
 nat_ref = load_nat()
 hourly  = load_hourly()
 
-# Apply year range filter
 hourly = hourly[hourly["Year"].between(yr_range[0], yr_range[1])]
 
 data_end      = pd.to_datetime(hourly["Date"]).max()
@@ -142,7 +149,6 @@ current_year  = pd.Timestamp.now().year
 partial_years = nat_ref[nat_ref["partial"] == True]["year"].tolist() if "partial" in nat_ref.columns else []
 has_wind      = wind_available(hourly)
 
-# Asset upload
 asset_ann  = None
 asset_name = cfg["label"] + " Asset"
 asset_raw  = None
@@ -168,12 +174,9 @@ if uploaded and sb_date_col and sb_prod_col:
 has_asset = asset_ann is not None and len(asset_ann) >= 2
 
 nat_ref_complete = nat_ref[nat_ref["partial"] == False] if "partial" in nat_ref.columns else nat_ref
-
-# Apply year range filter to national reference
 nat_ref          = nat_ref[nat_ref["year"].between(yr_range[0], yr_range[1])]
 nat_ref_complete = nat_ref_complete[nat_ref_complete["year"].between(yr_range[0], yr_range[1])]
 
-# Regression — two slopes: asset and national
 work_nat = nat_ref.rename(columns={"year":"Year"}).copy()
 work_nat["shape_disc"] = work_nat[cfg["nat_sd"]].fillna(work_nat["shape_disc"])
 
@@ -191,19 +194,15 @@ if has_asset:
     ic_ast = ic_ast2 if ex22 else ic_ast
     r2_ast = r2_ast2 if ex22 else r2_ast
 
-# Active slope based on radio
 if reg_basis == "Asset" and has_asset:
     sl_u, ic_u, r2_u = sl_ast, ic_ast, r2_ast
 else:
     sl_u, ic_u, r2_u = sl_nat_u, ic_nat_u, r2_nat_u
 
 last_yr_complete = int(nat_ref_complete["year"].max()) if len(nat_ref_complete) > 0 else int(nat_ref["year"].max())
-last_yr_proj = int(asset_ann["Year"].max()) if has_asset else last_yr_complete
+last_yr_proj     = int(asset_ann["Year"].max()) if has_asset else last_yr_complete
+anchor_val       = asset_ann["cp_pct"].iloc[-1] if has_asset else None
 
-# Anchor for projection — last asset CP% value
-anchor_val = asset_ann["cp_pct"].iloc[-1] if has_asset else None
-
-# Shape discount series
 if has_asset:
     hist_sd   = asset_ann["shape_disc"].dropna()
     hist_sd_f = asset_ann[asset_ann["Year"] != 2022]["shape_disc"].dropna() if ex22 else hist_sd
@@ -217,15 +216,12 @@ if len(hist_sd_f) == 0:
 
 sd_ch   = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f) > 0 else 0.15
 vol_mwh = asset_ann["prod_mwh"].mean() if has_asset else 52000.0
+proj    = project_cp(sl_u, ic_u, last_yr_proj, proj_n, anchor_val=anchor_val)
 
-# Projection — anchored on last asset point
-proj = project_cp(sl_u, ic_u, last_yr_proj, proj_n, anchor_val=anchor_val)
-
-# Forward curve
 fwd_df    = pd.DataFrame([{"year": yr, "forward": float(DEFAULT_FWD.get(yr, 52.0))}
-                          for yr in range(last_yr_proj+1, last_yr_proj+proj_n+1)])
+                          for yr in range(tenor_start, tenor_end+1)])
 fwd_curve = dict(zip(fwd_df["year"], fwd_df["forward"]))
-ref_fwd   = fwd_df["forward"].iloc[0] if len(fwd_df) > 0 else 55.0
+ref_fwd   = fwd_df["forward"].mean() if len(fwd_df) > 0 else 55.0
 
 pricing   = compute_ppa(ref_fwd, sd_ch, imb_eur, add_disc)
 ppa       = pricing["ppa"]
@@ -245,20 +241,6 @@ nat_eur_complete = nat_series(nat_ref_complete, cfg["nat_eur"], "cp_nat")
 
 wind_ready    = techno == "Wind" and has_wind
 prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW"
-
-# ── PPA premiums — session_state defaults ─────────────────────────────────
-if "imb_eur"        not in st.session_state: st.session_state.imb_eur        = 1.9
-if "add_disc"       not in st.session_state: st.session_state.add_disc       = 0.0
-if "vol_risk_pct"   not in st.session_state: st.session_state.vol_risk_pct   = 0.0
-if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0.0
-if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
-
-imb_eur        = st.session_state.imb_eur
-add_disc       = st.session_state.add_disc / 100
-vol_risk_pct   = st.session_state.vol_risk_pct / 100
-price_risk_pct = st.session_state.price_risk_pct / 100
-goo_value      = st.session_state.goo_value
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
@@ -305,14 +287,12 @@ with tab1:
     with k1:
         ppa_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}")
     with k2:
-        # Average projected CP% over tenor period
-        proj_tenor = proj[proj["year"].between(tenor_start, tenor_end)]
-        cp_proj_avg = proj_tenor["p50"].mean() * 100 if len(proj_tenor) > 0 else cp_l
+        proj_tenor  = proj[proj["year"].between(tenor_start, tenor_end)]
+        cp_proj_avg = proj_tenor["p50"].mean() * 100 if len(proj_tenor) > 0 else 0.0
         c_kpi = C2 if cp_proj_avg > 80 else (C4 if cp_proj_avg > 65 else C5)
-        kpi_card(f"Capture Rate — {tenor_start}-{tenor_end}",
-                 f"{cp_proj_avg:.0f}%", color=c_kpi)
+        kpi_card(f"Capture Rate {tenor_start}-{tenor_end}", f"{cp_proj_avg:.0f}%", color=c_kpi)
     with k3:
-        sd_proj_avg = (1 - proj_tenor["p50"].mean()) * 100 if len(proj_tenor) > 0 else sd_cur
+        sd_proj_avg = (1 - proj_tenor["p50"].mean()) * 100 if len(proj_tenor) > 0 else sd_ch*100
         c_sd = C5 if sd_proj_avg > 25 else (C3 if sd_proj_avg > 15 else C2)
         kpi_card("Shape Discount", f"{sd_proj_avg:.1f}%", color=c_sd, extra_cls="kpi-gold")
     with k4:
@@ -374,9 +354,8 @@ with tab1:
         return [""] * len(row)
     st.dataframe(tdf.style.apply(_hi, axis=1), use_container_width=True, height=440)
 
-    # ── Production Profile (4 charts) ─────────────────────────────────────────
     st.markdown("---")
-    section(f"Production Profile — National vs Asset")
+    section("Production Profile — National vs Asset")
     d1, d2 = st.columns(2)
     with d1:
         section(f"Daily Profile — National {cfg['label']}")
@@ -420,7 +399,7 @@ with tab2:
     col_i, col_r = st.columns([1, 1.6])
     with col_i:
         fwd_rows_live = []
-        for yr in range(last_yr_proj+1, last_yr_proj+proj_n+1):
+        for yr in range(tenor_start, tenor_end+1):
             px = st.number_input(f"CAL {yr} (EUR/MWh)", 10.0, 200.0,
                                  float(DEFAULT_FWD.get(yr, 52.0)), 0.5, key=f"fwd_{yr}")
             fwd_rows_live.append({"year": yr, "forward": px})
@@ -496,7 +475,6 @@ with tab3:
         season_lbl = "Apr-Sep" if cfg["duck_months"] == list(range(4,10)) else "All months"
         section(f"Duck / Canyon Curve — {cfg['label']} ({season_lbl})")
         desc("Normalised day-ahead prices by hour of day, one line per year. "
-             "Normalisation: each hour / monthly average. "
              "Method: GEM Energy Analytics 'The duck is growing' (Mar 2025).")
         st.plotly_chart(
             chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"]),
@@ -541,24 +519,27 @@ with tab4:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
-    desc("Set your premiums below. Values feed into the PPA price and P&L on next interaction.")
+    desc("Adjust premiums below. Values update the PPA price and P&L on next interaction.")
 
     w1, w2 = st.columns(2)
     with w1:
         st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, step=0.1,
-                         key="imb_eur")
+                         key="imb_eur", help="Suggested: 1.9 EUR/MWh")
         st.number_input("Volume Risk (%)", 0.0, 10.0, step=0.1,
-                         key="vol_risk_pct")
+                         key="vol_risk_pct", help="Suggested: 2.5%")
         st.number_input("Price Risk (%)", 0.0, 10.0, step=0.1,
-                         key="price_risk_pct")
+                         key="price_risk_pct", help="Suggested: 3.0%")
     with w2:
         st.slider("Additional Discount (%)", 0.0, 10.0, step=0.25,
                    key="add_disc")
         st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, step=0.1,
-                         key="goo_value")
+                         key="goo_value", help="Suggested: 1.0 EUR/MWh")
 
-    st.markdown(f"*Shape Disc P{chosen_pct}: **{sd_ch*100:.1f}%** | "
-                f"Forward CAL {tenor_start}: **{ref_fwd:.1f} EUR/MWh***")
+    st.markdown(
+        f'<span style="font-size:13px;color:#555;font-style:italic;">'
+        f'Shape Disc P{chosen_pct}: <b>{sd_ch*100:.1f}%</b> | '
+        f'Forward avg {tenor_start}-{tenor_end}: <b>{ref_fwd:.1f} EUR/MWh</b>'
+        f'</span>', unsafe_allow_html=True)
 
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
@@ -580,16 +561,17 @@ with tab6:
          f"M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days.")
 
     if st.button("Compute rolling M0", key="compute_roll"):
-            roll = compute_rolling_m0(
-                hourly[["Date", "Spot", prod_col_roll]].copy(),
-                prod_col=prod_col_roll,
-                windows=(30, 90, 365)
-            )
+        roll = compute_rolling_m0(
+            hourly[["Date", "Spot", prod_col_roll]].copy(),
+            prod_col=prod_col_roll,
+            windows=(30, 90, 365)
+        )
     else:
         roll = None
 
     if roll is None or len(roll) < 10:
-        st.warning("Not enough data to compute rolling windows.")
+        if roll is not None:
+            st.warning("Not enough data to compute rolling windows.")
     else:
         section(f"Rolling Capture Rate — M0 / Baseload (%) — {cfg['label']}")
         desc("100% = no cannibalization. 30d dotted = short-term. 365d solid = structural trend.")
@@ -608,7 +590,7 @@ with tab6:
 
         st.markdown("---")
         section("Recent Period Summary")
-        latest  = pd.to_datetime(hourly["Date"]).max().normalize()
+        latest   = pd.to_datetime(hourly["Date"]).max().normalize()
         sum_rows = []
         for w in [30, 90, 365]:
             cutoff  = latest - pd.Timedelta(days=w)
@@ -759,5 +741,5 @@ st.markdown(
     f'<span style="font-size:12px;color:#888;font-family:Calibri,Arial,sans-serif;">'
     f'v2.4 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — Technology: {cfg["label"]} — '
-    f'Regression: {reg_basis} — Year range: {yr_range[0]}–{yr_range[1]}'
+    f'Regression: {reg_basis} — Tenor: {tenor_start}–{tenor_end}'
     f'</span>', unsafe_allow_html=True)
