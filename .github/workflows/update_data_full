@@ -1,0 +1,30 @@
+name: Full Refresh ENTSO-E (manual)
+on:
+  workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install entsoe-py pandas requests
+      - name: Run full refresh
+        env:
+          ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
+          FORCE_REFRESH: "yes"
+        run: python ppa_dashboard/scripts/update_entsoe.py
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ppa_dashboard/data/
+          git diff --staged --quiet || git commit -m "Full refresh ENTSO-E $(date -u '+%Y-%m-%d')"
+          git push
+ 
