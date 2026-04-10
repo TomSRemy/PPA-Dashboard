@@ -1,5 +1,5 @@
 """
-PPA Pricing Dashboard — KAL-EL v2.3
+PPA Pricing Dashboard
 Modular architecture: app.py is layout-only (~200 lines).
 Logic in compute.py | charts.py | data.py | ui.py | config.py | excel.py
 """
@@ -10,7 +10,7 @@ import numpy as np
 import io
 
 st.set_page_config(
-    page_title="KAL-EL — PPA Pricing Dashboard",
+    page_title="PPA Pricing Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -50,7 +50,7 @@ with st.sidebar:
     st.markdown("### Technology")
     techno = st.selectbox("Select technology", ["Solar","Wind"], index=0,
                           label_visibility="collapsed")
-    cfg = TECH_CONFIG[techno]   # ← single dict replaces all if/else chains
+    cfg = TECH_CONFIG[techno]
 
     st.markdown("---")
     st.markdown("### Market Settings")
@@ -66,19 +66,47 @@ with st.sidebar:
     st.markdown("### Sensitivity Analysis")
     chosen_pct  = st.slider("Selected Percentile", 1, 100, 74)
     proj_n      = st.slider("Projection Horizon (years)", 1, 10, 5)
-    vol_stress  = st.slider("Volume Stress (+/-%)", 0, 30, 20)
-    spot_stress = st.slider("Spot Stress (+/-%)", 0, 30, 20)
+    vol_stress  = st.slider("Volume Stress (+/-%%)", 0, 30, 20)
+    spot_stress = st.slider("Spot Stress (+/-%%)", 0, 30, 20)
 
     st.markdown("---")
     st.markdown(f"### {cfg['label']} Asset Upload")
     uploaded = st.file_uploader("", type=["xlsx","csv"], label_visibility="hidden")
     st.caption("Columns: Date | Prod_MWh")
-    
+    st.download_button("Download example", data=EXAMPLE_CSV.encode("utf-8"),
+                       file_name="example_load_curve.csv", mime="text/csv",
+                       key="dl_example")
+
+    sb_date_col = None
+    sb_prod_col = None
+    sb_unit     = "MWh"
+
+    if uploaded:
+        try:
+            _raw  = (pd.read_csv(uploaded) if uploaded.name.endswith(".csv")
+                     else pd.read_excel(uploaded))
+            _cols = _raw.columns.tolist()
+            sb_date_col = st.selectbox(
+                "Date column", _cols,
+                index=next((i for i, c in enumerate(_cols)
+                            if "date" in c.lower()), 0),
+                key="sb_date_col")
+            sb_prod_col = st.selectbox(
+                "Production column", _cols,
+                index=next((i for i, c in enumerate(_cols)
+                            if any(k in c.lower()
+                                   for k in ["prod","mwh","actual","gen","kwh"])),
+                           min(1, len(_cols)-1)),
+                key="sb_prod_col")
+            sb_unit = st.radio("Unit", ["MWh","kWh"],
+                               horizontal=True, key="sb_unit")
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
     st.markdown("---")
     if st.button("Clear Cache"):
         st.cache_data.clear()
         st.rerun()
-
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA & COMPUTE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -95,16 +123,18 @@ has_wind      = wind_available(hourly)
 asset_ann  = None
 asset_name = cfg["label"] + " Asset"
 asset_raw  = None
-if uploaded:
+if uploaded and sb_date_col and sb_prod_col:
     try:
-        raw = pd.read_csv(uploaded) if uploaded.name.endswith(".csv") else pd.read_excel(uploaded)
-        dc = next((c for c in raw.columns if any(k in c.lower() for k in ["date","time"])), raw.columns[0])
-        pc = next((c for c in raw.columns if any(k in c.lower() for k in ["prod","mwh","power","gen","kwh"])), raw.columns[1])
-        raw[dc] = pd.to_datetime(raw[dc], errors="coerce")
-        raw[pc] = pd.to_numeric(raw[pc], errors="coerce")
-        if raw[pc].max() > 10000:
-            raw[pc] /= 1000
-        asset_raw  = asset_raw[[dc, pc]].rename(columns={dc: "Date", pc: "Prod_MWh"})
+        raw = (pd.read_csv(uploaded) if uploaded.name.endswith(".csv")
+               else pd.read_excel(uploaded))
+        raw[sb_date_col] = pd.to_datetime(raw[sb_date_col], errors="coerce")
+        raw[sb_prod_col] = (raw[sb_prod_col].astype(str)
+                            .str.replace(" ", "").str.replace("-", "0").str.replace(",", "."))
+        raw[sb_prod_col] = pd.to_numeric(raw[sb_prod_col], errors="coerce").fillna(0.0)
+        if sb_unit == "kWh":
+            raw[sb_prod_col] = raw[sb_prod_col] / 1000
+        asset_raw  = raw[[sb_date_col, sb_prod_col]].rename(
+            columns={sb_date_col: "Date", sb_prod_col: "Prod_MWh"})
         asset_ann  = compute_asset_annual(hourly, asset_raw.copy(), prod_col=cfg["prod_col"])
         asset_name = uploaded.name.rsplit(".", 1)[0]
         st.sidebar.success(f"Loaded: {asset_name}")
