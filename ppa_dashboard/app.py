@@ -547,7 +547,7 @@ with tab6:
     desc(f"Rolling M0 on RAW hourly data. "
          f"M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days.")
 
-     if st.button("Compute rolling M0", key="compute_roll"):
+    if st.button("Compute rolling M0", key="compute_roll"):
             roll = compute_rolling_m0(
                 hourly[["Date", "Spot", prod_col_roll]].copy(),
                 prod_col=prod_col_roll,
