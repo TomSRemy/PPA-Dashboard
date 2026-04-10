@@ -94,7 +94,7 @@ has_wind      = wind_available(hourly)
 # Asset upload
 asset_ann  = None
 asset_name = cfg["label"] + " Asset"
-
+asset_raw  = None
 if uploaded:
     try:
         raw = pd.read_csv(uploaded) if uploaded.name.endswith(".csv") else pd.read_excel(uploaded)
