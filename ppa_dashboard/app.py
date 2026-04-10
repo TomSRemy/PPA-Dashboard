@@ -28,6 +28,10 @@ from charts  import (
     chart_pnl_percentile, chart_scenarios,
     chart_waterfall,
     chart_rolling_cp, chart_rolling_eur,
+    chart_daily_profile_national, 
+    chart_daily_profile_asset,
+    chart_monthly_production, 
+    chart_annual_production,
 )
 from ui     import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel  import build_excel
@@ -100,8 +104,8 @@ if uploaded:
         raw[pc] = pd.to_numeric(raw[pc], errors="coerce")
         if raw[pc].max() > 10000:
             raw[pc] /= 1000
-        df_a = raw[[dc, pc]].rename(columns={dc: "Date", pc: "Prod_MWh"})
-        asset_ann  = compute_asset_annual(hourly, df_a, prod_col=cfg["prod_col"])
+        asset_raw  = asset_raw[[dc, pc]].rename(columns={dc: "Date", pc: "Prod_MWh"})
+        asset_ann  = compute_asset_annual(hourly, asset_raw.copy(), prod_col=cfg["prod_col"])
         asset_name = uploaded.name.rsplit(".", 1)[0]
         st.sidebar.success(f"Loaded: {asset_name}")
     except Exception as e:
@@ -317,6 +321,45 @@ with tab2:
                              "P&L/MWh": f"{cp-ppa_yr:+.2f}"})
         st.dataframe(pd.DataFrame(rows_ppa), use_container_width=True, hide_index=True)
     st.plotly_chart(chart_forward(fwd_df_live), use_container_width=True)
+    if has_asset or True:   # national toujours affiché
+        st.markdown("---")
+        section("Production Profile — National vs Asset")
+
+        d1, d2 = st.columns(2)
+        with d1:
+            section(f"Daily Profile — National {cfg['label']}")
+            desc("Average MW by hour of day, one line per month. National ENTSO-E data.")
+            st.plotly_chart(
+                chart_daily_profile_national(hourly, cfg["prod_col"],
+                                              cfg["color"], cfg["label"]),
+                use_container_width=True)
+        with d2:
+            section(f"Daily Profile — {asset_name}")
+            desc("Same chart for the uploaded asset. Upload a load curve in the sidebar.")
+            if has_asset and asset_raw is not None:
+                st.plotly_chart(
+                    chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
+                    use_container_width=True)
+            else:
+                st.info("Upload an asset load curve to see its daily profile.")
+
+        st.markdown("---")
+        m1, m2 = st.columns(2)
+        with m1:
+            section("Monthly Production")
+            desc("Bars = asset avg GWh/month. Points = national avg MW.")
+            st.plotly_chart(
+                chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
+                                          cfg["color"], asset_name, has_asset),
+                use_container_width=True)
+        with m2:
+            section("Annual Production")
+            desc("Bars = asset GWh/year. Points = national GWh/year.")
+            st.plotly_chart(
+                chart_annual_production(hourly, asset_ann, cfg["prod_col"],
+                                         cfg["color"], asset_name, has_asset,
+                                         partial_years),
+                use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Market Dynamics  (ex Cannibalization & Market + Jomaux charts)
