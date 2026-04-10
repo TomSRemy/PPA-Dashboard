@@ -68,7 +68,7 @@ def get_css():
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
     font-size: 15px !important;
-    background-color: {WHT} !important;
+    background-color: {BG} !important;
 }}
 h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {C4} !important; font-family: Calibri, Arial, sans-serif !important; }}
 h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {C4} !important; }}
