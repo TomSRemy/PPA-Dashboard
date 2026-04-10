@@ -68,11 +68,6 @@ with st.sidebar:
     yr_range = st.slider("Year range", _yr_min, _yr_max, (_yr_min, _yr_max), key="yr_range")
 
     st.markdown("---")
-    st.markdown("### PPA Parameters")
-    imb_eur  = st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, 1.9, 0.1)
-    add_disc = st.slider("Additional Discount (%)", 0.0, 10.0, 0.0, 0.25) / 100
-
-    st.markdown("---")
     st.markdown("### Pricing Tenor")
     _nat_tmp    = load_nat()
     _last_yr    = int(_nat_tmp[_nat_tmp["partial"] == False]["year"].max())
@@ -541,16 +536,14 @@ with tab5:
         price_risk_pct  = st.number_input("Price Risk (%)",  0.0, 10.0, 3.0, 0.1,
                                            help="Suggested: 3.0%") / 100
     with w2:
-        cannib_risk_pct = st.number_input("Cannib. Risk (%)", 0.0, 10.0, 2.0, 0.1,
-                                           help="Suggested: 2.0%") / 100
+        imb_eur         = st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, 1.9, 0.1)
         goo_value       = st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, 3.0, 0.1,
                                            help="Suggested: 3.0 EUR/MWh")
     with w3:
-        st.markdown("**Linked to sidebar:**")
-        st.markdown(f"Imbalance: **{imb_eur:.1f} EUR/MWh**")
+        add_disc        = st.slider("Additional Discount (%)", 0.0, 10.0, 0.0, 0.25) / 100
         st.markdown(f"Shape Disc (P{chosen_pct}): **{sd_ch*100:.1f}%**")
         st.markdown(f"Forward (CAL {tenor_start}): **{ref_fwd:.1f} EUR/MWh**")
-
+    
     st.plotly_chart(
         chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
                         vol_risk_pct=vol_risk_pct,
