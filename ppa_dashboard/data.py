@@ -9,8 +9,6 @@ import numpy as np
 from pathlib import Path
 from config import DATA_DIR
 
-
-@st.cache_data(ttl=3600)
 def load_nat() -> pd.DataFrame:
     df = pd.read_csv(DATA_DIR / "nat_reference.csv")
     if "partial" not in df.columns:
