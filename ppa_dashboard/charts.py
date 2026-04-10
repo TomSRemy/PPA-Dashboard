@@ -599,34 +599,46 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
 # TAB 5 — Price Waterfall
 # ══════════════════════════════════════════════════════════════════════════════
 def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
-                    vol_risk_pct: float = 0.025,
-                    price_risk_pct: float = 0.030,
-                    cannib_risk_pct: float = 0.020,
-                    goo_value: float = 3.0,
-                    add_disc: float = 0.0) -> go.Figure:
+                    vol_risk_pct: float = 0.0,
+                    price_risk_pct: float = 0.0,
+                    cannib_risk_pct: float = 0.0,
+                    goo_value: float = 1.0,
+                    add_disc: float = 0.0,
+                    margin: float = 1.0) -> go.Figure:
+
     shape_disc_eur  = ref_fwd * sd_ch
+    add_disc_eur    = ref_fwd * add_disc
     vol_risk_eur    = ref_fwd * vol_risk_pct
     price_risk_eur  = ref_fwd * price_risk_pct
-    cannib_risk_eur = ref_fwd * cannib_risk_pct
-    add_disc_eur = ref_fwd * add_disc
+    ppa_final       = (ref_fwd
+                       - shape_disc_eur - add_disc_eur
+                       - vol_risk_eur   - price_risk_eur
+                       - imb_eur
+                       + goo_value + margin)
+
     wf = [
-        ("Baseload Forward",  ref_fwd,           "absolute"),
-        ("Shape Discount",   -shape_disc_eur,    "relative"),
-        ("Add. Discount",    -add_disc_eur,      "relative"),
-        ("Volume Risk",      -vol_risk_eur,      "relative"),
-        ("Price Risk",       -price_risk_eur,    "relative"),
-        ("Balancing Cost",   -imb_eur,           "relative"),
-        ("GoO Value",         goo_value,         "relative"),
-        ("PPA Price",         0,                 "total"),
+        ("Baseload Forward", ref_fwd,          "absolute"),
+        ("Shape Discount",   -shape_disc_eur,  "relative"),
+        ("Add. Discount",    -add_disc_eur,    "relative"),
+        ("Volume Risk",      -vol_risk_eur,    "relative"),
+        ("Price Risk",       -price_risk_eur,  "relative"),
+        ("Balancing Cost",   -imb_eur,         "relative"),
+        ("GoO Value",         goo_value,       "relative"),
+        ("Margin",            margin,          "relative"),
+        ("PPA Price",         0,               "total"),
     ]
+
+    # Filter out zero-value rows (keeps chart clean)
+    wf = [row for row in wf if row[2] in ("absolute","total") or abs(row[1]) > 0.001]
+
     fig = go.Figure(go.Waterfall(
         name="", orientation="v",
         measure=[d[2] for d in wf],
         x      =[d[0] for d in wf],
         y      =[d[1] for d in wf],
-        text=[f"{d[1]:+.1f}" if d[2] == "relative"
-              else f"{d[1]:.1f}" if d[2] == "absolute"
-              else "" for d in wf],
+        text=[f"{d[1]:+.2f}" if d[2] == "relative"
+              else f"{d[1]:.2f}" if d[2] == "absolute"
+              else f"<b>{ppa_final:.2f}</b>" for d in wf],
         textposition="outside",
         textfont=dict(size=13, color=C1, family="Calibri"),
         connector=dict(line=dict(color="#AAAAAA", width=1.5)),
@@ -635,9 +647,9 @@ def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
         totals   =dict(marker=dict(color=C3, line=dict(color=WHT, width=2))),
     ))
     fig.update_xaxes(tickangle=-30)
-    plotly_base(fig, h=500, show_legend=False)
+    plotly_base(fig, h=520, show_legend=False)
     fig.update_layout(
-        title=dict(text=f"<b>PPA Price Waterfall — From Baseload to Contract ({tech_lbl})</b>"),
+        title=dict(text=f"<b>PPA Price Waterfall — {tech_lbl} — {ppa_final:.2f} EUR/MWh</b>"),
         yaxis_title="EUR/MWh")
     return fig
 
