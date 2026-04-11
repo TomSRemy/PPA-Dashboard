@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT, EXAMPLE_CSV
-from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd
+from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd, load_balancing
 from compute import compute_asset_annual, fit_reg, project_cp, compute_ppa, compute_pnl_curve, compute_scenarios
 from charts  import (
     chart_historical_cp, chart_projection,
@@ -30,6 +30,13 @@ from charts  import (
     chart_daily_profile_asset,
     chart_monthly_production,
     chart_annual_production,
+    chart_da_history,
+    chart_imbalance_history,
+    chart_balancing_services,
+    chart_price_comparison,
+    chart_da_heatmap,
+    chart_imbalance_spread,
+    summary_stats,
 )
 from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel import build_excel
@@ -251,10 +258,10 @@ prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Overview", "Forward Curve & Pricing", "Market Dynamics",
     "Sensitivity & Scenarios", "Price Waterfall", "Market Evolution",
-    "Export & SPOT Extractor",
+    "Export & SPOT Extractor", "Market Prices",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -770,6 +777,77 @@ with tab7:
                                        mime="text/csv")
                 except ImportError: st.error("entsoe-py not installed.")
                 except Exception as e: st.error(f"ENTSO-E Error: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — Market Prices
+# ══════════════════════════════════════════════════════════════════════════════
+with tab8:
+    st.markdown("## Market Prices — France (DA, Imbalance, aFRR, mFRR)")
+with tab8: 
+    st.markdown("## Market Prices — France (DA, Imbalance, aFRR, mFRR)")
+    bal = load_balancing()
+
+    if bal is None or len(bal) == 0:
+        st.warning("Balancing data not yet available. "
+                   "Run the updated ENTSO-E script to fetch data.")
+    else:
+        bal_end   = pd.to_datetime(bal["Date"]).max()
+        bal_start = pd.to_datetime(bal["Date"]).min()
+        status_msg(f"Balancing data: {bal_start.strftime('%Y-%m-%d')} "
+                   f"to {bal_end.strftime('%Y-%m-%d')} — "
+                   f"{len(bal):,} hourly rows.")
+
+        # ── Summary KPIs (last 12 months) ────────────────────────────────
+        st.markdown("---")
+        section("Recent Period Summary — Last 12 Months")
+        stats = summary_stats(bal)
+        if stats:
+            cols = st.columns(len(stats))
+            for i, (label, s) in enumerate(stats.items()):
+                with cols[i]:
+                    kpi_card(label,
+                             f"{s['mean']:.1f}",
+                             color=C2 if s['mean'] > 0 else C5)
+                    st.markdown(
+                        f'<div style="font-size:11px;color:#888;margin-top:4px;">'
+                        f'Min: {s["min"]:.0f} | Max: {s["max"]:.0f} | '
+                        f'Std: {s["std"]:.0f} EUR/MWh</div>',
+                        unsafe_allow_html=True)
+
+        # ── DA price ────────────────────────────────────────────────────
+        st.markdown("---")
+        section("Day-Ahead Price — Historical")
+        desc("Monthly average DA price. Source: ENTSO-E Transparency Platform.")
+        st.plotly_chart(chart_da_history(bal), use_container_width=True)
+
+        # ── DA heatmap ──────────────────────────────────────────────────
+        st.markdown("---")
+        section("DA Price Heatmap — Hour of Day vs Month")
+        desc("Average DA price by hour and month across all years. "
+             "Shows intraday and seasonal price patterns.")
+        st.plotly_chart(chart_da_heatmap(bal), use_container_width=True)
+
+        # ── DA vs Imbalance ─────────────────────────────────────────────
+        st.markdown("---")
+        section("DA vs Imbalance Prices")
+        desc("Monthly average DA price vs imbalance positive/negative prices. "
+             "Large spread = high balancing costs for generators.")
+        st.plotly_chart(chart_price_comparison(bal), use_container_width=True)
+
+        # ── Imbalance spread ────────────────────────────────────────────
+        st.markdown("---")
+        section("Imbalance Spread — Positive minus Negative")
+        desc("High spread = high cost of being short vs long. "
+             "Relevant for imbalance risk assessment in PPA pricing.")
+        st.plotly_chart(chart_imbalance_spread(bal), use_container_width=True)
+
+        # ── aFRR / mFRR ─────────────────────────────────────────────────
+        st.markdown("---")
+        section("Balancing Services — aFRR & mFRR")
+        desc("Monthly average activated balancing energy prices. "
+             "aFRR = automatic Frequency Restoration Reserve. "
+             "mFRR = manual Frequency Restoration Reserve.")
+        st.plotly_chart(chart_balancing_services(bal), use_container_width=True)
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
