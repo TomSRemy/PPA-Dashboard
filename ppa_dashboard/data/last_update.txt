@@ -1,6 +1,6 @@
-Last update : 2026-04-11 10:02 UTC
-Mode        : Incremental
-New rows    : 24
-Total rows  : 98,714
-Data through: 2026-04-10
-Columns     : Spot | NatMW (B16) | WindMW (B18+B19)
+Last update : 2026-04-11 13:43 UTC
+Spot rows   : 98,738
+Spot through: 2026-04-11
+Bal rows    : 72,529
+Bal through : 2026-04-11
+Columns     : Spot|NatMW|WindMW | DA|Imb_Pos|Imb_Neg|aFRR|mFRR
