@@ -1,5 +1,5 @@
 """
-charts.py — KAL-EL PPA Dashboard
+charts.py — PPA Dashboard
 All Plotly chart functions. Each returns a go.Figure.
 Jomaux charts: duck curve, canyon curve, market value vs penetration.
 """
@@ -13,6 +13,12 @@ from plotly.subplots import make_subplots
 from config import (C1, C2, C3, C4, C5, WHT, C2L, C3L, MONTH_NAMES)
 from ui import plotly_base, rgba
 
+# ── Colours ───────────────────────────────────────────────────────────────────
+COL_DA      = C1        # dark navy
+COL_IMB_POS = C2        # teal
+COL_IMB_NEG = C5        # brick red
+COL_AFRR    = "#9B59B6"  # purple
+COL_MFRR    = "#E67E22"  # orange
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — Overview
@@ -862,3 +868,158 @@ def chart_annual_production(hourly, asset_ann, prod_col,
     plotly_base(fig, h=420)
     fig.update_layout(title=dict(text="<b>Annual Production</b>"))
     return fig
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — Charts Markets (DA, IMB, Reserves)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _monthly_avg(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Return monthly average of a column."""
+    d = df[df[col].notna()].copy()
+    d["YM"] = pd.to_datetime(d["Date"].astype(str).str[:7])
+    return d.groupby("YM")[col].mean().reset_index()
+ 
+ 
+def chart_da_history(bal: pd.DataFrame) -> go.Figure:
+    """Monthly average DA price — history."""
+    m = _monthly_avg(bal, "DA")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=m["YM"], y=m["DA"],
+        mode="lines", name="DA monthly avg",
+        line=dict(color=COL_DA, width=2),
+        fill="tozeroy", fillcolor=rgba(COL_DA, 0.08),
+    ))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=380, show_legend=False)
+    fig.update_layout(title=dict(text="<b>Day-Ahead Price — Monthly Average (France)</b>"))
+    return fig
+ 
+ 
+def chart_imbalance_history(bal: pd.DataFrame) -> go.Figure:
+    """Monthly average imbalance prices pos/neg."""
+    mp = _monthly_avg(bal, "Imb_Pos")
+    mn = _monthly_avg(bal, "Imb_Neg")
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=mp["YM"], y=mp["Imb_Pos"],
+        mode="lines", name="Imbalance Positive",
+        line=dict(color=COL_IMB_POS, width=2)))
+    fig.add_trace(go.Scatter(
+        x=mn["YM"], y=mn["Imb_Neg"],
+        mode="lines", name="Imbalance Negative",
+        line=dict(color=COL_IMB_NEG, width=2)))
+    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=380)
+    fig.update_layout(title=dict(text="<b>Imbalance Prices — Monthly Average (France)</b>"))
+    return fig
+ 
+ 
+def chart_balancing_services(bal: pd.DataFrame) -> go.Figure:
+    """Monthly average aFRR and mFRR prices."""
+    ma = _monthly_avg(bal, "aFRR")
+    mm = _monthly_avg(bal, "mFRR")
+    fig = go.Figure()
+    if len(ma) > 0 and ma["aFRR"].notna().any():
+        fig.add_trace(go.Scatter(
+            x=ma["YM"], y=ma["aFRR"],
+            mode="lines", name="aFRR activated",
+            line=dict(color=COL_AFRR, width=2)))
+    if len(mm) > 0 and mm["mFRR"].notna().any():
+        fig.add_trace(go.Scatter(
+            x=mm["YM"], y=mm["mFRR"],
+            mode="lines", name="mFRR activated",
+            line=dict(color=COL_MFRR, width=2)))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=380)
+    fig.update_layout(title=dict(text="<b>Balancing Services — aFRR & mFRR Activated Prices (France)</b>"))
+    return fig
+ 
+ 
+def chart_price_comparison(bal: pd.DataFrame) -> go.Figure:
+    """DA vs Imbalance spread — monthly, all on same chart."""
+    da  = _monthly_avg(bal, "DA")
+    imp = _monthly_avg(bal, "Imb_Pos")
+    imn = _monthly_avg(bal, "Imb_Neg")
+ 
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=da["YM"], y=da["DA"],
+        mode="lines", name="DA price",
+        line=dict(color=COL_DA, width=2.5)))
+    fig.add_trace(go.Scatter(
+        x=imp["YM"], y=imp["Imb_Pos"],
+        mode="lines", name="Imbalance Pos",
+        line=dict(color=COL_IMB_POS, width=1.5, dash="dash")))
+    fig.add_trace(go.Scatter(
+        x=imn["YM"], y=imn["Imb_Neg"],
+        mode="lines", name="Imbalance Neg",
+        line=dict(color=COL_IMB_NEG, width=1.5, dash="dash")))
+    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=420)
+    fig.update_layout(title=dict(text="<b>DA vs Imbalance Prices — Monthly Average (France)</b>"))
+    return fig
+ 
+ 
+def chart_da_heatmap(bal: pd.DataFrame) -> go.Figure:
+    """DA price heatmap by hour of day and month."""
+    h = bal[bal["DA"].notna()].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    h["Hour"] = h["Date"].dt.hour
+    pivot = h.groupby(["Month","Hour"])["DA"].mean().reset_index()
+    p = pivot.pivot(index="Month", columns="Hour", values="DA")
+    p.index = [MONTH_NAMES[i-1] for i in p.index]
+ 
+    fig = go.Figure(data=go.Heatmap(
+        z=p.values, x=[f"{h}h" for h in p.columns], y=p.index.tolist(),
+        colorscale=[[0, C2],[0.5, C3],[1, C5]],
+        text=[[f"<b>{v:.0f}</b>" for v in row] for row in p.values],
+        texttemplate="%{text}",
+        textfont=dict(size=10, color=C1, family="Calibri"),
+        colorbar=dict(title=dict(text="EUR/MWh", font=dict(size=12, color=C1)),
+                      tickfont=dict(size=11, color=C1), thickness=14),
+    ))
+    fig.update_xaxes(title_text="Hour of Day")
+    fig.update_yaxes(title_text="Month")
+    plotly_base(fig, h=420, show_legend=False)
+    fig.update_layout(title=dict(text="<b>DA Price Heatmap — Average by Hour and Month (France)</b>"))
+    return fig
+ 
+ 
+def chart_imbalance_spread(bal: pd.DataFrame) -> go.Figure:
+    """Monthly spread between imbalance positive and negative."""
+    mp = _monthly_avg(bal, "Imb_Pos")
+    mn = _monthly_avg(bal, "Imb_Neg")
+    merged = mp.merge(mn, on="YM", how="inner")
+    merged["spread"] = merged["Imb_Pos"] - merged["Imb_Neg"]
+ 
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=merged["YM"], y=merged["spread"],
+        marker_color=[rgba(C5, 0.7) if v > 100 else rgba(C2, 0.7) for v in merged["spread"]],
+        marker_line_color=WHT, marker_line_width=0.5,
+        name="Imbalance Spread (Pos - Neg)",
+    ))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=360, show_legend=False)
+    fig.update_layout(title=dict(text="<b>Imbalance Spread — Positive minus Negative (EUR/MWh)</b>"))
+    return fig
+ 
+ 
+def summary_stats(bal: pd.DataFrame) -> dict:
+    """Key stats for the recent period (last 12 months)."""
+    cutoff = pd.to_datetime(bal["Date"]).max() - pd.DateOffset(months=12)
+    recent = bal[pd.to_datetime(bal["Date"]) >= cutoff]
+    stats = {}
+    for col, label in [("DA","DA"), ("Imb_Pos","Imb Pos"), ("Imb_Neg","Imb Neg"),
+                        ("aFRR","aFRR"), ("mFRR","mFRR")]:
+        if col in recent.columns and recent[col].notna().any():
+            stats[label] = {
+                "mean": recent[col].mean(),
+                "min":  recent[col].min(),
+                "max":  recent[col].max(),
+                "std":  recent[col].std(),
+            }
+    return stats
