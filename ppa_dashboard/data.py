@@ -95,3 +95,12 @@ def get_nat_sd(df: pd.DataFrame, col: str, fallback: str = "shape_disc") -> pd.S
     if col in df.columns and not df[col].isna().all():
         return df[col].dropna()
     return df[fallback].dropna()
+
+@st.cache_data(ttl=3600)
+def load_balancing() -> pd.DataFrame:
+    p = DATA_DIR / "balancing_prices.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(p, parse_dates=["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], utc=True)
+    return df
