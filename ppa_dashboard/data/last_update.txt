@@ -1,4 +1,4 @@
-Last update : 2026-04-11 13:43 UTC
+Last update : 2026-04-12 10:09 UTC
 Spot rows   : 98,738
 Spot through: 2026-04-11
 Bal rows    : 72,529
