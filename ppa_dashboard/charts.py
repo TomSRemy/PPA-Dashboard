@@ -259,7 +259,7 @@ def chart_monthly_profile(hourly: pd.DataFrame, prod_col: str,
 def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
                                   prod_col: str, nat_cp_col: str, tech_clr: str,
                                   tech_lbl: str, partial_years: list,
-                                  is_solar: bool) -> go.Figure:
+                                  is_solar: bool, ex22: bool = False) -> go.Figure:
     nat_mw = hourly.groupby("Year")[prod_col].mean().reset_index()
     nat_mw.columns = ["year", "TechMW"]
     sc = nat_ref.merge(nat_mw, on="year", how="inner")
@@ -271,17 +271,24 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
               for _, r in sc.iterrows()]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=sc["TechMW"], y=sc["cp_plot"], mode="markers+text",
-                             marker=dict(size=16, color=pt_col, line=dict(width=2, color=WHT)),
-                             text=[f"<b>{int(y)}</b>" for y in sc["year"]],
-                             textposition="top center",
-                             textfont=dict(size=11, color=C1, family="Calibri"),
-                             name=f"M0 National {tech_lbl}"))
+    fig.add_trace(go.Scatter(
+        x=sc["TechMW"],
+        y=sc["cp_plot"],
+        mode="markers+text",
+        marker=dict(size=16, color=pt_col, line=dict(width=2, color=WHT)),
+        text=[f"<b>{int(y)}</b>" for y in sc["year"]],
+        textposition="top center",
+        textfont=dict(size=11, color=C1, family="Calibri"),
+        name=f"M0 National {tech_lbl}"
+    ))
 
-    sc_c = sc[~sc["year"].isin(partial_years)]
+    sc_c = sc[~sc["year"].isin(partial_years)].copy()
+    if ex22:
+        sc_c = sc_c[sc_c["year"] != 2022]
+
     if len(sc_c) >= 3:
-        x = sc_c["TechMW"].values
-        y = sc_c["cp_plot"].values
+        x = sc_c["TechMW"].values.astype(float)
+        y = sc_c["cp_plot"].values.astype(float)
 
         mask = x > 0
         x = x[mask]
@@ -290,24 +297,29 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
         if len(x) >= 3:
             coeffs = np.polyfit(np.log(x), y, 1)
             y_pred = np.polyval(coeffs, np.log(x))
-            r2 = 1 - np.sum((y - y_pred)**2) / np.sum((y - np.mean(y))**2)
+            r2 = 1 - np.sum((y - y_pred) ** 2) / np.sum((y - np.mean(y)) ** 2)
 
-            xl = np.linspace(x.min(), x.max(), 200)
+            # capacity projection to 2030
+            cap_hist = nat_mw[~nat_mw["year"].isin(partial_years)].copy()
+            if len(cap_hist) >= 2:
+                year_vals = cap_hist["year"].values.astype(float)
+                mw_vals = cap_hist["TechMW"].values.astype(float)
+
+                sl_cap, ic_cap, _, _, _ = stats.linregress(year_vals, mw_vals)
+                x_end = max(x.max(), ic_cap + sl_cap * 2030)
+            else:
+                x_end = x.max()
+
+            xl = np.linspace(x.min(), x_end, 300)
             yl = np.polyval(coeffs, np.log(xl))
 
             fig.add_trace(go.Scatter(
                 x=xl,
                 y=yl,
                 mode="lines",
-                name=f"log fit (R²={r2:.2f})"
+                line=dict(color="black", width=2),
+                name=f"log fit to 2030 (R²={r2:.2f})"
             ))
-
-    if is_solar:
-        for gw, lbl, col in [(48000, "PPE3 2030", C4), (65000, "PPE3 2035", C5)]:
-            fig.add_vline(x=gw, line=dict(color=col, width=2, dash="dot"))
-            fig.add_annotation(x=gw, y=sc["cp_plot"].min() * 0.94, text=f"<b>{lbl}</b>",
-                               font=dict(color=col, size=11, family="Calibri"),
-                               showarrow=False, xanchor="left")
 
     fig.update_yaxes(tickformat=".0%", title_text="Captured Price (% of spot)")
     fig.update_xaxes(title_text=f"National {tech_lbl} Avg MW")
