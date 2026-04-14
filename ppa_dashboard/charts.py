@@ -383,13 +383,33 @@ def chart_market_value_vs_penetration(hourly: pd.DataFrame,
         hovertemplate="<b>Avg MW: %{x:.0f}</b><br>Avg Spot: %{y:.1f} EUR/MWh<extra></extra>",
     ))
 
-    # Regression line
-    if len(agg) >= 4:
-        sl, ic, r, _, _ = stats.linregress(agg["avg_mw"], agg["avg_spot"])
-        xl = np.linspace(agg["avg_mw"].min(), agg["avg_mw"].max(), 100)
-        fig.add_trace(go.Scatter(x=xl, y=ic + sl * xl, mode="lines",
-                                 line=dict(color=C1, width=2, dash="dash"),
-                                 name=f"Trend (R²={r**2:.2f})"))
+    # Regression Log
+    sc_c = sc[~sc["year"].isin(partial_years)]
+    if len(sc_c) >= 3:
+        x = sc_c["TechMW"].values
+        y = sc_c["cp_plot"].values
+    
+        # éviter log(0)
+        mask = x > 0
+        x = x[mask]
+        y = y[mask]
+    
+        if len(x) >= 3:
+            coeffs = np.polyfit(np.log(x), y, 1)
+            y_pred = np.polyval(coeffs, np.log(x))
+    
+            # R²
+            r2 = 1 - np.sum((y - y_pred)**2) / np.sum((y - np.mean(y))**2)
+    
+            xl = np.linspace(x.min(), x.max(), 200)
+            yl = np.polyval(coeffs, np.log(xl))
+    
+            fig.add_trace(go.Scatter(
+                x=xl,
+                y=yl,
+                mode="lines",
+                name=f"log fit (R²={r2:.2f})"
+            ))
 
     fig.update_xaxes(title_text=f"{tech_lbl} Generation (MW)")
     fig.update_yaxes(title_text="Average Spot Price (EUR/MWh)")
