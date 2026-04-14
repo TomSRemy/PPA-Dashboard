@@ -305,6 +305,8 @@ prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW
 # ══════════════════════════════════════════════════════════════════════════════
 # LINK BETWEEN OVERVIEW AND CAPACITY GRAPH
 # ══════════════════════════════════════════════════════════════════════════════
+st.write("proj_targets debug:", proj_targets)
+
 fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
     nat_ref,
     hourly,
