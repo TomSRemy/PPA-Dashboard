@@ -450,6 +450,7 @@ with tab2:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Market Dynamics
 # ══════════════════════════════════════════════════════════════════════════════
+
 with tab3:
     section("Negative Price Hours — by Year")
     desc("Hours with day-ahead price < 0. Trend line excludes YTD. CRE threshold: 15h/yr.")
@@ -465,8 +466,7 @@ with tab3:
         section(f"Monthly Cannibalization Profile — {cfg['label']}")
         desc("Average shape discount by calendar month. Error bars = year-to-year std dev.")
         fig_mo, monthly_agg = chart_monthly_profile(
-            hourly, cfg["prod_col"], cfg["color"], cfg["label"]
-        )
+            hourly, cfg["prod_col"], cfg["color"], cfg["label"])
         st.plotly_chart(fig_mo, use_container_width=True)
         
     with c3b:
