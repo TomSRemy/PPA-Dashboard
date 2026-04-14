@@ -336,7 +336,8 @@ with tab1:
                              nat_cp_list, nat_ref_complete, cfg["nat_cp"],
                              cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
                              last_yr_proj, proj_n, ex22,
-                             reg_basis=reg_basis, anchor_val=anchor_val),
+                             reg_basis=reg_basis, anchor_val=anchor_val,
+                             proj_targets=proj_targets),
             use_container_width=True)
 
     st.markdown("---")
@@ -453,11 +454,19 @@ with tab3:
     with c3b:
         section(f"CP% vs National {cfg['label']} Capacity")
         desc("Each point = one year. X-axis = average national installed capacity (MW).")
-        st.plotly_chart(
-            chart_scatter_cp_vs_capacity(nat_ref, hourly, cfg["prod_col"], cfg["nat_cp"],
-                                          cfg["color"], cfg["label"], partial_years,
-                                          techno == "Solar", ex22=ex22),
-            use_container_width=True)
+        fig_cap, proj_targets = chart_scatter_cp_vs_capacity(
+            nat_ref,
+            hourly,
+            cfg["prod_col"],
+            cfg["nat_cp"],
+            cfg["color"],
+            cfg["label"],
+            partial_years,
+            techno == "Solar",
+            ex22=ex22
+        )
+
+st.plotly_chart(fig_cap, use_container_width=True)
 
     st.markdown("---")
     section(f"Annual Shape Discount Change — {cfg['label']}")
