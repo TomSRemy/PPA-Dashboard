@@ -1,4 +1,4 @@
-name: Python syntax check
+name: Python debug check
 
 on:
   push:
@@ -17,5 +17,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check all Python files
-        run: python -m compileall -q .
+      - name: Show repo tree
+        run: |
+          pwd
+          find . -maxdepth 3 -type f | sort
+
+      - name: Show target file around suspected area
+        run: |
+          nl -ba ppa_dashboard/app.py | sed -n '450,490p'
+
+      - name: Compile target file
+        run: python -m py_compile ppa_dashboard/app.py
