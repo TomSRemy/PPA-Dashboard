@@ -360,23 +360,25 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
 
             x_end = x.max()
 
-            if len(cap_hist) >= 2:
-                year_vals = cap_hist["year"].values.astype(float)
-                mw_vals = cap_hist["TechMW"].values.astype(float)
-                sl_cap, ic_cap, _, _, _ = stats.linregress(year_vals, mw_vals)
-
-                for target_year in [2030, 2035]:
-                    cap_target = ic_cap + sl_cap * target_year
-                    if cap_target > 0:
-                        cp_target = np.polyval(coeffs, np.log(cap_target))
-                        proj_targets.append({
-                            "year": target_year,
-                            "capacity": cap_target,
-                            "cp": cp_target
-                        })
-
-                if proj_targets:
-                    x_end = max(x_end, max(t["capacity"] for t in proj_targets))
+            # PPE3 (fév. 2026) — MW moyens estimés
+            # Solaire : ratio ~11% | Éolien terrestre : ~23%
+            PPE3_MW = {
+                "Solar": {2030: 5200, 2035: 7300},  # 48 GW / 67 GW installés
+                "Wind":  {2030: 7100, 2035: 8600},  # 31 GW / 37.5 GW installés
+            }
+            tech_key = "Solar" if is_solar else "Wind"
+            cap_targets = PPE3_MW[tech_key]
+            
+            for target_year, cap_target in cap_targets.items():
+                cp_target = np.polyval(coeffs, np.log(cap_target))
+                proj_targets.append({
+                    "year": target_year,
+                    "capacity": cap_target,
+                    "cp": cp_target
+                })
+            
+            if proj_targets:
+                x_end = max(x_end, max(t["capacity"] for t in proj_targets))
 
             xl = np.linspace(x.min(), x_end, 300)
             yl = np.polyval(coeffs, np.log(xl))
