@@ -258,6 +258,19 @@ prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
+
+fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
+    nat_ref,
+    hourly,
+    cfg["prod_col"],
+    cfg["nat_cp"],
+    cfg["color"],
+    cfg["label"],
+    partial_years,
+    techno == "Solar",
+    ex22=ex22
+)
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Overview", "Forward Curve & Pricing", "Market Dynamics",
     "Sensitivity & Scenarios", "Price Waterfall", "Market Evolution",
@@ -459,19 +472,8 @@ with tab3:
     with c3b:
         section(f"CP% vs National {cfg['label']} Capacity")
         desc("Each point = one year. X-axis = average national installed capacity (MW).")
-        fig_cap, proj_targets = chart_scatter_cp_vs_capacity(
-            nat_ref,
-            hourly,
-            cfg["prod_col"],
-            cfg["nat_cp"],
-            cfg["color"],
-            cfg["label"],
-            partial_years,
-            techno == "Solar",
-            ex22=ex22
-        )
-        st.plotly_chart(fig_cap, use_container_width=True)
-
+        st.plotly_chart(fig_cap_link, use_container_width=True)
+        
     st.markdown("---")
     section(f"Annual Shape Discount Change — {cfg['label']}")
     desc("Year-on-year delta in shape discount (pp). Positive = more cannibalization.")
