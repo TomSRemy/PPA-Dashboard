@@ -467,7 +467,8 @@ with tab3:
         fig_mo, monthly_agg = chart_monthly_profile(
             hourly, cfg["prod_col"], cfg["color"], cfg["label"]
         )
-        st.plotly_chart(fig_mo, use_container_width=True)      
+        st.plotly_chart(fig_mo, use_container_width=True)
+        
     with c3b:
         section(f"CP% vs National {cfg['label']} Capacity")
         desc("Each point = one year. X-axis = average national installed capacity (MW).")
