@@ -280,11 +280,27 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
 
     sc_c = sc[~sc["year"].isin(partial_years)]
     if len(sc_c) >= 3:
-        sl_sc, ic_sc, r_sc, _, _ = stats.linregress(sc_c["TechMW"].values, sc_c["cp_plot"].values)
-        xl = np.linspace(0, sc["TechMW"].max() * 1.2, 200)
-        fig.add_trace(go.Scatter(x=xl, y=ic_sc + sl_sc * xl, mode="lines",
-                                 line=dict(color="#AAAAAA", width=2, dash="dash"),
-                                 name=f"Regression (R²={r_sc**2:.2f})"))
+        x = sc_c["TechMW"].values
+        y = sc_c["cp_plot"].values
+
+        mask = x > 0
+        x = x[mask]
+        y = y[mask]
+
+        if len(x) >= 3:
+            coeffs = np.polyfit(np.log(x), y, 1)
+            y_pred = np.polyval(coeffs, np.log(x))
+            r2 = 1 - np.sum((y - y_pred)**2) / np.sum((y - np.mean(y))**2)
+
+            xl = np.linspace(x.min(), x.max(), 200)
+            yl = np.polyval(coeffs, np.log(xl))
+
+            fig.add_trace(go.Scatter(
+                x=xl,
+                y=yl,
+                mode="lines",
+                name=f"log fit (R²={r2:.2f})"
+            ))
 
     if is_solar:
         for gw, lbl, col in [(48000, "PPE3 2030", C4), (65000, "PPE3 2035", C5)]:
@@ -365,11 +381,10 @@ def chart_market_value_vs_penetration(hourly: pd.DataFrame,
         avg_spot     = ("Spot",    "mean"),
         avg_mw       = (prod_col,  "mean"),
         count        = (prod_col,  "count"),
-        avg_cp_pct   = ("Spot",    "mean"),   # placeholder — overridden below
+        avg_cp_pct   = ("Spot",    "mean"),
     ).reset_index()
-    agg = agg[agg["count"] > 20]  # filter sparse bins
+    agg = agg[agg["count"] > 20]
 
-    # Color by MW level
     max_mw = agg["avg_mw"].max()
     colors = [rgba(tech_clr, 0.4 + 0.5 * (v / max_mw)) for v in agg["avg_mw"]]
 
@@ -383,33 +398,12 @@ def chart_market_value_vs_penetration(hourly: pd.DataFrame,
         hovertemplate="<b>Avg MW: %{x:.0f}</b><br>Avg Spot: %{y:.1f} EUR/MWh<extra></extra>",
     ))
 
-    # Regression Log
-    sc_c = sc[~sc["year"].isin(partial_years)]
-    if len(sc_c) >= 3:
-        x = sc_c["TechMW"].values
-        y = sc_c["cp_plot"].values
-    
-        # éviter log(0)
-        mask = x > 0
-        x = x[mask]
-        y = y[mask]
-    
-        if len(x) >= 3:
-            coeffs = np.polyfit(np.log(x), y, 1)
-            y_pred = np.polyval(coeffs, np.log(x))
-    
-            # R²
-            r2 = 1 - np.sum((y - y_pred)**2) / np.sum((y - np.mean(y))**2)
-    
-            xl = np.linspace(x.min(), x.max(), 200)
-            yl = np.polyval(coeffs, np.log(xl))
-    
-            fig.add_trace(go.Scatter(
-                x=xl,
-                y=yl,
-                mode="lines",
-                name=f"log fit (R²={r2:.2f})"
-            ))
+    if len(agg) >= 4:
+        sl, ic, r, _, _ = stats.linregress(agg["avg_mw"], agg["avg_spot"])
+        xl = np.linspace(agg["avg_mw"].min(), agg["avg_mw"].max(), 100)
+        fig.add_trace(go.Scatter(x=xl, y=ic + sl * xl, mode="lines",
+                                 line=dict(color=C1, width=2, dash="dash"),
+                                 name=f"Trend (R²={r**2:.2f})"))
 
     fig.update_xaxes(title_text=f"{tech_lbl} Generation (MW)")
     fig.update_yaxes(title_text="Average Spot Price (EUR/MWh)")
@@ -434,14 +428,12 @@ def chart_duck_curve(hourly: pd.DataFrame,
     h["Date"] = pd.to_datetime(h["Date"])
     h["Hour"] = h["Date"].dt.hour
 
-    # Monthly average (all hours, same month-year) for normalisation
     monthly_avg = h.groupby(["Year","Month"])["Spot"].transform("mean")
     h["norm_spot"] = h["Spot"] / monthly_avg.replace(0, np.nan)
 
     hourly_avg = h.groupby(["Year","Hour"])["norm_spot"].mean().reset_index()
 
     years = sorted(hourly_avg["Year"].unique())
-    # Colour gradient from light to dark tech colour
     n = max(len(years), 1)
     year_colors = [rgba(tech_clr, 0.25 + 0.75 * i / (n - 1)) if n > 1 else tech_clr
                    for i, _ in enumerate(years)]
@@ -449,8 +441,7 @@ def chart_duck_curve(hourly: pd.DataFrame,
     fig = go.Figure()
     for yr, col in zip(years, year_colors):
         d = hourly_avg[hourly_avg["Year"] == yr].sort_values("Hour")
-        width  = 3.0 if yr == years[-1] else 1.2
-        is_last = yr == years[-1]
+        width = 3.0 if yr == years[-1] else 1.2
         fig.add_trace(go.Scatter(
             x=d["Hour"], y=d["norm_spot"],
             mode="lines",
@@ -466,7 +457,6 @@ def chart_duck_curve(hourly: pd.DataFrame,
                   annotation_font=dict(color="#999999", size=11, family="Calibri"),
                   annotation_position="top left")
 
-    # Mark midday dip zone for solar
     if 4 in duck_months or 5 in duck_months:
         fig.add_vrect(x0=9.5, x1=15.5,
                       fillcolor=rgba(tech_clr, 0.07), line_width=0,
@@ -503,13 +493,11 @@ def chart_canyon_curve(hourly: pd.DataFrame,
     monthly_avg = h.groupby(["Year","Month"])["Spot"].transform("mean")
     h["norm_spot"] = h["Spot"] / monthly_avg.replace(0, np.nan)
 
-    # Last N complete years
     all_complete_years = sorted(h[~h["Year"].isin([pd.Timestamp.now().year])]["Year"].unique())
     selected_years = all_complete_years[-recent_years:] if len(all_complete_years) >= recent_years else all_complete_years
 
     hourly_avg = h[h["Year"].isin(selected_years)].groupby(["Year","Hour"])["norm_spot"].mean().reset_index()
 
-    # Color ramp: older = grey, most recent = full tech colour
     n = max(len(selected_years), 1)
     year_colors = ["#AAAAAA"] * (n - 1) + [tech_clr]
 
@@ -552,12 +540,14 @@ def chart_pnl_percentile(pcts, pnl_v, cp_vals, ppa, vol_mwh,
     nx_ = [p for p, v in zip(pcts, pnl_v) if v < 0]
     ny_ = [v for v in pnl_v if v < 0]
 
-    if px_: fig.add_trace(go.Scatter(x=px_, y=py_, fill="tozeroy",
-                                      fillcolor="rgba(42,157,143,0.15)",
-                                      line=dict(color="rgba(0,0,0,0)"), showlegend=False))
-    if nx_: fig.add_trace(go.Scatter(x=nx_, y=ny_, fill="tozeroy",
-                                      fillcolor="rgba(231,111,81,0.15)",
-                                      line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+    if px_:
+        fig.add_trace(go.Scatter(x=px_, y=py_, fill="tozeroy",
+                                 fillcolor="rgba(42,157,143,0.15)",
+                                 line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+    if nx_:
+        fig.add_trace(go.Scatter(x=nx_, y=ny_, fill="tozeroy",
+                                 fillcolor="rgba(231,111,81,0.15)",
+                                 line=dict(color="rgba(0,0,0,0)"), showlegend=False))
 
     fig.add_trace(go.Scatter(x=pcts, y=pnl_v, name="P&L (k EUR/yr)",
                              mode="lines", line=dict(color=C1, width=3)))
@@ -624,6 +614,7 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 5 — Price Waterfall
 # ══════════════════════════════════════════════════════════════════════════════
+
 def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
                     vol_risk_pct: float = 0.0,
                     price_risk_pct: float = 0.0,
@@ -654,14 +645,13 @@ def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
         ("PPA Price",         0,               "total"),
     ]
 
-    # Filter out zero-value rows (keeps chart clean)
     wf = [row for row in wf if row[2] in ("absolute","total") or abs(row[1]) > 0.001]
 
     fig = go.Figure(go.Waterfall(
         name="", orientation="v",
         measure=[d[2] for d in wf],
-        x      =[d[0] for d in wf],
-        y      =[d[1] for d in wf],
+        x=[d[0] for d in wf],
+        y=[d[1] for d in wf],
         text=[f"{d[1]:+.2f}" if d[2] == "relative"
               else f"{d[1]:.2f}" if d[2] == "absolute"
               else f"<b>{ppa_final:.2f}</b>" for d in wf],
@@ -670,7 +660,7 @@ def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
         connector=dict(line=dict(color="#AAAAAA", width=1.5)),
         decreasing=dict(marker=dict(color=C5, line=dict(color=WHT, width=1))),
         increasing=dict(marker=dict(color=C2, line=dict(color=WHT, width=1))),
-        totals   =dict(marker=dict(color=C3, line=dict(color=WHT, width=2))),
+        totals=dict(marker=dict(color=C3, line=dict(color=WHT, width=2))),
     ))
     fig.update_xaxes(tickangle=-30)
     plotly_base(fig, h=520, show_legend=False)
@@ -700,7 +690,8 @@ def chart_rolling_cp(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
 
     for w in [365, 90, 30]:
         col = f"cp_{w}d"; d = roll.dropna(subset=[col])
-        if len(d) == 0: continue
+        if len(d) == 0:
+            continue
         fig.add_trace(go.Scatter(x=d["Date"], y=d[col], name=f"{w}d rolling", mode="lines",
                                  line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
 
@@ -746,7 +737,8 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
 
     for w in [365, 90, 30]:
         col = f"m0_{w}d"; d = roll.dropna(subset=[col])
-        if len(d) == 0: continue
+        if len(d) == 0:
+            continue
         fig.add_trace(go.Scatter(x=d["Date"], y=d[col], name=f"M0 {w}d", mode="lines",
                                  line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
 
@@ -761,6 +753,7 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
     fig.update_layout(title=dict(
         text=f"<b>Rolling Captured Price M0 (EUR/MWh) — {tech_lbl}</b>"))
     return fig
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Asset Production Profile
@@ -889,6 +882,7 @@ def chart_annual_production(hourly, asset_ann, prod_col,
     fig.update_layout(title=dict(text="<b>Annual Production</b>"))
     return fig
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 8 — Charts Markets (DA, IMB, Reserves)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -898,8 +892,8 @@ def _monthly_avg(df: pd.DataFrame, col: str) -> pd.DataFrame:
     d = df[df[col].notna()].copy()
     d["YM"] = pd.to_datetime(d["Date"].astype(str).str[:7])
     return d.groupby("YM")[col].mean().reset_index()
- 
- 
+
+
 def chart_da_history(bal: pd.DataFrame) -> go.Figure:
     """Monthly average DA price — history."""
     m = _monthly_avg(bal, "DA")
@@ -914,8 +908,8 @@ def chart_da_history(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=380, show_legend=False)
     fig.update_layout(title=dict(text="<b>Day-Ahead Price — Monthly Average (France)</b>"))
     return fig
- 
- 
+
+
 def chart_imbalance_history(bal: pd.DataFrame) -> go.Figure:
     """Monthly average imbalance prices pos/neg."""
     mp = _monthly_avg(bal, "Imb_Pos")
@@ -934,8 +928,8 @@ def chart_imbalance_history(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=380)
     fig.update_layout(title=dict(text="<b>Imbalance Prices — Monthly Average (France)</b>"))
     return fig
- 
- 
+
+
 def chart_balancing_services(bal: pd.DataFrame) -> go.Figure:
     """Monthly average aFRR and mFRR prices."""
     ma = _monthly_avg(bal, "aFRR")
@@ -955,14 +949,14 @@ def chart_balancing_services(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=380)
     fig.update_layout(title=dict(text="<b>Balancing Services — aFRR & mFRR Activated Prices (France)</b>"))
     return fig
- 
- 
+
+
 def chart_price_comparison(bal: pd.DataFrame) -> go.Figure:
     """DA vs Imbalance spread — monthly, all on same chart."""
     da  = _monthly_avg(bal, "DA")
     imp = _monthly_avg(bal, "Imb_Pos")
     imn = _monthly_avg(bal, "Imb_Neg")
- 
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=da["YM"], y=da["DA"],
@@ -981,8 +975,8 @@ def chart_price_comparison(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=420)
     fig.update_layout(title=dict(text="<b>DA vs Imbalance Prices — Monthly Average (France)</b>"))
     return fig
- 
- 
+
+
 def chart_da_heatmap(bal: pd.DataFrame) -> go.Figure:
     """DA price heatmap by hour of day and month."""
     h = bal[bal["DA"].notna()].copy()
@@ -991,7 +985,7 @@ def chart_da_heatmap(bal: pd.DataFrame) -> go.Figure:
     pivot = h.groupby(["Month","Hour"])["DA"].mean().reset_index()
     p = pivot.pivot(index="Month", columns="Hour", values="DA")
     p.index = [MONTH_NAMES[i-1] for i in p.index]
- 
+
     fig = go.Figure(data=go.Heatmap(
         z=p.values, x=[f"{h}h" for h in p.columns], y=p.index.tolist(),
         colorscale=[[0, C2],[0.5, C3],[1, C5]],
@@ -1006,15 +1000,15 @@ def chart_da_heatmap(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=420, show_legend=False)
     fig.update_layout(title=dict(text="<b>DA Price Heatmap — Average by Hour and Month (France)</b>"))
     return fig
- 
- 
+
+
 def chart_imbalance_spread(bal: pd.DataFrame) -> go.Figure:
     """Monthly spread between imbalance positive and negative."""
     mp = _monthly_avg(bal, "Imb_Pos")
     mn = _monthly_avg(bal, "Imb_Neg")
     merged = mp.merge(mn, on="YM", how="inner")
     merged["spread"] = merged["Imb_Pos"] - merged["Imb_Neg"]
- 
+
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=merged["YM"], y=merged["spread"],
@@ -1026,15 +1020,15 @@ def chart_imbalance_spread(bal: pd.DataFrame) -> go.Figure:
     plotly_base(fig, h=360, show_legend=False)
     fig.update_layout(title=dict(text="<b>Imbalance Spread — Positive minus Negative (EUR/MWh)</b>"))
     return fig
- 
- 
+
+
 def summary_stats(bal: pd.DataFrame) -> dict:
     """Key stats for the recent period (last 12 months)."""
     cutoff = pd.to_datetime(bal["Date"]).max() - pd.DateOffset(months=12)
     recent = bal[pd.to_datetime(bal["Date"]) >= cutoff]
     stats = {}
     for col, label in [("DA","DA"), ("Imb_Pos","Imb Pos"), ("Imb_Neg","Imb Neg"),
-                        ("aFRR","aFRR"), ("mFRR","mFRR")]:
+                       ("aFRR","aFRR"), ("mFRR","mFRR")]:
         if col in recent.columns and recent[col].notna().any():
             stats[label] = {
                 "mean": recent[col].mean(),
