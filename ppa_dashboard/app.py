@@ -350,7 +350,7 @@ with tab1:
                              cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
                              last_yr_proj, proj_n, ex22,
                              reg_basis=reg_basis, anchor_val=anchor_val,
-                             proj_targets=None),
+                             proj_targets=proj_targets),
             use_container_width=True)
 
     st.markdown("---")
