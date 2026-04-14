@@ -465,8 +465,7 @@ with tab3:
             techno == "Solar",
             ex22=ex22
         )
-
-st.plotly_chart(fig_cap, use_container_width=True)
+        st.plotly_chart(fig_cap, use_container_width=True)
 
     st.markdown("---")
     section(f"Annual Shape Discount Change — {cfg['label']}")
