@@ -368,6 +368,8 @@ fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
     ex22=ex22,
 )
 
+st.plotly_chart(fig_cap, use_container_width=True)
+
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
     [
         "Overview",
