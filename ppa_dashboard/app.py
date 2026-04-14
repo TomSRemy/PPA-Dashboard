@@ -463,7 +463,8 @@ with tab3:
             cfg["label"],
             partial_years,
             techno == "Solar",
-            ex22=ex22)
+            ex22=ex22
+        )
 
 st.plotly_chart(fig_cap, use_container_width=True)
 
