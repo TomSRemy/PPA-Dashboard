@@ -454,6 +454,7 @@ with tab2:
 with tab3:
     section("Negative Price Hours — by Year")
     desc("Hours with day-ahead price < 0. Trend line excludes YTD. CRE threshold: 15h/yr.")
+    
     st.plotly_chart(
         chart_neg_hours(hourly, partial_years, cfg["color"]),
         use_container_width=True
