@@ -417,35 +417,7 @@ with tab1:
                                      partial_years),
             use_container_width=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — Forward Curve & Pricing
-# ══════════════════════════════════════════════════════════════════════════════
-with tab2:
-    section("EEX Forward Curve — by Calendar Year")
-    desc(f"PPA = Forward x (1 - {cfg['label']} Shape Disc - Imbalance%) - Imbalance EUR.")
-    col_i, col_r = st.columns([1, 1.6])
-    with col_i:
-        fwd_rows_live = []
-        for yr in range(tenor_start, tenor_end+1):
-            px = st.number_input(f"CAL {yr} (EUR/MWh)", 10.0, 200.0,
-                                 float(DEFAULT_FWD.get(yr, 52.0)), 0.5, key=f"fwd_{yr}")
-            fwd_rows_live.append({"year": yr, "forward": px})
-        fwd_df_live = pd.DataFrame(fwd_rows_live)
-        st.info("API connector coming soon.")
-    with col_r:
-        rows_ppa = []
-        for _, row in fwd_df_live.iterrows():
-            fsd    = ic_u + sl_u * row["year"]
-            cp     = row["forward"] * (1 - fsd)
-            ppa_yr = row["forward"] * (1 - fsd - imb_eur / row["forward"]) - imb_eur
-            rows_ppa.append({"Year": int(row["year"]),
-                             "Forward": f"{row['forward']:.2f}",
-                             f"{cfg['label']} Proj. SD": f"{fsd*100:.1f}%",
-                             "Captured (EUR/MWh)": f"{cp:.2f}",
-                             "PPA Price (EUR/MWh)": f"{ppa_yr:.2f}",
-                             "P&L/MWh": f"{cp-ppa_yr:+.2f}"})
-        st.dataframe(pd.DataFrame(rows_ppa), use_container_width=True, hide_index=True)
-    st.plotly_chart(chart_forward(fwd_df_live), use_container_width=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Market Dynamics
