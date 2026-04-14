@@ -494,7 +494,6 @@ with tab1:
                 ex22,
                 reg_basis=reg_basis,
                 anchor_val=anchor_val,
-                proj_targets=proj_targets,
             ),
             use_container_width=True,
         )
