@@ -103,4 +103,7 @@ def load_balancing() -> pd.DataFrame:
         return pd.DataFrame()
     df = pd.read_csv(p, parse_dates=["Date"])
     df["Date"] = pd.to_datetime(df["Date"], utc=True)
+    df["Year"] = df["Date"].dt.year
+    df["Month"] = df["Date"].dt.month
+    df["Hour"] = df["Date"].dt.hour
     return df
