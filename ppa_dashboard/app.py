@@ -456,7 +456,7 @@ with tab3:
         st.plotly_chart(
             chart_scatter_cp_vs_capacity(nat_ref, hourly, cfg["prod_col"], cfg["nat_cp"],
                                           cfg["color"], cfg["label"], partial_years,
-                                          techno == "Solar", ex22=ex22,)
+                                          techno == "Solar", ex22=ex22),
             use_container_width=True)
 
     st.markdown("---")
