@@ -1,8 +1,8 @@
 """
 ui.py — KAL-EL PPA Dashboard
 Reusable UI components: section headers, description boxes, KPI cards, plotly base.
+v2: plotly_base now returns fig so it can be used as st.plotly_chart(plotly_base(fig,...))
 """
-
 import streamlit as st
 import plotly.graph_objects as go
 from config import C1, C2, C3, C4, C5, BG, WHT, C2L, C3L
@@ -48,7 +48,15 @@ def tech_badge(tech_label: str) -> str:
 
 
 def plotly_base(fig: go.Figure, h: int = 400,
-                show_legend: bool = True, legend_below: bool = True):
+                show_legend: bool = True, legend_below: bool = True) -> go.Figure:
+    """
+    Apply standard KAL-EL styling to a Plotly figure.
+    Returns fig so it can be used as:
+        st.plotly_chart(plotly_base(fig, h=400))
+    or:
+        plotly_base(fig, h=400)
+        st.plotly_chart(fig)
+    """
     legend_cfg = dict(
         orientation="h", yanchor="top",
         y=-0.15 if legend_below else 1.02,
@@ -75,6 +83,7 @@ def plotly_base(fig: go.Figure, h: int = 400,
     )
     fig.update_xaxes(**axis_style)
     fig.update_yaxes(**axis_style)
+    return fig  # ← FIX: was missing
 
 
 def rgba(hex_c: str, alpha: float) -> str:
