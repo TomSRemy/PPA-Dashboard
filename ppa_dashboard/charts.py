@@ -663,19 +663,6 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     
     fig.update_yaxes(title_text="Avg MW")
     plotly_base(fig, h=520)
-    
-    fig.update_layout(
-        title=dict(text=f"<b>Daily Profile — {asset_name}</b>"),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.18,
-            xanchor="center",
-            x=0.5,
-            font=dict(size=10),
-        ),
-        margin=dict(t=60, b=140, l=60, r=40),
-    )
     return fig
  
 def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
