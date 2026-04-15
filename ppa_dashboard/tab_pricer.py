@@ -411,9 +411,11 @@ def render_pricer_tab(
             f'margin-bottom:8px;">Production & Tenor</div>',
             unsafe_allow_html=True,
         )
+        _prod_default = float(asset_ann["prod_gwh"].mean()) if has_asset else 52.0
+        _prod_default = max(1.0, min(_prod_default, 50000.0))
         prod_p50 = st.number_input(
-            "P50 production (GWh/yr)", 1.0, 2000.0,
-            float(asset_ann["prod_gwh"].mean()) if has_asset else 52.0,
+            "P50 production (GWh/yr)", 1.0, 50000.0,
+            _prod_default,
             step=0.5, key="pr_prod_p50",
             help="Annual P50e — volume hedged in CAL at contract signature.",
         )
