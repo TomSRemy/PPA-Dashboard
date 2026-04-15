@@ -36,6 +36,7 @@ from charts  import (
 )
 from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel import build_excel
+from tab_pricer import render_pricer_tab
 
 import plotly.graph_objects as go
 
@@ -242,10 +243,11 @@ fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "Overview", "Forward Curve & Pricing", "Market Dynamics",
     "Sensitivity & Scenarios", "Price Waterfall", "Market Evolution",
     "Export & SPOT Extractor", "Market Prices", "Market Overview",
+    "Asset Pricer",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1056,6 +1058,19 @@ Be factual and direct. Do not use filler phrases.
                 st.caption(f"Generated {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} — Claude Sonnet")
             except Exception as e:
                 st.error(f"Commentary generation failed: {e}")
+
+with tab10:
+    render_pricer_tab(
+        hourly=hourly,
+        nat_ref_complete=nat_ref_complete,
+        asset_ann=asset_ann,
+        asset_name=asset_name,
+        has_asset=has_asset,
+        cfg=cfg,
+        sl_u=sl_u, ic_u=ic_u,
+        hist_sd_f=hist_sd_f,
+        plotly_base=plotly_base,
+    )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
