@@ -265,8 +265,10 @@ def _chart_heatmap_risk(
             "P&L: %{z:+.0f}k EUR/yr<extra></extra>"
         ),
         colorbar=dict(
-            title="P&L (k EUR/yr)",
-            titlefont=dict(family="Calibri,Arial", size=12),
+            title=dict(
+                text="P&L (k EUR/yr)",
+                font=dict(family="Calibri,Arial", size=12),
+            ),
             tickfont=dict(family="Calibri,Arial", size=11),
         ),
     ))
