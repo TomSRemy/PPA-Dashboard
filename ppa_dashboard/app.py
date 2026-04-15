@@ -603,6 +603,7 @@ with tab5:
         sl_u=sl_u, ic_u=ic_u,
         hist_sd_f=hist_sd_f,
         plotly_base=plotly_base,
+        asset_raw=asset_raw,
     )
 
 # ══════════════════════════════════════════════════════════════════════════════
