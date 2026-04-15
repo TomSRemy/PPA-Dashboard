@@ -139,18 +139,52 @@ def run_bootstrap(
     # Filter to production hours (daytime for solar)
     h = h[h["_prod"] > 0].copy()
 
-    # ── 2. Apply asset weight profile if available ────────────────────────────
-    # Normalise asset production to a [0,1] weight per hour-of-day × month
-    # so that the shape discount reflects this asset's specific profile
-    if asset_raw is not None and len(asset_raw) > 100:
-        a = asset_raw.copy()
-        a["Date"]  = pd.to_datetime(a["Date"])
-        a["Hour"]  = a["Date"].dt.hour
-        a["Month"] = a["Date"].dt.month
-        a = a[a["Prod_MWh"] > 0]
+    # ── 2. Production source — priority order ────────────────────────────────
+    #
+    #   [A] Asset direct  — asset_raw merged on Date with hourly_spot
+    #                       Uses actual asset production × realised DA spot
+    #                       Requires ≥ 2 years of asset data to have enough blocks
+    #
+    #   [B] Asset profile — asset_raw used as hourly weight (Month×Hour)
+    #                       Applied on top of NatMW/SolarForecastMW
+    #                       Fallback when asset history is too short for direct
+    #
+    #   [C] National      — NatMW or SolarForecastMW, no asset adjustment
+    #
+    asset_profile_applied = False
+    asset_direct          = False
 
-        if len(a) > 50:
-            # Build normalised weight per (Month, Hour)
+    if asset_raw is not None and len(asset_raw) > 50:
+        a = asset_raw.copy()
+        a["Date"] = pd.to_datetime(a["Date"])
+        a = a[a["Prod_MWh"] > 0].copy()
+
+        # Check if enough years for direct mode (≥ 2 complete years)
+        n_asset_years = a["Date"].dt.year.nunique()
+
+        if n_asset_years >= 2:
+            # ── [A] Direct: merge asset production with spot ──────────────────
+            merged = h[["Date", "Spot"]].merge(
+                a[["Date", "Prod_MWh"]].rename(columns={"Prod_MWh": "_prod_asset"}),
+                on="Date", how="inner",
+            )
+            merged = merged[merged["_prod_asset"] > 0].copy()
+
+            if len(merged) > block_weeks * 7 * 24 * 10:
+                # Enough data — use asset directly
+                h          = merged.copy()
+                h["_prod"] = h["_prod_asset"]
+                prod_source           = f"Asset direct ({n_asset_years} years)"
+                asset_direct          = True
+                asset_profile_applied = True
+            else:
+                # Not enough matched rows after merge — fall back to profile
+                n_asset_years = 0  # trigger profile fallback below
+
+        if not asset_direct:
+            # ── [B] Profile: use asset as hourly weight on national ───────────
+            a["Hour"]  = a["Date"].dt.hour
+            a["Month"] = a["Date"].dt.month
             weight_profile = (
                 a.groupby(["Month", "Hour"])["Prod_MWh"].mean()
                 .reset_index()
@@ -163,17 +197,11 @@ def run_bootstrap(
             h["Month"] = h["Date"].dt.month
             h["Hour"]  = h["Date"].dt.hour
             h = h.merge(weight_profile, on=["Month", "Hour"], how="left")
-            h["_weight"] = h["_weight"].fillna(0.0)
-
-            # Apply weight: effective production = national/forecast × asset weight
-            h["_prod_eff"] = h["_prod"] * h["_weight"]
-            h = h[h["_prod_eff"] > 0].copy()
-            h["_prod"] = h["_prod_eff"]
+            h["_weight"]   = h["_weight"].fillna(0.0)
+            h["_prod"]     = h["_prod"] * h["_weight"]
+            h = h[h["_prod"] > 0].copy()
+            prod_source           = f"National + asset profile (hourly weight)"
             asset_profile_applied = True
-        else:
-            asset_profile_applied = False
-    else:
-        asset_profile_applied = False
 
     spot_arr  = h["Spot"].values.astype(np.float64)
     prod_arr  = h["_prod"].values.astype(np.float64)
@@ -260,6 +288,7 @@ def run_bootstrap(
         "n_sim":           int(len(shape_disc_dist)),
         "method":          method,
         "asset_profile":   asset_profile_applied,
+        "asset_direct":    asset_direct,
         "exclude_2022":    exclude_2022,
     }
 
