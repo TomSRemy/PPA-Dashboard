@@ -668,7 +668,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.5,      # 👈 ajuste ici si besoin
+            y=-2,      # 👈 ajuste ici si besoin
             xanchor="center",
             x=0.5
         ),
