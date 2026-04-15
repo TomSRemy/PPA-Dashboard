@@ -16,7 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-from tab_pricer import render_pricer_tab
 from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT, EXAMPLE_CSV
 from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd, load_balancing
 from compute import compute_asset_annual, fit_reg, project_cp, compute_ppa, compute_pnl_curve, compute_scenarios
@@ -243,10 +242,10 @@ fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "Overview", "Forward Curve & Pricing", "Market Dynamics",
     "Sensitivity & Scenarios", "Price Waterfall", "Market Evolution",
-    "Export & SPOT Extractor", "Market Prices", "Market Overview", "Asset Pricer",
+    "Export & SPOT Extractor", "Market Prices", "Market Overview",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -800,6 +799,7 @@ with tab9:
     hourly_full["_date"] = pd.to_datetime(hourly_full["Date"]).dt.normalize()
     daily_spot = (hourly_full.groupby("_date")["Spot"].mean().reset_index()
                   .rename(columns={"_date":"Date","Spot":"spot_avg"}))
+    daily_spot["Date"] = pd.to_datetime(daily_spot["Date"])
 
     # Latest values
     last_spot       = daily_spot["spot_avg"].iloc[-1] if len(daily_spot) > 0 else np.nan
@@ -869,23 +869,29 @@ with tab9:
     else:
         spot_plot = daily_spot
 
-    fig_spot = go.Figure()
-    fig_spot.add_trace(go.Scatter(
-        x=spot_plot["Date"], y=spot_plot["spot_avg"],
-        mode="lines", name="FR DA Spot",
-        line=dict(color=C1, width=1.5),
-        fill="tozeroy", fillcolor="rgba(29,58,74,0.08)"
-    ))
-    fig_spot.update_layout(
-        height=350, margin=dict(l=40,r=20,t=30,b=40),
-        plot_bgcolor=WHT, paper_bgcolor=WHT,
-        yaxis=dict(title="EUR/MWh", gridcolor="#eee", tickfont=dict(family="Calibri,Arial", size=12)),
-        xaxis=dict(gridcolor="#eee", tickfont=dict(family="Calibri,Arial", size=12)),
-        font=dict(family="Calibri,Arial", size=13),
-        showlegend=False,
-        hovermode="x unified"
-    )
-    st.plotly_chart(plotly_base(fig_spot, h=350, show_legend=False), use_container_width=True)
+    if len(spot_plot) == 0:
+        st.info("No spot data available for the selected zoom window.")
+    else:
+        fig_spot = go.Figure()
+        fig_spot.add_trace(go.Scatter(
+            x=spot_plot["Date"].dt.to_pydatetime(),
+            y=spot_plot["spot_avg"].astype(float).tolist(),
+            mode="lines", name="FR DA Spot",
+            line=dict(color=C1, width=1.5),
+            fill="tozeroy", fillcolor="rgba(29,58,74,0.08)"
+        ))
+        fig_spot.update_layout(
+            height=350, margin=dict(l=40,r=20,t=30,b=40),
+            plot_bgcolor=WHT, paper_bgcolor=WHT,
+            yaxis=dict(title="EUR/MWh", gridcolor="#eee",
+                       tickfont=dict(family="Calibri,Arial", size=12)),
+            xaxis=dict(gridcolor="#eee", tickfont=dict(family="Calibri,Arial", size=12)),
+            font=dict(family="Calibri,Arial", size=13),
+            showlegend=False,
+            hovermode="x unified"
+        )
+        st.plotly_chart(plotly_base(fig_spot, h=350, show_legend=False),
+                        use_container_width=True)
 
     st.markdown("---")
 
@@ -1051,20 +1057,6 @@ Be factual and direct. Do not use filler phrases.
             except Exception as e:
                 st.error(f"Commentary generation failed: {e}")
 
-
-with tab10:
-    render_pricer_tab(
-        hourly=hourly,
-        nat_ref_complete=nat_ref_complete,
-        asset_ann=asset_ann,
-        asset_name=asset_name,
-        has_asset=has_asset,
-        cfg=cfg,
-        sl_u=sl_u, ic_u=ic_u,
-        hist_sd_f=hist_sd_f,
-        plotly_base=plotly_base,
-    )
-    
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
