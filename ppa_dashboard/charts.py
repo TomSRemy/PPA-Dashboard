@@ -614,41 +614,106 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
-    h = hourly[hourly[prod_col]>0].copy()
-    h["Date"]=pd.to_datetime(h["Date"]); h["Hour"]=h["Date"].dt.hour
-    month_avg = h.groupby(["Month","Hour"])[prod_col].mean().reset_index()
-    colors=["#1D3A4A","#2A9D8F","#E9C46A","#F4A261","#E76F51","#5B8DEF",
-            "#8ECAE6","#219EBC","#023047","#FFB703","#FB8500","#6A994E"]
-    fig=go.Figure()
-    for m in range(1,13):
-        d=month_avg[month_avg["Month"]==m].sort_values("Hour")
-        if len(d)==0: continue
-        fig.add_trace(go.Scatter(x=d["Hour"],y=d[prod_col],mode="lines",name=MONTH_NAMES[m-1],
-                                 line=dict(color=colors[m-1],width=2)))
-    fig.update_xaxes(title_text="Hour",tickmode="array",tickvals=list(range(0,24,2)),
-                     ticktext=[f"{h}h" for h in range(0,24,2)])
+    h = hourly[hourly[prod_col] > 0].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    h["Hour"] = h["Date"].dt.hour
+    month_avg   = h.groupby(["Month", "Hour"])[prod_col].mean().reset_index()
+    overall_avg = h.groupby("Hour")[prod_col].mean().reset_index()
+ 
+    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", "#5B8DEF",
+              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#6A994E"]
+    fig = go.Figure()
+ 
+    # Monthly traces — slightly thinner and semi-transparent
+    for m in range(1, 13):
+        d = month_avg[month_avg["Month"] == m].sort_values("Hour")
+        if len(d) == 0:
+            continue
+        fig.add_trace(go.Scatter(
+            x=d["Hour"], y=d[prod_col],
+            mode="lines", name=MONTH_NAMES[m - 1],
+            line=dict(color=colors[m - 1], width=1.5),
+            opacity=0.7,
+        ))
+ 
+    # Average curve — white halo for contrast, then coloured line + markers on top
+    fig.add_trace(go.Scatter(
+        x=overall_avg["Hour"], y=overall_avg[prod_col],
+        mode="lines+markers", name="_halo",
+        line=dict(color=WHT, width=5),
+        marker=dict(size=10, color=WHT),
+        showlegend=False, hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=overall_avg["Hour"], y=overall_avg[prod_col],
+        mode="lines+markers", name="Annual average",
+        line=dict(color=C1, width=3),
+        marker=dict(size=9, color=C1, symbol="circle",
+                    line=dict(width=2, color=WHT)),
+        hovertemplate="<b>Hour %{x}h — Annual avg: %{y:.1f} MW</b><extra></extra>",
+    ))
+ 
+    fig.update_xaxes(
+        title_text="Hour", tickmode="array",
+        tickvals=list(range(0, 24, 2)),
+        ticktext=[f"{h}h" for h in range(0, 24, 2)],
+    )
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig,h=420)
+    plotly_base(fig, h=420)
     fig.update_layout(title=dict(text=f"<b>Daily Profile — National {tech_lbl}</b>"))
     return fig
-
-
+ 
+ 
 def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
-    a=asset_raw.copy(); a["Date"]=pd.to_datetime(a["Date"])
-    a["Hour"]=a["Date"].dt.hour; a["Month"]=a["Date"].dt.month; a=a[a["Prod_MWh"]>0]
-    month_avg=a.groupby(["Month","Hour"])["Prod_MWh"].mean().reset_index()
-    colors=["#1D3A4A","#2A9D8F","#E9C46A","#F4A261","#E76F51","#5B8DEF",
-            "#8ECAE6","#219EBC","#023047","#FFB703","#FB8500","#6A994E"]
-    fig=go.Figure()
-    for m in range(1,13):
-        d=month_avg[month_avg["Month"]==m].sort_values("Hour")
-        if len(d)==0: continue
-        fig.add_trace(go.Scatter(x=d["Hour"],y=d["Prod_MWh"],mode="lines",name=MONTH_NAMES[m-1],
-                                 line=dict(color=colors[m-1],width=2,dash="dot")))
-    fig.update_xaxes(title_text="Hour",tickmode="array",tickvals=list(range(0,24,2)),
-                     ticktext=[f"{h}h" for h in range(0,24,2)])
+    a = asset_raw.copy()
+    a["Date"]  = pd.to_datetime(a["Date"])
+    a["Hour"]  = a["Date"].dt.hour
+    a["Month"] = a["Date"].dt.month
+    a = a[a["Prod_MWh"] > 0]
+ 
+    month_avg   = a.groupby(["Month", "Hour"])["Prod_MWh"].mean().reset_index()
+    overall_avg = a.groupby("Hour")["Prod_MWh"].mean().reset_index()
+ 
+    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", "#5B8DEF",
+              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#6A994E"]
+    fig = go.Figure()
+ 
+    # Monthly traces — dotted, slightly thinner and semi-transparent
+    for m in range(1, 13):
+        d = month_avg[month_avg["Month"] == m].sort_values("Hour")
+        if len(d) == 0:
+            continue
+        fig.add_trace(go.Scatter(
+            x=d["Hour"], y=d["Prod_MWh"],
+            mode="lines", name=MONTH_NAMES[m - 1],
+            line=dict(color=colors[m - 1], width=1.5, dash="dot"),
+            opacity=0.7,
+        ))
+ 
+    # Average curve — white halo for contrast, then tech_clr line + markers on top
+    fig.add_trace(go.Scatter(
+        x=overall_avg["Hour"], y=overall_avg["Prod_MWh"],
+        mode="lines+markers", name="_halo",
+        line=dict(color=WHT, width=5),
+        marker=dict(size=10, color=WHT),
+        showlegend=False, hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=overall_avg["Hour"], y=overall_avg["Prod_MWh"],
+        mode="lines+markers", name="Annual average",
+        line=dict(color=tech_clr, width=3),
+        marker=dict(size=9, color=tech_clr, symbol="circle",
+                    line=dict(width=2, color=WHT)),
+        hovertemplate="<b>Hour %{x}h — Annual avg: %{y:.1f} MW</b><extra></extra>",
+    ))
+ 
+    fig.update_xaxes(
+        title_text="Hour", tickmode="array",
+        tickvals=list(range(0, 24, 2)),
+        ticktext=[f"{h}h" for h in range(0, 24, 2)],
+    )
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig,h=420)
+    plotly_base(fig, h=420)
     fig.update_layout(title=dict(text=f"<b>Daily Profile — {asset_name}</b>"))
     return fig
 
