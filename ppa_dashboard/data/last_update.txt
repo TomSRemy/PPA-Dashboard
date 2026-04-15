@@ -1,6 +1,6 @@
-Last update : 2026-04-13 11:58 UTC
-Spot rows   : 98,762
-Spot through: 2026-04-12
-Bal rows    : 72,553
-Bal through : 2026-04-12
-Columns     : Spot|NatMW|WindMW | DA|Imb_Pos|Imb_Neg|aFRR|mFRR
+Last update : 2026-04-15 08:37 UTC
+Mode        : Full refresh (2014 -> yesterday)
+Total rows  : 98,810
+Data through: 2026-04-14
+WindMW sum  : 392297802 MW-hours
+Columns     : Spot | NatMW (B16) | WindMW (B18+B19)
