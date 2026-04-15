@@ -41,9 +41,20 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-from config  import C1, C2, C3, C4, C5, C2L, C3L, C5L, WHT, DEFAULT_FWD
-from compute import compute_ppa, project_cp
-from ui      import section, desc
+from config    import C1, C2, C3, C4, C5, C2L, C3L, C5L, WHT, DEFAULT_FWD
+from compute   import compute_ppa, project_cp
+from ui        import section, desc
+try:
+    from bootstrap import run_bootstrap, percentile_from_dist, build_percentile_table
+    _BS_OK = True
+except ImportError:
+    _BS_OK = False
+
+try:
+    from montecarlo import run_montecarlo
+    _MC_OK = True
+except ImportError:
+    _MC_OK = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -386,6 +397,7 @@ def render_pricer_tab(
     ic_u: float,
     hist_sd_f,
     plotly_base,
+    asset_raw=None,
 ):
     st.markdown(
         f'## Asset Pricer & Risk Analysis '
@@ -475,17 +487,143 @@ def render_pricer_tab(
             "Margin (EUR/MWh)", 0.0, 10.0, 1.0, step=0.1, key="pr_margin",
         )
 
-    # ─── PPA COMPUTATION ─────────────────────────────────────────────────────
-    sd_chosen  = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f) > 0 else 0.15
-    sd_p10     = float(np.percentile(hist_sd_f, 10))         if len(hist_sd_f) > 0 else 0.08
-    sd_p50     = float(np.percentile(hist_sd_f, 50))         if len(hist_sd_f) > 0 else 0.15
-    sd_p90     = float(np.percentile(hist_sd_f, 90))         if len(hist_sd_f) > 0 else 0.25
+    # ─── PPA COMPUTATION — use bootstrap dist if available ─────────────────────
+    _bs_dist = st.session_state.get('bs_dist', None)
+
+    if _bs_dist is not None and _BS_OK:
+        sd_chosen = percentile_from_dist(_bs_dist, chosen_pct)
+        sd_p10    = percentile_from_dist(_bs_dist, 10)
+        sd_p50    = percentile_from_dist(_bs_dist, 50)
+        sd_p90    = percentile_from_dist(_bs_dist, 90)
+        _sd_source = _bs_dist['method']
+    else:
+        # Fallback: np.percentile on 8-10 historical years
+        sd_chosen = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f) > 0 else 0.15
+        sd_p10    = float(np.percentile(hist_sd_f, 10))         if len(hist_sd_f) > 0 else 0.08
+        sd_p50    = float(np.percentile(hist_sd_f, 50))         if len(hist_sd_f) > 0 else 0.15
+        sd_p90    = float(np.percentile(hist_sd_f, 90))         if len(hist_sd_f) > 0 else 0.25
+        _sd_source = f'Historical sample ({len(hist_sd_f)} years — run bootstrap for robust estimates)'
     pricing    = compute_ppa(forward_eur, sd_chosen, imb_forfait, add_disc,
                              goo_value=goo_val, margin=margin)
     ppa        = pricing["ppa"]
     multiplier = pricing["multiplier"]
     prod_mwh   = prod_p50 * 1000
     formula_str = f"{multiplier:.4f} x CAL - {imb_forfait:.1f}"
+
+
+    # ─── SECTION 1b : BOOTSTRAP SIMULATION ──────────────────────────────────────
+    st.markdown("---")
+    section("Shape Discount Distribution — Block Bootstrap Simulation")
+
+    _bs_dist = st.session_state.get("bs_dist", None)
+    _bs_col1, _bs_col2 = st.columns([2, 1])
+
+    with _bs_col2:
+        ex22_bs = st.checkbox("Exclude 2022", value=False, key="bs_ex22")
+        n_sim_bs = st.select_slider(
+            "Simulations", options=[1_000, 5_000, 10_000, 20_000], value=10_000, key="bs_nsim",
+            help="More simulations = smoother distribution. 10k takes ~3-5s."
+        )
+        run_bs = st.button("Run Bootstrap", key="bs_run",
+                           help="Compute 10k synthetic years from hourly ENTSO-E data.")
+        if run_bs and _BS_OK:
+            with st.spinner(f"Running {n_sim_bs:,} simulations..."):
+                try:
+                    _bs_result = run_bootstrap(
+                        hourly=hourly,
+                        asset_raw=asset_raw,
+                        prod_col=cfg["prod_col"],
+                        n_sim=n_sim_bs,
+                        exclude_2022=ex22_bs,
+                    )
+                    st.session_state["bs_dist"] = _bs_result
+                    _bs_dist = _bs_result
+                    st.success(f"Done — {_bs_result['n_sim']:,} scenarios computed.")
+                except Exception as _e:
+                    st.error(f"Bootstrap failed: {_e}")
+        elif run_bs and not _BS_OK:
+            st.error("bootstrap.py not found — add it to ppa_dashboard/.")
+
+        if _bs_dist is not None:
+            st.markdown(
+                f'<div style="font-size:11px;color:{C1};background:{C2L};'
+                f'border-left:3px solid {C2};padding:8px 12px;border-radius:4px;">'
+                f'<strong>Source:</strong> {_bs_dist["prod_source"]}<br>'
+                f'<strong>Pool:</strong> {_bs_dist["n_hours_pool"]:,} hours | '
+                f'{_bs_dist["n_blocks"]} blocks × {_bs_dist["block_size_h"]}h<br>'
+                f'<strong>Years:</strong> {", ".join(str(y) for y in _bs_dist["years_used"])}<br>'
+                + (f'<strong>DA forecast coverage:</strong> {_bs_dist["fc_coverage_pct"]:.0f}%<br>'
+                   if _bs_dist.get("fc_coverage_pct", 0) > 0 else "")
+                + f'<strong>Asset profile:</strong> {"applied" if _bs_dist.get("asset_profile") else "national (upload asset for specific profile)"}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f'<div style="font-size:12px;color:{C1};background:{C3L};'
+                f'border-left:3px solid {C3};padding:8px 12px;border-radius:4px;">'
+                f'Click "Run Bootstrap" to compute a robust shape discount distribution '
+                f'from {len(hourly):,} hourly ENTSO-E observations.<br>'
+                f'Until then, percentiles use np.percentile on {len(hist_sd_f)} historical years.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    with _bs_col1:
+        if _bs_dist is not None:
+            # Histogram of shape discount distribution
+            import plotly.graph_objects as go
+            _sd_arr  = _bs_dist["shape_disc_dist"] * 100
+            _p10_v   = _bs_dist["percentiles"][10]  * 100
+            _p50_v   = _bs_dist["percentiles"][50]  * 100
+            _p74_v   = _bs_dist["percentiles"][74]  * 100
+            _p90_v   = _bs_dist["percentiles"][90]  * 100
+            _pch_v   = _bs_dist["percentiles"][chosen_pct] * 100
+
+            _fig_bs = go.Figure()
+            _fig_bs.add_trace(go.Histogram(
+                x=_sd_arr, nbinsx=80, name="Shape Discount",
+                marker_color=f"rgba(42,157,143,0.55)",
+                marker_line_color=C2, marker_line_width=0.5,
+                hovertemplate="Shape disc: %{x:.1f}%<br>Count: %{y}<extra></extra>",
+            ))
+            # Vertical lines for key percentiles
+            for _pval, _plabel, _pcol in [
+                (_p10_v,  "P10",  C2),
+                (_p50_v,  "P50",  C1),
+                (_p74_v,  "P74",  C3),
+                (_p90_v,  "P90",  C5),
+                (_pch_v,  f"P{chosen_pct} (chosen)", "#9B59B6"),
+            ]:
+                _fig_bs.add_vline(
+                    x=_pval, line_width=2,
+                    line_color=_pcol,
+                    line_dash="dot" if _plabel != f"P{chosen_pct} (chosen)" else "solid",
+                    annotation_text=f"  {_plabel}: {_pval:.1f}%",
+                    annotation_position="top right",
+                    annotation_font=dict(size=11, color=_pcol, family="Calibri,Arial"),
+                )
+            _fig_bs.update_layout(
+                height=320, margin=dict(l=50, r=20, t=20, b=50),
+                plot_bgcolor=WHT, paper_bgcolor=WHT,
+                xaxis=dict(title="Shape Discount (%)", gridcolor="#eee",
+                           tickfont=dict(family="Calibri,Arial", size=11)),
+                yaxis=dict(title="Frequency", gridcolor="#eee",
+                           tickfont=dict(family="Calibri,Arial", size=11)),
+                showlegend=False,
+                bargap=0.05,
+            )
+            plotly_base(_fig_bs, h=320, show_legend=False)
+            st.plotly_chart(_fig_bs, use_container_width=True)
+
+            # Key percentile table from bootstrap
+            desc(
+                f"Distribution of shape discount across {_bs_dist['n_sim']:,} synthetic years. "
+                f"P74 = {_p74_v:.1f}% (vs {float(np.percentile(hist_sd_f,74))*100:.1f}% from {len(hist_sd_f)} historical years). "
+                f"Chosen P{chosen_pct} = {_pch_v:.1f}%."
+            )
+        else:
+            st.info("Run bootstrap to see the shape discount distribution.")
 
     # ─── SECTION 2 : PPA OUTPUT CARDS ────────────────────────────────────────
     st.markdown("---")
@@ -586,6 +724,210 @@ def render_pricer_tab(
         plotly_base=plotly_base,
     )
     st.plotly_chart(fig_hm, use_container_width=True)
+
+
+    # ─── SECTION 5b : MONTE CARLO SIMULATION ─────────────────────────────────
+    st.markdown("---")
+    section(f"Monte Carlo — P&L Distribution over {tenor_yr}-Year Tenor")
+    desc(
+        "10,000 simulated trajectories combining 3 independent risk sources: "
+        "[1] Cannibalization trend (regression) + intra-year variance (bootstrap), "
+        "[2] Production variance (±vol std vs P50), "
+        "[3] Forward price uncertainty (±fwd std). "
+        "Each trajectory = one possible outcome of the full contract. "
+        "Run bootstrap first for best cannibalization distribution."
+    )
+
+    _mc_dist = st.session_state.get("mc_dist", None)
+
+    _mc_c1, _mc_c2 = st.columns([3, 1])
+
+    with _mc_c2:
+        vol_std_mc  = st.slider("Production std (% of P50)", 5, 30, 12, key="mc_vol_std",
+                                help="Interannual production variance. Solar FR typical: 10-15%.") / 100
+        fwd_std_mc  = st.slider("Forward price std (%)", 2, 25, 10, key="mc_fwd_std",
+                                help="Annual forward price uncertainty around central scenario.") / 100
+        n_sim_mc    = st.select_slider("Simulations", options=[1_000, 5_000, 10_000, 20_000],
+                                       value=10_000, key="mc_nsim")
+        run_mc = st.button("Run Monte Carlo", key="mc_run")
+
+        if run_mc:
+            if not _MC_OK:
+                st.error("montecarlo.py not found — add it to ppa_dashboard/.")
+            else:
+                _last_yr_mc = (
+                    int(asset_ann["Year"].max()) if has_asset
+                    else (int(nat_ref_complete["year"].max()) if len(nat_ref_complete) > 0 else 2025)
+                )
+                with st.spinner(f"Simulating {n_sim_mc:,} trajectories..."):
+                    try:
+                        _mc_result = run_montecarlo(
+                            ppa=ppa,
+                            forward_eur=forward_eur,
+                            prod_p50_mwh=prod_mwh,
+                            sl_u=sl_u,
+                            ic_u=ic_u,
+                            last_yr=_last_yr_mc,
+                            tenor=tenor_yr,
+                            bs_dist=st.session_state.get("bs_dist", None),
+                            hist_sd_f=hist_sd_f,
+                            vol_std=vol_std_mc,
+                            fwd_std=fwd_std_mc,
+                            imb_rate=imb_rate,
+                            imb_forfait=imb_forfait,
+                            n_sim=n_sim_mc,
+                        )
+                        st.session_state["mc_dist"] = _mc_result
+                        _mc_dist = _mc_result
+                        st.success(f"Done — {n_sim_mc:,} trajectories computed.")
+                    except Exception as _e:
+                        st.error(f"Monte Carlo failed: {_e}")
+
+    with _mc_c1:
+        if _mc_dist is not None:
+            import plotly.graph_objects as go
+
+            # ── KPI strip ─────────────────────────────────────────────────
+            _p10c = _mc_dist["percentiles_cumul"][10]
+            _p50c = _mc_dist["percentiles_cumul"][50]
+            _p90c = _mc_dist["percentiles_cumul"][90]
+            _ploss = _mc_dist["prob_loss"] * 100
+            _es    = _mc_dist["expected_shortfall"]
+
+            _kc1, _kc2, _kc3, _kc4, _kc5 = st.columns(5)
+            with _kc1:
+                _bg, _tx = _pnl_color(_p10c)
+                st.markdown(_kpi("P10 cumul (kEUR)", _fmt_k(_p10c), _bg, _tx),
+                            unsafe_allow_html=True)
+            with _kc2:
+                _bg, _tx = _pnl_color(_p50c)
+                st.markdown(_kpi("P50 cumul (kEUR)", _fmt_k(_p50c), _bg, _tx),
+                            unsafe_allow_html=True)
+            with _kc3:
+                _bg, _tx = _pnl_color(_p90c)
+                st.markdown(_kpi("P90 cumul (kEUR)", _fmt_k(_p90c), _bg, _tx),
+                            unsafe_allow_html=True)
+            with _kc4:
+                _c_loss = C5 if _ploss > 20 else C3 if _ploss > 10 else C2
+                _t_loss = WHT if _ploss > 20 or _ploss <= 10 else C1
+                st.markdown(_kpi("Prob. of loss", f"{_ploss:.1f}%", _c_loss, _t_loss),
+                            unsafe_allow_html=True)
+            with _kc5:
+                _bg, _tx = _pnl_color(_es)
+                st.markdown(_kpi("Expected Shortfall P10", _fmt_k(_es), _bg, _tx),
+                            unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── Chart 1: Cumulative P&L histogram ─────────────────────────
+            _cum_arr = _mc_dist["cumul_pnl"]
+            _fig_mc = go.Figure()
+            _fig_mc.add_trace(go.Histogram(
+                x=_cum_arr, nbinsx=100,
+                marker_color="rgba(42,157,143,0.50)",
+                marker_line_color=C2, marker_line_width=0.3,
+                name="Simulated P&L",
+                hovertemplate="P&L: %{x:.0f}k EUR<br>Count: %{y}<extra></extra>",
+            ))
+            # Shade loss region
+            _x_min = float(_cum_arr.min())
+            _fig_mc.add_vrect(
+                x0=_x_min, x1=0,
+                fillcolor="rgba(231,111,81,0.12)", line_width=0,
+                annotation_text="Loss zone",
+                annotation_position="top left",
+                annotation_font=dict(size=10, color=C5, family="Calibri,Arial"),
+            )
+            for _pv, _pl, _pc in [
+                (_p10c, "P10", C5),
+                (_p50c, "P50", C1),
+                (_p90c, "P90", C2),
+            ]:
+                _fig_mc.add_vline(
+                    x=_pv, line_width=2, line_color=_pc, line_dash="dot",
+                    annotation_text=f"  {_pl}: {_pv:+.0f}k",
+                    annotation_position="top right",
+                    annotation_font=dict(size=11, color=_pc, family="Calibri,Arial"),
+                )
+            _fig_mc.add_vline(x=0, line_width=2, line_color=C5)
+            _fig_mc.update_layout(
+                height=300, margin=dict(l=50, r=20, t=20, b=50),
+                plot_bgcolor=WHT, paper_bgcolor=WHT,
+                xaxis=dict(title=f"Cumulative P&L over {tenor_yr}yr (k EUR)",
+                           gridcolor="#eee", tickfont=dict(family="Calibri,Arial", size=11)),
+                yaxis=dict(title="Frequency", gridcolor="#eee",
+                           tickfont=dict(family="Calibri,Arial", size=11)),
+                showlegend=False, bargap=0.02,
+            )
+            plotly_base(_fig_mc, h=300, show_legend=False)
+            st.plotly_chart(_fig_mc, use_container_width=True)
+
+            # ── Chart 2: Annual fan chart ──────────────────────────────────
+            _years   = _mc_dist["years"]
+            _bands   = _mc_dist["percentile_bands"]
+            _trend   = _mc_dist["pnl_trend"]
+
+            _fig_fan = go.Figure()
+
+            # P10-P90 band
+            _fig_fan.add_trace(go.Scatter(
+                x=_years + _years[::-1],
+                y=_bands[90].tolist() + _bands[10].tolist()[::-1],
+                fill="toself", fillcolor="rgba(42,157,143,0.12)",
+                line=dict(color="rgba(0,0,0,0)"), name="P10-P90",
+            ))
+            # P25-P75 band
+            _fig_fan.add_trace(go.Scatter(
+                x=_years + _years[::-1],
+                y=_bands[75].tolist() + _bands[25].tolist()[::-1],
+                fill="toself", fillcolor="rgba(42,157,143,0.25)",
+                line=dict(color="rgba(0,0,0,0)"), name="P25-P75",
+            ))
+            # P50 median
+            _fig_fan.add_trace(go.Scatter(
+                x=_years, y=_bands[50].tolist(),
+                mode="lines+markers", name="P50 (median)",
+                line=dict(color=C2, width=2.5),
+                marker=dict(size=7, color=C2, line=dict(width=1.5, color=WHT)),
+                hovertemplate="Year %{x}: P50 = %{y:+.0f}k EUR<extra></extra>",
+            ))
+            # Trend-only reference
+            _fig_fan.add_trace(go.Scatter(
+                x=_years, y=_trend.tolist(),
+                mode="lines", name="Trend only (no noise)",
+                line=dict(color=C1, width=1.5, dash="dot"),
+                hovertemplate="Year %{x}: trend = %{y:+.0f}k EUR<extra></extra>",
+            ))
+            _fig_fan.add_hline(y=0, line_width=1.5, line_dash="dash", line_color=C5)
+            _fig_fan.update_layout(
+                height=340, margin=dict(l=50, r=20, t=20, b=50),
+                plot_bgcolor=WHT, paper_bgcolor=WHT,
+                xaxis=dict(title="Year", tickmode="array", tickvals=_years,
+                           gridcolor="#eee", tickfont=dict(family="Calibri,Arial", size=11)),
+                yaxis=dict(title="Annual P&L (k EUR)", gridcolor="#eee",
+                           tickfont=dict(family="Calibri,Arial", size=11), zeroline=False),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.30,
+                            xanchor="center", x=0.5,
+                            font=dict(family="Calibri,Arial", size=11)),
+                hovermode="x unified",
+            )
+            plotly_base(_fig_fan, h=340)
+            st.plotly_chart(_fig_fan, use_container_width=True)
+
+            desc(
+                f"Fan chart: dark green = P25-P75 (50% of outcomes). "
+                f"Light green = P10-P90 (80% of outcomes). "
+                f"Dotted = deterministic trend (no noise). "
+                f"Source: [{_mc_dist['n_sim']:,} simulations | "
+                f"vol std: {vol_std_mc*100:.0f}% | fwd std: {fwd_std_mc*100:.0f}% | "
+                f"cannib: {'bootstrap' if _mc_dist['use_bootstrap'] else 'historical std'}]"
+            )
+
+        else:
+            st.info(
+                "Click 'Run Monte Carlo' to simulate 10,000 contract trajectories. "
+                "Run bootstrap first for best cannibalization distribution."
+            )
 
     # ─── SECTION 5 : STRESS SCENARIOS ────────────────────────────────────────
     st.markdown("---")
