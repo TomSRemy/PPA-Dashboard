@@ -554,7 +554,7 @@ def render_pricer_tab(
                 f'<strong>Years:</strong> {", ".join(str(y) for y in _bs_dist["years_used"])}<br>'
                 + (f'<strong>DA forecast coverage:</strong> {_bs_dist["fc_coverage_pct"]:.0f}%<br>'
                    if _bs_dist.get("fc_coverage_pct", 0) > 0 else "")
-                + f'<strong>Asset profile:</strong> {"applied" if _bs_dist.get("asset_profile") else "national (upload asset for specific profile)"}'
+                + f'<strong>Mode:</strong> {_bs_dist["prod_source"]}'
                 f'</div>',
                 unsafe_allow_html=True,
             )
