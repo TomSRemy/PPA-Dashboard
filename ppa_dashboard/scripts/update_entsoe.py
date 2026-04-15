@@ -1,7 +1,8 @@
 """
-update_entsoe.py v2.7
-Incremental by default. Auto full refresh if WindMW missing or all-zero.
-Added: balancing_prices.csv with DA, Imbalance, aFRR, mFRR prices.
+update_entsoe.py — Incremental daily update
+Fetches only missing hours (Spot + NatMW + WindMW).
+Updates nat_reference.csv including cap_solar_gw / cap_wind_gw.
+Called automatically every morning at 08:00 UTC via GitHub Actions.
 """
 
 import os, sys, time, logging
@@ -19,20 +20,15 @@ ROOT       = Path(__file__).parent.parent
 DATA_DIR   = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 SPOT_CSV   = DATA_DIR / "hourly_spot.csv"
-BAL_CSV    = DATA_DIR / "balancing_prices.csv"
 NAT_CSV    = DATA_DIR / "nat_reference.csv"
 LOG_TXT    = DATA_DIR / "last_update.txt"
 COUNTRY    = "FR"
-FETCH_FROM = pd.Timestamp("2014-01-01", tz="UTC")
-BAL_FROM   = pd.Timestamp("2018-01-01", tz="UTC")  # balancing data sparse before 2018
 
 API_KEY = os.environ.get("ENTSOE_API_KEY", "")
 if not API_KEY:
     log.error("ENTSOE_API_KEY not set.")
     sys.exit(1)
 
-
-# ── Client ────────────────────────────────────────────────────────────────────
 
 def _get_client():
     try:
@@ -42,8 +38,6 @@ def _get_client():
         log.error("entsoe-py not installed.")
         raise
 
-
-# ── Generic chunked fetcher ───────────────────────────────────────────────────
 
 def _fetch(client, fetch_fn, label, start, end):
     chunks = []
@@ -71,157 +65,81 @@ def _fetch(client, fetch_fn, label, start, end):
     return s[~s.index.duplicated(keep="first")].resample("1h").mean()
 
 
-# ── Spot fetchers ─────────────────────────────────────────────────────────────
+def fetch_installed_capacity_year(client, year: int) -> dict:
+    """Fetch installed capacity for a single year. Returns dict with cap_solar_gw, cap_wind_gw."""
+    start = pd.Timestamp(f"{year}-01-01", tz="UTC")
+    end   = pd.Timestamp(f"{year}-12-31", tz="UTC")
+    result = {"cap_solar_gw": np.nan, "cap_wind_gw": np.nan}
+    wind_vals = []
+    for psr, key in [("B16","solar"), ("B19","wind_on"), ("B18","wind_off")]:
+        try:
+            time.sleep(0.5)
+            df = client.query_installed_generation_capacity(
+                COUNTRY, start=start, end=end, psr_type=psr)
+            if isinstance(df, pd.DataFrame):
+                val = df.iloc[-1].sum() / 1000
+            elif isinstance(df, pd.Series):
+                val = df.iloc[-1] / 1000
+            else:
+                val = np.nan
+            if key == "solar":
+                result["cap_solar_gw"] = val
+            else:
+                wind_vals.append(val)
+        except Exception as e:
+            log.warning(f"  Installed cap {psr} {year}: {e}")
+    if wind_vals:
+        total_wind = sum(v for v in wind_vals if not np.isnan(v))
+        result["cap_wind_gw"] = total_wind if total_wind > 0 else np.nan
+    return result
 
-def fetch_prices(client, start, end):
-    s = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
-               "DA prices", start, end)
-    s.name = "Spot"; return s
+
+def load_existing():
+    if not SPOT_CSV.exists():
+        log.error("No CSV found — run update_entsoe_full.py first.")
+        sys.exit(1)
+    df = pd.read_csv(SPOT_CSV, parse_dates=["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], utc=True)
+    if "WindMW" not in df.columns:
+        df["WindMW"] = 0.0
+    log.info(f"Existing: {len(df):,} rows, "
+             f"{df['Date'].min().date()} -> {df['Date'].max().date()}")
+    return df
 
 
-def fetch_solar(client, start, end):
-    s = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
-               "Solar B16", start, end)
-    s.name = "NatMW"; return s
+def get_range(existing):
+    end   = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
+    start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
+    if start >= end:
+        log.info("Already up to date.")
+        return None, None
+    log.info(f"Fetch range: {start.date()} -> {end.date()} (incremental)")
+    return start, end
 
 
-def fetch_wind(client, start, end):
+def fetch_new_rows(client, start, end):
+    prices = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
+                    "DA prices", start, end)
+    if prices.empty:
+        return pd.DataFrame()
+    prices.name = "Spot"
+    solar = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
+                   "Solar B16", start, end)
+    solar.name = "NatMW"
     on  = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B19"),
                  "Wind B19", start, end)
     off = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
                  "Wind B18", start, end)
     if on.empty and off.empty:
-        return pd.Series(dtype=float, name="WindMW")
-    if on.empty: combined = off
-    elif off.empty: combined = on
-    else: combined = on.add(off, fill_value=0)
-    combined.name = "WindMW"; return combined
-
-
-# ── Balancing fetchers ────────────────────────────────────────────────────────
-
-def fetch_imbalance(client, start, end):
-    """Fetch imbalance prices — positive and negative."""
-    try:
-        df = _fetch(client,
-                    lambda s, e: client.query_imbalance_prices(COUNTRY, start=s, end=e),
-                    "Imbalance prices", start, end)
-        if isinstance(df, pd.Series):
-            return pd.DataFrame({"Imb_Pos": df, "Imb_Neg": df})
-        # DataFrame with multiple columns
-        pos = df.iloc[:, 0] if len(df.columns) >= 1 else pd.Series(dtype=float)
-        neg = df.iloc[:, 1] if len(df.columns) >= 2 else pos
-        return pd.DataFrame({"Imb_Pos": pos, "Imb_Neg": neg})
-    except Exception as e:
-        log.warning(f"  Imbalance fetch failed: {e}")
-        return pd.DataFrame({"Imb_Pos": pd.Series(dtype=float),
-                             "Imb_Neg": pd.Series(dtype=float)})
-
-
-def fetch_balancing_energy(client, start, end, psr_type, label):
-    """Fetch activated balancing energy prices (aFRR=A96, mFRR=A97)."""
-    try:
-        s = _fetch(client,
-                   lambda s, e: client.query_activated_balancing_energy_prices(
-                       COUNTRY, start=s, end=e, business_type=psr_type),
-                   label, start, end)
-        return s
-    except Exception as e:
-        log.warning(f"  {label} fetch failed: {e}")
-        return pd.Series(dtype=float)
-
-
-def build_balancing_rows(client, start, end) -> pd.DataFrame:
-    """Build hourly balancing prices DataFrame."""
-    # DA prices (reference)
-    da = fetch_prices(client, start, end)
-    if da.empty:
-        return pd.DataFrame()
-
-    df = pd.DataFrame({"DA": da})
-
-    # Imbalance
-    imb = fetch_imbalance(client, start, end)
-    if not imb.empty:
-        df = df.join(imb, how="left")
+        wind = pd.Series(dtype=float, name="WindMW")
     else:
-        df["Imb_Pos"] = np.nan
-        df["Imb_Neg"] = np.nan
+        wind = on.add(off, fill_value=0) if not on.empty and not off.empty else (off if on.empty else on)
+        wind.name = "WindMW"
 
-    # aFRR
-    afrr = fetch_balancing_energy(client, start, end, "A96", "aFRR")
-    df["aFRR"] = afrr if not afrr.empty else np.nan
-
-    # mFRR
-    mfrr = fetch_balancing_energy(client, start, end, "A97", "mFRR")
-    df["mFRR"] = mfrr if not mfrr.empty else np.nan
-
-    df = df.reset_index().rename(columns={"index": "Date", "utc_time": "Date"})
-    if "Date" not in df.columns:
-        df = df.reset_index()
-        df.columns = ["Date"] + list(df.columns[1:])
-
-    df["Date"]  = pd.to_datetime(df["Date"], utc=True)
-    df["Year"]  = df["Date"].dt.year
-    df["Month"] = df["Date"].dt.month
-    df["Hour"]  = df["Date"].dt.hour
-    df = df[df["DA"] > -500].copy()
-
-    log.info(f"Balancing: {len(df):,} rows — aFRR: {df['aFRR'].notna().sum():,}, "
-             f"mFRR: {df['mFRR'].notna().sum():,}")
-    return df
-
-
-# ── Spot: load / range / build / merge ───────────────────────────────────────
-
-def load_existing_spot():
-    if not SPOT_CSV.exists():
-        log.info("No spot CSV — full refresh needed.")
-        return pd.DataFrame(), True
-    df = pd.read_csv(SPOT_CSV, parse_dates=["Date"])
-    df["Date"] = pd.to_datetime(df["Date"], utc=True)
-    wind_ok = "WindMW" in df.columns and df["WindMW"].sum() > 0
-    if not wind_ok:
-        log.info("WindMW missing — full refresh needed.")
-        return df, True
-    log.info(f"Spot existing: {len(df):,} rows, "
-             f"{df['Date'].min().date()} -> {df['Date'].max().date()}")
-    return df, False
-
-
-def load_existing_bal():
-    if not BAL_CSV.exists():
-        log.info("No balancing CSV — full fetch from 2018.")
-        return pd.DataFrame(), True
-    df = pd.read_csv(BAL_CSV, parse_dates=["Date"])
-    df["Date"] = pd.to_datetime(df["Date"], utc=True)
-    log.info(f"Balancing existing: {len(df):,} rows, "
-             f"{df['Date'].min().date()} -> {df['Date'].max().date()}")
-    return df, False
-
-
-def get_range(existing, full_refresh, fetch_from):
-    end = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
-    if full_refresh or existing.empty:
-        start = fetch_from
-    else:
-        start = (existing["Date"].max() + pd.Timedelta(hours=1)).floor("h")
-    if start >= end:
-        return None, None
-    log.info(f"Fetch range: {start.date()} -> {end.date()} "
-             f"({'FULL' if full_refresh else 'incremental'})")
-    return start, end
-
-
-def build_spot_rows(client, start, end):
-    prices = fetch_prices(client, start, end)
-    if prices.empty: return pd.DataFrame()
-    solar = fetch_solar(client, start, end)
-    wind  = fetch_wind(client, start, end)
     df = pd.DataFrame({"Spot": prices})
-    df = df.join(solar if not solar.empty else pd.Series(name="NatMW",  dtype=float), how="left")
-    df = df.join(wind  if not wind.empty  else pd.Series(name="WindMW", dtype=float), how="left")
-    df = df.reset_index().rename(columns={"index": "Date", "utc_time": "Date"})
+    df = df.join(solar if not solar.empty else pd.Series(name="NatMW", dtype=float), how="left")
+    df = df.join(wind  if not wind.empty  else pd.Series(name="WindMW",dtype=float), how="left")
+    df = df.reset_index().rename(columns={"index":"Date","utc_time":"Date"})
     if "Date" not in df.columns:
         df = df.reset_index(); df.columns = ["Date"] + list(df.columns[1:])
     df["Date"]   = pd.to_datetime(df["Date"], utc=True)
@@ -231,35 +149,30 @@ def build_spot_rows(client, start, end):
     df["NatMW"]  = df["NatMW"].fillna(0.0)
     df["WindMW"] = df["WindMW"].fillna(0.0)
     df = df[df["Spot"] > -500].copy()
-    log.info(f"Spot: {len(df):,} rows")
+    log.info(f"Fetched {len(df):,} new rows")
     return df
 
 
-def merge_df(existing, new_rows, full_refresh, wind_col=True):
-    if full_refresh or existing.empty:
-        return new_rows
-    if wind_col and "WindMW" not in existing.columns:
-        existing["WindMW"] = 0.0
-    out = pd.concat([existing, new_rows], ignore_index=True)
-    out = out.drop_duplicates(subset=["Date"], keep="last")
-    return out.sort_values("Date").reset_index(drop=True)
-
-
-# ── National reference ────────────────────────────────────────────────────────
-
-def recompute_nat(hourly):
+def recompute_nat(hourly, existing_nat=None):
     h = hourly[hourly["Spot"] > 0].copy()
-    h["Rev_nat"]  = h["NatMW"] * h["Spot"]
+    h["Rev_nat"]  = h["NatMW"]  * h["Spot"]
     has_wind      = h["WindMW"].sum() > 0
-    if has_wind: h["Rev_wind"] = h["WindMW"] * h["Spot"]
-    current_year   = pd.Timestamp.now().year
-    hpy            = h.groupby("Year")["Spot"].count()
-    min_h          = {yr: (500 if yr == current_year else 8000) for yr in hpy.index}
-    complete       = [yr for yr, cnt in hpy.items() if cnt >= min_h[yr]]
-    agg = {"spot":("Spot","mean"), "prod_nat":("NatMW","sum"), "rev_nat":("Rev_nat","sum"),
-           "neg_h":("Spot", lambda x: (x<0).sum()), "n_hours":("Spot","count")}
     if has_wind:
-        agg["prod_wind"] = ("WindMW","sum"); agg["rev_wind"] = ("Rev_wind","sum")
+        h["Rev_wind"] = h["WindMW"] * h["Spot"]
+    current_year = pd.Timestamp.now().year
+    hpy  = h.groupby("Year")["Spot"].count()
+    min_h = {yr: (500 if yr == current_year else 8000) for yr in hpy.index}
+    complete = [yr for yr, cnt in hpy.items() if cnt >= min_h[yr]]
+    agg = {
+        "spot":     ("Spot",   "mean"),
+        "prod_nat": ("NatMW",  "sum"),
+        "rev_nat":  ("Rev_nat","sum"),
+        "neg_h":    ("Spot",   lambda x: (x < 0).sum()),
+        "n_hours":  ("Spot",   "count"),
+    }
+    if has_wind:
+        agg["prod_wind"] = ("WindMW",   "sum")
+        agg["rev_wind"]  = ("Rev_wind", "sum")
     ann = h[h["Year"].isin(complete)].groupby("Year").agg(**agg).reset_index()
     ann["cp_nat"]     = ann["rev_nat"] / ann["prod_nat"].replace(0, np.nan)
     ann["cp_nat_pct"] = ann["cp_nat"] / ann["spot"]
@@ -272,90 +185,103 @@ def recompute_nat(hourly):
         ann["cp_wind"] = ann["cp_wind_pct"] = ann["shape_disc_wind"] = np.nan
     ann["partial"] = ann["Year"] == current_year
     ann = ann.rename(columns={"Year":"year"}).dropna(subset=["cp_nat_pct"])
+
+    # Carry over installed capacity from existing nat_reference if available
+    if existing_nat is not None and "cap_solar_gw" in existing_nat.columns:
+        cap_cols = ["year","cap_solar_gw","cap_wind_gw"]
+        cap_cols = [c for c in cap_cols if c in existing_nat.columns]
+        ann = ann.merge(existing_nat[cap_cols], on="year", how="left")
+    else:
+        ann["cap_solar_gw"] = np.nan
+        ann["cap_wind_gw"]  = np.nan
+
     keep = ["year","spot","cp_nat","cp_nat_pct","shape_disc",
-            "cp_wind","cp_wind_pct","shape_disc_wind","neg_h","n_hours","partial"]
+            "cp_wind","cp_wind_pct","shape_disc_wind",
+            "neg_h","n_hours","partial","cap_solar_gw","cap_wind_gw"]
     ann = ann[[c for c in keep if c in ann.columns]]
+    log.info(f"Nat reference: {len(ann)} years ({ann['year'].min()}-{ann['year'].max()})")
     return ann
 
 
-# ── Save ─────────────────────────────────────────────────────────────────────
+def update_capacity_current_year(client, nat_df: pd.DataFrame) -> pd.DataFrame:
+    """Update installed capacity for current year only."""
+    current_year = pd.Timestamp.now().year
+    log.info(f"Updating installed capacity for {current_year}...")
+    try:
+        cap = fetch_installed_capacity_year(client, current_year)
+        for col, val in cap.items():
+            if col not in nat_df.columns:
+                nat_df[col] = np.nan
+            nat_df.loc[nat_df["year"] == current_year, col] = val
+        log.info(f"  Solar: {cap['cap_solar_gw']:.1f} GW | Wind: {cap['cap_wind_gw']:.1f} GW")
+    except Exception as e:
+        log.warning(f"Capacity update failed: {e}")
+    return nat_df
 
-def save_spot(df):
+
+def save(df):
     out = df.copy()
     out["Date_str"] = out["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
     out[["Date_str","Year","Month","Hour","Spot","NatMW","WindMW"]].rename(
         columns={"Date_str":"Date"}).to_csv(SPOT_CSV, index=False)
-    log.info(f"Saved spot: {len(out):,} rows")
+    log.info(f"Saved {len(out):,} rows -> {SPOT_CSV}")
 
 
-def save_bal(df):
-    out = df.copy()
-    out["Date_str"] = out["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    cols = ["Date_str","Year","Month","Hour","DA","Imb_Pos","Imb_Neg","aFRR","mFRR"]
-    cols = [c for c in cols if c in out.columns]
-    out[cols].rename(columns={"Date_str":"Date"}).to_csv(BAL_CSV, index=False)
-    log.info(f"Saved balancing: {len(out):,} rows")
-
-
-def write_log(spot_df, bal_df):
-    now = datetime.now(timezone.utc)
+def write_log(df, new_rows):
+    now   = datetime.now(timezone.utc)
     lines = [
         f"Last update : {now.strftime('%Y-%m-%d %H:%M UTC')}",
-        f"Spot rows   : {len(spot_df):,}",
-        f"Spot through: {str(spot_df['Date'].max())[:10] if not spot_df.empty else 'N/A'}",
-        f"Bal rows    : {len(bal_df):,}",
-        f"Bal through : {str(bal_df['Date'].max())[:10] if not bal_df.empty else 'N/A'}",
-        f"Columns     : Spot|NatMW|WindMW | DA|Imb_Pos|Imb_Neg|aFRR|mFRR",
+        f"Mode        : Incremental",
+        f"New rows    : {new_rows:,}",
+        f"Total rows  : {len(df):,}",
+        f"Data through: {str(df['Date'].max())[:10] if not df.empty else 'N/A'}",
+        f"Columns     : Spot | NatMW (B16) | WindMW (B18+B19)",
     ]
     LOG_TXT.write_text("\n".join(lines))
     log.info("\n".join(lines))
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-
 def main():
-    log.info("=" * 60)
-    log.info("ENTSO-E Update v2.7")
-    log.info("=" * 60)
+    log.info("="*60)
+    log.info("ENTSO-E Incremental Update")
+    log.info("="*60)
+
+    existing = load_existing()
+    start, end = get_range(existing)
+
+    # Load existing nat_reference to preserve capacity columns
+    existing_nat = pd.read_csv(NAT_CSV) if NAT_CSV.exists() else None
 
     client = _get_client()
 
-    # ── Spot ──
-    existing_spot, full_spot = load_existing_spot()
-    start_spot, end_spot     = get_range(existing_spot, full_spot, FETCH_FROM)
+    if start is None:
+        # Already up to date — just recompute nat + update capacity for current year
+        nat = recompute_nat(existing, existing_nat)
+        nat = update_capacity_current_year(client, nat)
+        nat.to_csv(NAT_CSV, index=False)
+        write_log(existing, 0)
+        return
 
-    if start_spot is not None:
-        new_spot = build_spot_rows(client, start_spot, end_spot)
-        if not new_spot.empty:
-            combined_spot = merge_df(existing_spot, new_spot, full_spot)
-            save_spot(combined_spot)
-            recompute_nat(combined_spot).to_csv(NAT_CSV, index=False)
-        else:
-            combined_spot = existing_spot
-    else:
-        combined_spot = existing_spot
-        if not combined_spot.empty:
-            recompute_nat(combined_spot).to_csv(NAT_CSV, index=False)
+    new_rows = fetch_new_rows(client, start, end)
+    if new_rows.empty:
+        log.warning("Nothing fetched.")
+        write_log(existing, 0)
+        return
 
-    # ── Balancing ──
-    existing_bal, full_bal = load_existing_bal()
-    start_bal, end_bal     = get_range(existing_bal, full_bal, BAL_FROM)
+    combined = pd.concat([existing, new_rows], ignore_index=True)
+    combined = combined.drop_duplicates(subset=["Date"], keep="last")
+    combined = combined.sort_values("Date").reset_index(drop=True)
 
-    if start_bal is not None:
-        new_bal = build_balancing_rows(client, start_bal, end_bal)
-        if not new_bal.empty:
-            combined_bal = merge_df(existing_bal, new_bal, full_bal, wind_col=False)
-            save_bal(combined_bal)
-        else:
-            combined_bal = existing_bal
-    else:
-        combined_bal = existing_bal
+    save(combined)
 
-    write_log(combined_spot, combined_bal if not combined_bal.empty else pd.DataFrame())
+    nat = recompute_nat(combined, existing_nat)
+    nat = update_capacity_current_year(client, nat)
+    nat.to_csv(NAT_CSV, index=False)
 
-    log.info("=" * 60)
+    write_log(combined, len(new_rows))
+    log.info("="*60)
     log.info("Done.")
-    log.info("=" * 60)
+    log.info("="*60)
 
 
 if __name__ == "__main__":
