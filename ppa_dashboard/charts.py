@@ -224,59 +224,91 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
                                   prod_col: str, nat_cp_col: str, tech_clr: str,
                                   tech_lbl: str, partial_years: list,
                                   is_solar: bool, ex22: bool = False):
-    nat_mw = hourly.groupby("Year")[prod_col].mean().reset_index()
-    nat_mw.columns = ["year","TechMW"]
-    sc = nat_ref.merge(nat_mw, on="year", how="inner")
-    sc = sc[sc["TechMW"] > 0].copy()
-    sc["cp_plot"] = sc[nat_cp_col].fillna(sc["cp_nat_pct"])
+    # X axis: installed capacity (GW) if available in nat_ref, else avg MW
+    cap_col = "cap_solar_gw" if is_solar else "cap_wind_gw"
+    use_gw  = cap_col in nat_ref.columns and nat_ref[cap_col].notna().any()
+    x_label = f"{tech_lbl} Installed Capacity (GW)" if use_gw else f"National {tech_lbl} Avg MW"
+
+    if use_gw:
+        sc = nat_ref[["year", nat_cp_col, cap_col, "partial"]].copy()
+        sc = sc.rename(columns={nat_cp_col: "cp_plot", cap_col: "TechX"})
+        sc["cp_plot"] = sc["cp_plot"].fillna(nat_ref["cp_nat_pct"])
+        sc = sc[sc["TechX"].notna() & (sc["TechX"] > 0)]
+    else:
+        nat_mw = hourly.groupby("Year")[prod_col].mean().reset_index()
+        nat_mw.columns = ["year","TechX"]
+        sc = nat_ref.merge(nat_mw, on="year", how="inner")
+        sc = sc[sc["TechX"] > 0].copy()
+        sc["cp_plot"] = sc[nat_cp_col].fillna(sc["cp_nat_pct"])
+
     pt_col = [C3 if r.get("partial", False) else
               (C5 if r["year"] >= 2024 else (C3 if r["year"] == 2022 else tech_clr))
               for _, r in sc.iterrows()]
+
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=sc["TechMW"], y=sc["cp_plot"], mode="markers+text",
-                             marker=dict(size=16, color=pt_col, line=dict(width=2, color=WHT)),
-                             text=[f"<b>{int(y)}</b>" for y in sc["year"]],
-                             textposition="top center",
-                             textfont=dict(size=11, color=C1, family="Calibri"),
-                             name=f"M0 National {tech_lbl}"))
+    fig.add_trace(go.Scatter(
+        x=sc["TechX"], y=sc["cp_plot"], mode="markers+text",
+        marker=dict(size=16, color=pt_col, line=dict(width=2, color=WHT)),
+        text=[f"<b>{int(y)}</b>" for y in sc["year"]],
+        textposition="top center",
+        textfont=dict(size=11, color=C1, family="Calibri"),
+        name=f"M0 National {tech_lbl}"))
+
     sc_c = sc[~sc["year"].isin(partial_years)].copy()
     if ex22:
         sc_c = sc_c[sc_c["year"] != 2022]
+
     proj_targets = []
     if len(sc_c) >= 3:
-        x = sc_c["TechMW"].values.astype(float); y = sc_c["cp_plot"].values.astype(float)
-        mask = x > 0; x = x[mask]; y = y[mask]
+        x = sc_c["TechX"].values.astype(float)
+        y_arr = sc_c["cp_plot"].values.astype(float)
+        mask = x > 0; x = x[mask]; y_arr = y_arr[mask]
         if len(x) >= 3:
-            coeffs = np.polyfit(np.log(x), y, 1)
+            coeffs = np.polyfit(np.log(x), y_arr, 1)
             y_pred = np.polyval(coeffs, np.log(x))
-            r2 = 1 - np.sum((y-y_pred)**2)/np.sum((y-np.mean(y))**2)
-            PPE3_MW = {"Solar":{2030:6240,2035:8775}, "Wind":{2030:7440,2035:9000}}
+            r2 = 1 - np.sum((y_arr-y_pred)**2) / np.sum((y_arr-np.mean(y_arr))**2)
+
+            if use_gw:
+                PPE3 = {
+                    "Solar": {2030: 48.0, 2035: 67.5},
+                    "Wind":  {2030: 31.0, 2035: 37.5},
+                }
+            else:
+                PPE3 = {
+                    "Solar": {2030: 6240, 2035: 8775},
+                    "Wind":  {2030: 7440, 2035: 9000},
+                }
+
             tech_key = "Solar" if is_solar else "Wind"
             x_end = x.max()
-            for target_year, cap_target in PPE3_MW[tech_key].items():
+            for target_year, cap_target in PPE3[tech_key].items():
                 cp_target = np.polyval(coeffs, np.log(cap_target))
-                proj_targets.append({"year":target_year,"capacity":cap_target,"cp":cp_target})
+                proj_targets.append({"year": target_year, "capacity": cap_target, "cp": cp_target})
             if proj_targets:
                 x_end = max(x_end, max(t["capacity"] for t in proj_targets))
+
             xl = np.linspace(x.min(), x_end, 300)
             yl = np.polyval(coeffs, np.log(xl))
             fig.add_trace(go.Scatter(x=xl, y=yl, mode="lines",
                                      line=dict(color="black", width=2),
-                                     name=f"log fit (R\u00b2={r2:.2f})"))
+                                     name=f"log fit (R²={r2:.2f})"))
+            unit = "GW" if use_gw else "MW"
             for t in proj_targets:
                 fig.add_vline(x=t["capacity"], line=dict(color="black", width=1, dash="dot"))
-                fig.add_trace(go.Scatter(x=[t["capacity"]], y=[t["cp"]], mode="markers+text",
-                                         marker=dict(size=12, color="black", line=dict(width=1.5, color=WHT)),
-                                         text=[f"<b>{t['year']}</b><br>{t['cp']*100:.0f}%"],
-                                         textposition="top center",
-                                         textfont=dict(size=11, color=C1, family="Calibri"),
-                                         name=f"{t['year']} projected"))
-    fig.update_yaxes(tickformat=".0%", title_text="Captured Price (% of spot)")
-    fig.update_xaxes(title_text=f"National {tech_lbl} Avg MW")
-    plotly_base(fig, h=380)
-    fig.update_layout(title=dict(text=f"<b>CP% vs {tech_lbl} Capacity</b>"))
-    return fig, proj_targets
+                fig.add_trace(go.Scatter(
+                    x=[t["capacity"]], y=[t["cp"]], mode="markers+text",
+                    marker=dict(size=12, color="black", line=dict(width=1.5, color=WHT)),
+                    text=[f"<b>PPE3 {t['year']}<br>{t['capacity']:.0f}{unit} to {t['cp']*100:.0f}%</b>"],
+                    textposition="top center",
+                    textfont=dict(size=10, color=C1, family="Calibri"),
+                    name=f"PPE3 {t['year']}"))
 
+    fig.update_yaxes(tickformat=".0%", title_text="Captured Price (% of spot)")
+    fig.update_xaxes(title_text=x_label)
+    plotly_base(fig, h=380)
+    fig.update_layout(title=dict(
+        text=f"<b>CP% vs {tech_lbl} ({'Installed Capacity (GW)' if use_gw else 'Avg MW'})</b>"))
+    return fig, proj_targets
 
 def chart_shape_disc_delta(nat_ref: pd.DataFrame, nat_sd_col: str,
                             tech_clr: str, tech_lbl: str) -> go.Figure:
