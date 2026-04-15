@@ -1,6 +1,6 @@
-Last update : 2026-04-15 09:22 UTC
-Mode        : Full refresh (2014 -> yesterday)
+Last update : 2026-04-15 11:38 UTC
+Mode        : Incremental
+New rows    : 0
 Total rows  : 98,810
 Data through: 2026-04-14
-WindMW sum  : 392297802 MW-hours
 Columns     : Spot | NatMW (B16) | WindMW (B18+B19) | NuclearMW (B14) | GasMW (B04) | HydroMW (B11+B12) | OtherMW (B17+B20)
