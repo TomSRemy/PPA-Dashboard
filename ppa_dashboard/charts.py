@@ -654,8 +654,8 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     ))
  
     fig.update_xaxes(
-        title_text="Hour", 
-        title_standoff=25, tickmode="array",
+        title_text="Hour",
+        tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
@@ -663,6 +663,17 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     plotly_base(fig, h=420)
     fig.update_layout(title=dict(text=f"<b>Daily Profile — National {tech_lbl}</b>"))
     return fig
+
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.2,      # 👈 ajuste ici si besoin
+            xanchor="center",
+            x=0.5
+        ),
+        margin=dict(b=100)  # 👈 espace pour éviter que ça coupe
+    )
  
  
 def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
@@ -709,20 +720,26 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     ))
  
     fig.update_xaxes(
-        title_text="Hour", title_standoff=25, tickmode="array",
+        title_text="Hour", tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
-    )
-
-    fig.update_layout(
-      margin=dict(b=80)  # 👈 plus d’espace en bas
     )
   
     fig.update_yaxes(title_text="Avg MW")
     plotly_base(fig, h=420)
     fig.update_layout(title=dict(text=f"<b>Daily Profile — {asset_name}</b>"))
     return fig
-
+  
+    fig.update_layout(
+      legend=dict(
+          orientation="h",
+          yanchor="top",
+          y=-0.2,      # 👈 ajuste ici si besoin
+          xanchor="center",
+          x=0.5
+      ),
+      margin=dict(b=100)  # 👈 espace pour éviter que ça coupe
+  )
 
 def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, has_asset):
     fig=go.Figure()
