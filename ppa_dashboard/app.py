@@ -344,9 +344,9 @@ with tab1:
     tdf = pd.DataFrame(trows)
     def _hi(row):
         p = int(row["Pct"][1:])
-        if p==chosen_pct: return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
-        if p in [10,50,90]: return [f"background-color:{C2L}"]*len(row)
-        if p==74: return [f"background-color:{C3L}"]*len(row)
+        if p==chosen_pct: return [f"background-color:{C2};color:{C1};font-weight:bold"]*len(row)
+        if p in [10,50,90]: return [f"background-color:{C2L};color:{C1}"]*len(row)
+        if p==74: return [f"background-color:{C3L};color:{C1}"]*len(row)
         return [""]*len(row)
     st.dataframe(tdf.style.apply(_hi,axis=1), use_container_width=True, height=440)
 
