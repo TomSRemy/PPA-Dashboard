@@ -654,7 +654,8 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     ))
  
     fig.update_xaxes(
-        title_text="Hour", title_standoff=25,, tickmode="array",
+        title_text="Hour", 
+        title_standoff=25, tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
@@ -708,7 +709,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     ))
  
     fig.update_xaxes(
-        title_text="Hour", title_standoff=25,, tickmode="array",
+        title_text="Hour", title_standoff=25, tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
