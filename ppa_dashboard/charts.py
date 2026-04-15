@@ -708,27 +708,18 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
         hovertemplate="<b>Hour %{x}h — Annual avg: %{y:.1f} MW</b><extra></extra>",
     ))
  
+    
     fig.update_xaxes(
-        title_text="Hour", tickmode="array",
+        title_text="Hour",
+        title_standoff=10,
+        tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
-  
+    
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=420)
-    fig.update_layout(title=dict(text=f"<b>Daily Profile — {asset_name}</b>"))
-    return fig
-  
-    fig.update_layout(
-      legend=dict(
-          orientation="h",
-          yanchor="top",
-          y=-0.2,      # 👈 ajuste ici si besoin
-          xanchor="center",
-          x=0.5
-      ),
-      margin=dict(b=100)  # 👈 espace pour éviter que ça coupe
-  )
+    plotly_base(fig, h=520)
+    return fig  
 
 def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, has_asset):
     fig=go.Figure()
