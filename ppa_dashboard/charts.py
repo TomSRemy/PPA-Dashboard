@@ -713,6 +713,11 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
+
+    fig.update_layout(
+      margin=dict(b=80)  # 👈 plus d’espace en bas
+    )
+  
     fig.update_yaxes(title_text="Avg MW")
     plotly_base(fig, h=420)
     fig.update_layout(title=dict(text=f"<b>Daily Profile — {asset_name}</b>"))
