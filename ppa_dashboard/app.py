@@ -33,7 +33,6 @@ from charts  import (
     chart_rolling_cp, chart_rolling_eur,
     chart_daily_profile_national, chart_daily_profile_asset,
     chart_monthly_production, chart_annual_production,
-    # Tab 8
     chart_last_week, chart_da_monthly, chart_da_heatmap,
     chart_intraday_spread, chart_imbalance_vs_da,
     chart_balancing_services, summary_stats,
