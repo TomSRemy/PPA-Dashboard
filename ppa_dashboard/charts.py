@@ -655,26 +655,28 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
  
     fig.update_xaxes(
         title_text="Hour",
+        title_standoff=10,
         tickmode="array",
         tickvals=list(range(0, 24, 2)),
         ticktext=[f"{h}h" for h in range(0, 24, 2)],
     )
+    
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=420)
-    fig.update_layout(title=dict(text=f"<b>Daily Profile — National {tech_lbl}</b>"))
-    return fig
-
+    plotly_base(fig, h=520)
+    
     fig.update_layout(
+        title=dict(text=f"<b>Daily Profile — {asset_name}</b>"),
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-2,      # 👈 ajuste ici si besoin
+            y=-0.18,
             xanchor="center",
-            x=0.5
+            x=0.5,
+            font=dict(size=10),
         ),
-        margin=dict(b=200)  # 👈 espace pour éviter que ça coupe
+        margin=dict(t=60, b=140, l=60, r=40),
     )
- 
+    return fig
  
 def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     a = asset_raw.copy()
