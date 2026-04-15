@@ -2,13 +2,18 @@
 update_entsoe_full.py — Full historical refresh
 Fetches everything from 2014-01-01 to yesterday:
   - DA prices (Spot)
-  - Solar generation B16 (NatMW)
+  - Solar realised B16 (NatMW)
+  - Solar DA forecast A69/B16 (SolarForecastMW)  ← NEW v2.8
   - Wind generation B18+B19 (WindMW)
   - Nuclear B14 (NuclearMW)
   - Gas B04 (GasMW)
   - Hydro B11+B12 (HydroMW)
   - Other B17+B20 (OtherMW)
   - Installed capacity B09 Wind + Solar per year -> saved in nat_reference.csv
+
+v2.8: SolarForecastMW (A69) used by bootstrap.py for WPD-style distribution.
+      Note: A69 data available from ~2015 for FR. Earlier years will be NaN/0
+      and bootstrap falls back to NatMW realised for those years.
 """
 
 import os, sys, time, logging
@@ -78,61 +83,13 @@ def _fetch_psr(client, psr, label, start, end):
                   label, start, end)
 
 
-def fetch_prices(client, start, end):
-    s = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
-               "DA prices", start, end)
-    s.name = "Spot"
-    return s
-
-
-def fetch_solar(client, start, end):
-    s = _fetch_psr(client, "B16", "Solar B16", start, end)
-    s.name = "NatMW"
-    return s
-
-
-def fetch_wind(client, start, end):
-    on  = _fetch_psr(client, "B19", "Wind B19", start, end)
-    off = _fetch_psr(client, "B18", "Wind B18", start, end)
-    if on.empty and off.empty:
-        log.warning("Wind B18+B19 both empty — WindMW will be 0")
-        return pd.Series(dtype=float, name="WindMW")
-    combined = on.add(off, fill_value=0) if not on.empty and not off.empty else (off if on.empty else on)
-    combined.name = "WindMW"
-    log.info(f"  Wind combined: {len(combined)} rows, sum={combined.sum():.0f} MW")
-    return combined
-
-
-def fetch_nuclear(client, start, end):
-    s = _fetch_psr(client, "B14", "Nuclear B14", start, end)
-    s.name = "NuclearMW"
-    return s
-
-
-def fetch_gas(client, start, end):
-    s = _fetch_psr(client, "B04", "Gas B04", start, end)
-    s.name = "GasMW"
-    return s
-
-
-def fetch_hydro(client, start, end):
-    ror = _fetch_psr(client, "B11", "Hydro B11 RoR", start, end)
-    res = _fetch_psr(client, "B12", "Hydro B12 Res", start, end)
-    if ror.empty and res.empty:
-        return pd.Series(dtype=float, name="HydroMW")
-    combined = ror.add(res, fill_value=0) if not ror.empty and not res.empty else (res if ror.empty else ror)
-    combined.name = "HydroMW"
-    return combined
-
-
-def fetch_other(client, start, end):
-    b17 = _fetch_psr(client, "B17", "Other B17 Waste", start, end)
-    b20 = _fetch_psr(client, "B20", "Other B20", start, end)
-    if b17.empty and b20.empty:
-        return pd.Series(dtype=float, name="OtherMW")
-    combined = b17.add(b20, fill_value=0) if not b17.empty and not b20.empty else (b20 if b17.empty else b17)
-    combined.name = "OtherMW"
-    return combined
+def _fetch_forecast_psr(client, psr, label, start, end):
+    """Fetch Day-Ahead Generation Forecast (A69) for a given PSR type."""
+    return _fetch(
+        client,
+        lambda s, e: client.query_generation_forecast(COUNTRY, start=s, end=e, psr_type=psr),
+        label, start, end,
+    )
 
 
 def fetch_installed_capacity(client) -> pd.DataFrame:
@@ -163,46 +120,97 @@ def fetch_installed_capacity(client) -> pd.DataFrame:
         total_wind = sum(v for v in wind_vals if not np.isnan(v))
         row["cap_wind_gw"] = total_wind if total_wind > 0 else np.nan
         rows.append(row)
-        log.info(f"  Installed cap {year}: Solar={row.get('cap_solar_gw',np.nan):.1f}GW")
+        log.info(f"  Installed cap {year}: Solar={row.get('cap_solar_gw', np.nan):.1f}GW")
     return pd.DataFrame(rows)
 
 
 def build_rows(client, start, end):
-    prices  = fetch_prices(client, start, end)
+    # DA prices
+    prices = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
+                    "DA prices", start, end)
     if prices.empty:
         return pd.DataFrame()
-    solar   = fetch_solar(client, start, end)
-    wind    = fetch_wind(client, start, end)
-    nuclear = fetch_nuclear(client, start, end)
-    gas     = fetch_gas(client, start, end)
-    hydro   = fetch_hydro(client, start, end)
-    other   = fetch_other(client, start, end)
+    prices.name = "Spot"
 
+    # Solar realised B16
+    solar = _fetch_psr(client, "B16", "Solar B16 realised", start, end)
+    solar.name = "NatMW"
+
+    # Solar DA forecast A69/B16
+    # Note: available from ~2015 for FR. Pre-2015 rows will be 0.
+    log.info("Fetching Solar DA Forecast (A69/B16)...")
+    solar_fc = _fetch_forecast_psr(client, "B16", "Solar B16 DA forecast", start, end)
+    solar_fc.name = "SolarForecastMW"
+
+    # Wind B18+B19
+    on  = _fetch_psr(client, "B19", "Wind B19", start, end)
+    off = _fetch_psr(client, "B18", "Wind B18", start, end)
+    if on.empty and off.empty:
+        wind = pd.Series(dtype=float, name="WindMW")
+    else:
+        wind = on.add(off, fill_value=0) if not on.empty and not off.empty else (off if on.empty else on)
+        wind.name = "WindMW"
+
+    # Nuclear B14
+    nuclear = _fetch_psr(client, "B14", "Nuclear B14", start, end)
+    nuclear.name = "NuclearMW"
+
+    # Gas B04
+    gas = _fetch_psr(client, "B04", "Gas B04", start, end)
+    gas.name = "GasMW"
+
+    # Hydro B11+B12
+    hydro_ror = _fetch_psr(client, "B11", "Hydro B11 RoR", start, end)
+    hydro_res = _fetch_psr(client, "B12", "Hydro B12 Res", start, end)
+    if hydro_ror.empty and hydro_res.empty:
+        hydro = pd.Series(dtype=float, name="HydroMW")
+    else:
+        hydro = hydro_ror.add(hydro_res, fill_value=0) if not hydro_ror.empty and not hydro_res.empty \
+                else (hydro_res if hydro_ror.empty else hydro_ror)
+        hydro.name = "HydroMW"
+
+    # Other B17+B20
+    other_b17 = _fetch_psr(client, "B17", "Other B17 Waste", start, end)
+    other_b20 = _fetch_psr(client, "B20", "Other B20", start, end)
+    if other_b17.empty and other_b20.empty:
+        other = pd.Series(dtype=float, name="OtherMW")
+    else:
+        other = other_b17.add(other_b20, fill_value=0) if not other_b17.empty and not other_b20.empty \
+                else (other_b20 if other_b17.empty else other_b17)
+        other.name = "OtherMW"
+
+    # Assemble
     df = pd.DataFrame({"Spot": prices})
-    for s in [solar, wind, nuclear, gas, hydro, other]:
+    for s in [solar, solar_fc, wind, nuclear, gas, hydro, other]:
         if not s.empty:
             df = df.join(s, how="left")
         else:
             df[s.name] = np.nan
 
-    df = df.reset_index().rename(columns={"index":"Date","utc_time":"Date"})
+    df = df.reset_index().rename(columns={"index": "Date", "utc_time": "Date"})
     if "Date" not in df.columns:
-        df = df.reset_index(); df.columns = ["Date"] + list(df.columns[1:])
+        df = df.reset_index()
+        df.columns = ["Date"] + list(df.columns[1:])
 
-    df["Date"]      = pd.to_datetime(df["Date"], utc=True)
-    df["Year"]      = df["Date"].dt.year
-    df["Month"]     = df["Date"].dt.month
-    df["Hour"]      = df["Date"].dt.hour
-    df["NatMW"]     = df["NatMW"].fillna(0.0)
-    df["WindMW"]    = df["WindMW"].fillna(0.0)
-    df["NuclearMW"] = df["NuclearMW"].fillna(0.0)
-    df["GasMW"]     = df["GasMW"].fillna(0.0)
-    df["HydroMW"]   = df["HydroMW"].fillna(0.0)
-    df["OtherMW"]   = df["OtherMW"].fillna(0.0)
+    df["Date"]             = pd.to_datetime(df["Date"], utc=True)
+    df["Year"]             = df["Date"].dt.year
+    df["Month"]            = df["Date"].dt.month
+    df["Hour"]             = df["Date"].dt.hour
+    df["NatMW"]            = df["NatMW"].fillna(0.0)
+    df["SolarForecastMW"]  = df.get("SolarForecastMW", pd.Series(dtype=float)).fillna(0.0)
+    df["WindMW"]           = df["WindMW"].fillna(0.0)
+    df["NuclearMW"]        = df["NuclearMW"].fillna(0.0)
+    df["GasMW"]            = df["GasMW"].fillna(0.0)
+    df["HydroMW"]          = df["HydroMW"].fillna(0.0)
+    df["OtherMW"]          = df["OtherMW"].fillna(0.0)
     df = df[df["Spot"] > -500].copy()
 
-    log.info(f"Fetched {len(df):,} rows — Nuclear avg: {df['NuclearMW'].mean():.0f} MW | "
-             f"Solar avg: {df['NatMW'].mean():.0f} MW | WindMW sum: {df['WindMW'].sum():.0f}")
+    fc_coverage = (df["SolarForecastMW"] > 0).mean() * 100
+    log.info(f"Fetched {len(df):,} rows — "
+             f"Solar realised: {df['NatMW'].mean():.0f} MW avg | "
+             f"Solar forecast: {df['SolarForecastMW'].mean():.0f} MW avg "
+             f"(coverage: {fc_coverage:.0f}%) | "
+             f"Nuclear avg: {df['NuclearMW'].mean():.0f} MW")
     return df
 
 
@@ -236,19 +244,18 @@ def recompute_nat(hourly, cap_df=None):
         ann["shape_disc_wind"] = 1 - ann["cp_wind_pct"]
     else:
         ann["cp_wind"] = ann["cp_wind_pct"] = ann["shape_disc_wind"] = np.nan
-
     ann["partial"] = ann["Year"] == current_year
-    ann = ann.rename(columns={"Year":"year"}).dropna(subset=["cp_nat_pct"])
+    ann = ann.rename(columns={"Year": "year"}).dropna(subset=["cp_nat_pct"])
 
     if cap_df is not None and len(cap_df) > 0:
-        ann = ann.merge(cap_df[["year","cap_solar_gw","cap_wind_gw"]], on="year", how="left")
+        ann = ann.merge(cap_df[["year", "cap_solar_gw", "cap_wind_gw"]], on="year", how="left")
     else:
         ann["cap_solar_gw"] = np.nan
         ann["cap_wind_gw"]  = np.nan
 
-    keep = ["year","spot","cp_nat","cp_nat_pct","shape_disc",
-            "cp_wind","cp_wind_pct","shape_disc_wind",
-            "neg_h","n_hours","partial","cap_solar_gw","cap_wind_gw"]
+    keep = ["year", "spot", "cp_nat", "cp_nat_pct", "shape_disc",
+            "cp_wind", "cp_wind_pct", "shape_disc_wind",
+            "neg_h", "n_hours", "partial", "cap_solar_gw", "cap_wind_gw"]
     ann = ann[[c for c in keep if c in ann.columns]]
     log.info(f"Nat reference: {len(ann)} years ({ann['year'].min()}-{ann['year'].max()})")
     return ann
@@ -257,31 +264,35 @@ def recompute_nat(hourly, cap_df=None):
 def save(df):
     out = df.copy()
     out["Date_str"] = out["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    cols = ["Date_str","Year","Month","Hour","Spot","NatMW","WindMW",
-            "NuclearMW","GasMW","HydroMW","OtherMW"]
+    cols = ["Date_str", "Year", "Month", "Hour", "Spot",
+            "NatMW", "SolarForecastMW", "WindMW",
+            "NuclearMW", "GasMW", "HydroMW", "OtherMW"]
     cols = [c for c in cols if c in out.columns]
-    out[cols].rename(columns={"Date_str":"Date"}).to_csv(SPOT_CSV, index=False)
+    out[cols].rename(columns={"Date_str": "Date"}).to_csv(SPOT_CSV, index=False)
     log.info(f"Saved {len(out):,} rows -> {SPOT_CSV}")
 
 
 def write_log(df):
     now   = datetime.now(timezone.utc)
+    fc_ok = "SolarForecastMW" in df.columns and (df["SolarForecastMW"] > 0).any()
     lines = [
         f"Last update : {now.strftime('%Y-%m-%d %H:%M UTC')}",
         f"Mode        : Full refresh (2014 -> yesterday)",
         f"Total rows  : {len(df):,}",
         f"Data through: {str(df['Date'].max())[:10] if not df.empty else 'N/A'}",
         f"WindMW sum  : {df['WindMW'].sum():.0f} MW-hours",
-        f"Columns     : Spot | NatMW (B16) | WindMW (B18+B19) | NuclearMW (B14) | GasMW (B04) | HydroMW (B11+B12) | OtherMW (B17+B20)",
+        f"Forecast    : {'SolarForecastMW available' if fc_ok else 'SolarForecastMW not yet fetched'}",
+        f"Columns     : Spot | NatMW (B16) | SolarForecastMW (A69/B16) | WindMW (B18+B19) | "
+        f"NuclearMW (B14) | GasMW (B04) | HydroMW (B11+B12) | OtherMW (B17+B20)",
     ]
     LOG_TXT.write_text("\n".join(lines))
     log.info("\n".join(lines))
 
 
 def main():
-    log.info("="*60)
-    log.info("ENTSO-E Full Refresh — 2014 -> yesterday")
-    log.info("="*60)
+    log.info("=" * 60)
+    log.info("ENTSO-E Full Refresh v2.8 — 2014 -> yesterday")
+    log.info("=" * 60)
 
     end    = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=12)).floor("D")
     client = _get_client()
@@ -303,9 +314,9 @@ def main():
     recompute_nat(df, cap_df).to_csv(NAT_CSV, index=False)
     write_log(df)
 
-    log.info("="*60)
+    log.info("=" * 60)
     log.info("Done.")
-    log.info("="*60)
+    log.info("=" * 60)
 
 
 if __name__ == "__main__":
