@@ -672,7 +672,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
             xanchor="center",
             x=0.5
         ),
-        margin=dict(b=100)  # 👈 espace pour éviter que ça coupe
+        margin=dict(b=200)  # 👈 espace pour éviter que ça coupe
     )
  
  
