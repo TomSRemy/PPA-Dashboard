@@ -1,6 +1,6 @@
 """
 update_entsoe.py — Incremental daily update
-Fetches only missing hours (Spot + NatMW + WindMW).
+Fetches only missing hours (Spot + NatMW + WindMW + NuclearMW + GasMW + HydroMW + OtherMW).
 Updates nat_reference.csv including cap_solar_gw / cap_wind_gw.
 Called automatically every morning at 08:00 UTC via GitHub Actions.
 """
@@ -65,8 +65,14 @@ def _fetch(client, fetch_fn, label, start, end):
     return s[~s.index.duplicated(keep="first")].resample("1h").mean()
 
 
+def _fetch_psr(client, psr, label, start, end):
+    return _fetch(client,
+                  lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type=psr),
+                  label, start, end)
+
+
 def fetch_installed_capacity_year(client, year: int) -> dict:
-    """Fetch installed capacity for a single year. Returns dict with cap_solar_gw, cap_wind_gw."""
+    """Fetch installed capacity for a single year."""
     start = pd.Timestamp(f"{year}-01-01", tz="UTC")
     end   = pd.Timestamp(f"{year}-12-31", tz="UTC")
     result = {"cap_solar_gw": np.nan, "cap_wind_gw": np.nan}
@@ -100,8 +106,10 @@ def load_existing():
         sys.exit(1)
     df = pd.read_csv(SPOT_CSV, parse_dates=["Date"])
     df["Date"] = pd.to_datetime(df["Date"], utc=True)
-    if "WindMW" not in df.columns:
-        df["WindMW"] = 0.0
+    # Ensure new columns exist (backward compat)
+    for col in ["WindMW", "NuclearMW", "GasMW", "HydroMW", "OtherMW"]:
+        if col not in df.columns:
+            df[col] = 0.0
     log.info(f"Existing: {len(df):,} rows, "
              f"{df['Date'].min().date()} -> {df['Date'].max().date()}")
     return df
@@ -118,38 +126,81 @@ def get_range(existing):
 
 
 def fetch_new_rows(client, start, end):
+    # DA prices
     prices = _fetch(client, lambda s, e: client.query_day_ahead_prices(COUNTRY, start=s, end=e),
                     "DA prices", start, end)
     if prices.empty:
         return pd.DataFrame()
     prices.name = "Spot"
-    solar = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B16"),
-                   "Solar B16", start, end)
+
+    # Solar B16
+    solar = _fetch_psr(client, "B16", "Solar B16", start, end)
     solar.name = "NatMW"
-    on  = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B19"),
-                 "Wind B19", start, end)
-    off = _fetch(client, lambda s, e: client.query_generation(COUNTRY, start=s, end=e, psr_type="B18"),
-                 "Wind B18", start, end)
+
+    # Wind B18+B19
+    on  = _fetch_psr(client, "B19", "Wind B19", start, end)
+    off = _fetch_psr(client, "B18", "Wind B18", start, end)
     if on.empty and off.empty:
         wind = pd.Series(dtype=float, name="WindMW")
     else:
         wind = on.add(off, fill_value=0) if not on.empty and not off.empty else (off if on.empty else on)
         wind.name = "WindMW"
 
+    # Nuclear B14
+    nuclear = _fetch_psr(client, "B14", "Nuclear B14", start, end)
+    nuclear.name = "NuclearMW"
+
+    # Gas B04
+    gas = _fetch_psr(client, "B04", "Gas B04", start, end)
+    gas.name = "GasMW"
+
+    # Hydro B11 (run-of-river) + B12 (reservoir) — exclude B10 pumped storage (consumption)
+    hydro_ror = _fetch_psr(client, "B11", "Hydro B11 RoR", start, end)
+    hydro_res = _fetch_psr(client, "B12", "Hydro B12 Res", start, end)
+    if hydro_ror.empty and hydro_res.empty:
+        hydro = pd.Series(dtype=float, name="HydroMW")
+    else:
+        hydro = hydro_ror.add(hydro_res, fill_value=0) if not hydro_ror.empty and not hydro_res.empty \
+                else (hydro_res if hydro_ror.empty else hydro_ror)
+        hydro.name = "HydroMW"
+
+    # Other B17 (Waste) + B20
+    other_b17 = _fetch_psr(client, "B17", "Other B17", start, end)
+    other_b20 = _fetch_psr(client, "B20", "Other B20", start, end)
+    if other_b17.empty and other_b20.empty:
+        other = pd.Series(dtype=float, name="OtherMW")
+    else:
+        other = other_b17.add(other_b20, fill_value=0) if not other_b17.empty and not other_b20.empty \
+                else (other_b20 if other_b17.empty else other_b17)
+        other.name = "OtherMW"
+
+    # Assemble
     df = pd.DataFrame({"Spot": prices})
-    df = df.join(solar if not solar.empty else pd.Series(name="NatMW", dtype=float), how="left")
-    df = df.join(wind  if not wind.empty  else pd.Series(name="WindMW",dtype=float), how="left")
+    for s in [solar, wind, nuclear, gas, hydro, other]:
+        if not s.empty:
+            df = df.join(s, how="left")
+        else:
+            df[s.name] = np.nan
+
     df = df.reset_index().rename(columns={"index":"Date","utc_time":"Date"})
     if "Date" not in df.columns:
         df = df.reset_index(); df.columns = ["Date"] + list(df.columns[1:])
-    df["Date"]   = pd.to_datetime(df["Date"], utc=True)
-    df["Year"]   = df["Date"].dt.year
-    df["Month"]  = df["Date"].dt.month
-    df["Hour"]   = df["Date"].dt.hour
-    df["NatMW"]  = df["NatMW"].fillna(0.0)
-    df["WindMW"] = df["WindMW"].fillna(0.0)
+
+    df["Date"]      = pd.to_datetime(df["Date"], utc=True)
+    df["Year"]      = df["Date"].dt.year
+    df["Month"]     = df["Date"].dt.month
+    df["Hour"]      = df["Date"].dt.hour
+    df["NatMW"]     = df["NatMW"].fillna(0.0)
+    df["WindMW"]    = df["WindMW"].fillna(0.0)
+    df["NuclearMW"] = df["NuclearMW"].fillna(0.0)
+    df["GasMW"]     = df["GasMW"].fillna(0.0)
+    df["HydroMW"]   = df["HydroMW"].fillna(0.0)
+    df["OtherMW"]   = df["OtherMW"].fillna(0.0)
     df = df[df["Spot"] > -500].copy()
-    log.info(f"Fetched {len(df):,} new rows")
+
+    log.info(f"Fetched {len(df):,} new rows — "
+             f"Nuclear: {df['NuclearMW'].mean():.0f} MW avg | "
+             f"Solar: {df['NatMW'].mean():.0f} MW avg")
     return df
 
 
@@ -186,10 +237,8 @@ def recompute_nat(hourly, existing_nat=None):
     ann["partial"] = ann["Year"] == current_year
     ann = ann.rename(columns={"Year":"year"}).dropna(subset=["cp_nat_pct"])
 
-    # Carry over installed capacity from existing nat_reference if available
     if existing_nat is not None and "cap_solar_gw" in existing_nat.columns:
-        cap_cols = ["year","cap_solar_gw","cap_wind_gw"]
-        cap_cols = [c for c in cap_cols if c in existing_nat.columns]
+        cap_cols = [c for c in ["year","cap_solar_gw","cap_wind_gw"] if c in existing_nat.columns]
         ann = ann.merge(existing_nat[cap_cols], on="year", how="left")
     else:
         ann["cap_solar_gw"] = np.nan
@@ -204,7 +253,6 @@ def recompute_nat(hourly, existing_nat=None):
 
 
 def update_capacity_current_year(client, nat_df: pd.DataFrame) -> pd.DataFrame:
-    """Update installed capacity for current year only."""
     current_year = pd.Timestamp.now().year
     log.info(f"Updating installed capacity for {current_year}...")
     try:
@@ -222,8 +270,10 @@ def update_capacity_current_year(client, nat_df: pd.DataFrame) -> pd.DataFrame:
 def save(df):
     out = df.copy()
     out["Date_str"] = out["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    out[["Date_str","Year","Month","Hour","Spot","NatMW","WindMW"]].rename(
-        columns={"Date_str":"Date"}).to_csv(SPOT_CSV, index=False)
+    cols = ["Date_str","Year","Month","Hour","Spot","NatMW","WindMW",
+            "NuclearMW","GasMW","HydroMW","OtherMW"]
+    cols = [c for c in cols if c in out.columns]
+    out[cols].rename(columns={"Date_str":"Date"}).to_csv(SPOT_CSV, index=False)
     log.info(f"Saved {len(out):,} rows -> {SPOT_CSV}")
 
 
@@ -235,7 +285,7 @@ def write_log(df, new_rows):
         f"New rows    : {new_rows:,}",
         f"Total rows  : {len(df):,}",
         f"Data through: {str(df['Date'].max())[:10] if not df.empty else 'N/A'}",
-        f"Columns     : Spot | NatMW (B16) | WindMW (B18+B19)",
+        f"Columns     : Spot | NatMW (B16) | WindMW (B18+B19) | NuclearMW (B14) | GasMW (B04) | HydroMW (B11+B12) | OtherMW (B17+B20)",
     ]
     LOG_TXT.write_text("\n".join(lines))
     log.info("\n".join(lines))
@@ -249,13 +299,11 @@ def main():
     existing = load_existing()
     start, end = get_range(existing)
 
-    # Load existing nat_reference to preserve capacity columns
     existing_nat = pd.read_csv(NAT_CSV) if NAT_CSV.exists() else None
 
     client = _get_client()
 
     if start is None:
-        # Already up to date — just recompute nat + update capacity for current year
         nat = recompute_nat(existing, existing_nat)
         nat = update_capacity_current_year(client, nat)
         nat.to_csv(NAT_CSV, index=False)
@@ -271,6 +319,11 @@ def main():
     combined = pd.concat([existing, new_rows], ignore_index=True)
     combined = combined.drop_duplicates(subset=["Date"], keep="last")
     combined = combined.sort_values("Date").reset_index(drop=True)
+
+    # Ensure all new columns present in combined
+    for col in ["NuclearMW","GasMW","HydroMW","OtherMW"]:
+        if col not in combined.columns:
+            combined[col] = 0.0
 
     save(combined)
 
