@@ -37,6 +37,8 @@ from charts  import (
 from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel import build_excel
 from tab_pricer import render_pricer_tab
+from tab_fpc    import render_fpc_tab
+from tab_fpc    import render_fpc_tab
 
 import plotly.graph_objects as go
 
@@ -243,9 +245,10 @@ fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
 # ══════════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Overview", "PPA Pricing", "Market Dynamics",
     "Market Evolution", "Pricing & Risk", "Market Overview", "Export",
+    "FPC Monte Carlo",
 ])
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -344,9 +347,9 @@ with tab1:
     tdf = pd.DataFrame(trows)
     def _hi(row):
         p = int(row["Pct"][1:])
-        if p==chosen_pct: return [f"background-color:{C2};color:{C1};font-weight:bold"]*len(row)
-        if p in [10,50,90]: return [f"background-color:{C2L};color:{C1}"]*len(row)
-        if p==74: return [f"background-color:{C3L};color:{C1}"]*len(row)
+        if p==chosen_pct: return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
+        if p in [10,50,90]: return [f"background-color:{C2L}"]*len(row)
+        if p==74: return [f"background-color:{C3L}"]*len(row)
         return [""]*len(row)
     st.dataframe(tdf.style.apply(_hi,axis=1), use_container_width=True, height=440)
 
@@ -1046,6 +1049,40 @@ with tab7:
                                        file_name=f"spot_{country_c}_{d_start}_{d_end}.csv", mime="text/csv")
                 except ImportError: st.error("entsoe-py not installed.")
                 except Exception as e: st.error(f"ENTSO-E Error: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — FPC Monte Carlo
+# ══════════════════════════════════════════════════════════════════════════════
+with tab8:
+    render_fpc_tab(
+        hourly=hourly,
+        nat_ref_complete=nat_ref_complete,
+        asset_ann=asset_ann,
+        asset_raw=asset_raw,
+        has_asset=has_asset,
+        asset_name=asset_name,
+        cfg=cfg,
+        sl_u=sl_u, ic_u=ic_u,
+        hist_sd_f=hist_sd_f,
+        plotly_base=plotly_base,
+    )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — FPC Monte Carlo
+# ══════════════════════════════════════════════════════════════════════════════
+with tab8:
+    render_fpc_tab(
+        hourly=hourly,
+        nat_ref_complete=nat_ref_complete,
+        asset_ann=asset_ann,
+        asset_raw=asset_raw,
+        has_asset=has_asset,
+        asset_name=asset_name,
+        cfg=cfg,
+        sl_u=sl_u, ic_u=ic_u,
+        hist_sd_f=hist_sd_f,
+        plotly_base=plotly_base,
+    )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
