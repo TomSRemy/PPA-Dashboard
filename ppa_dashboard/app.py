@@ -38,7 +38,6 @@ from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plo
 from excel import build_excel
 from tab_pricer import render_pricer_tab
 from tab_fpc    import render_fpc_tab
-from tab_fpc    import render_fpc_tab
 
 import plotly.graph_objects as go
 
@@ -1067,22 +1066,6 @@ with tab8:
         plotly_base=plotly_base,
     )
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 8 — FPC Monte Carlo
-# ══════════════════════════════════════════════════════════════════════════════
-with tab8:
-    render_fpc_tab(
-        hourly=hourly,
-        nat_ref_complete=nat_ref_complete,
-        asset_ann=asset_ann,
-        asset_raw=asset_raw,
-        has_asset=has_asset,
-        asset_name=asset_name,
-        cfg=cfg,
-        sl_u=sl_u, ic_u=ic_u,
-        hist_sd_f=hist_sd_f,
-        plotly_base=plotly_base,
-    )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
