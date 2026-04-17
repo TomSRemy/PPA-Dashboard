@@ -107,3 +107,42 @@ def load_balancing() -> pd.DataFrame:
     df["Month"] = df["Date"].dt.month
     df["Hour"] = df["Date"].dt.hour
     return df
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADD TO data.py — after the existing load_balancing() function
+# ══════════════════════════════════════════════════════════════════════════════
+
+@st.cache_data(ttl=3600)
+def load_market_prices() -> pd.DataFrame:
+    """Load TTF / Brent / EUA from market_prices.csv."""
+    p = DATA_DIR / "market_prices.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(p, parse_dates=["Date"])
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ADD TO data.py — after load_market_prices()
+# ══════════════════════════════════════════════════════════════════════════════
+
+@st.cache_data(ttl=3600)
+def load_xborder_da() -> pd.DataFrame:
+    """Load cross-border DA prices (DE/BE/ES/IT/NL) — hourly."""
+    p = DATA_DIR / "xborder_da_prices.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(p, parse_dates=["Date"])
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
+
+
+@st.cache_data(ttl=3600)
+def load_fcr() -> pd.DataFrame:
+    """Load FCR contracted reserve prices — France — daily."""
+    p = DATA_DIR / "fcr_prices.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(p, parse_dates=["Date"])
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
