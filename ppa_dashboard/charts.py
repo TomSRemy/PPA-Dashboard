@@ -2428,16 +2428,13 @@ def mk_chart_afrr(bal, zoom) -> go.Figure:
 # ── Europe map ────────────────────────────────────────────────────────────────
 
 def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
-    """Choropleth map — DA avg by country, red=high green=low."""
     country_iso = {"FR":"FRA","DE":"DEU","BE":"BEL","ES":"ESP","NL":"NLD","IT":"ITA"}
     prices = {}
-    # FR
     if hourly is not None and "Spot" in hourly.columns:
         h = _mk_clip(hourly.copy(), zoom)
         v = h["Spot"].mean()
         if v == v:
             prices["FR"] = v
-    # Others
     if xb is not None and len(xb) > 0:
         x = _mk_clip(xb.copy(), zoom)
         for code in ["DE","BE","ES","NL","IT"]:
@@ -2445,31 +2442,34 @@ def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
                 prices[code] = x[code].mean()
     if not prices:
         return _mk_stub("Europe DA Map", "run update_entsoe_xborder.py")
-    codes = list(prices.keys())
-    vals  = [prices[c] for c in codes]
-    isos  = [country_iso.get(c, c) for c in codes]
+    codes  = list(prices.keys())
+    vals   = [prices[c] for c in codes]
+    isos   = [country_iso.get(c, c) for c in codes]
     labels = [f"{c}: {v:.1f} €/MWh" for c, v in zip(codes, vals)]
     fig = go.Figure(data=go.Choropleth(
         locations=isos, z=vals, text=labels,
         locationmode="ISO-3",
         colorscale=[[0,"#2A9D8F"],[0.5,"#E9C46A"],[1,"#E76F51"]],
-        colorbar=dict(title=dict(text="€/MWh", font=dict(size=11, color=C1)),
+        colorbar=dict(title=dict(text="€/MWh",
+                      font=dict(size=11, color=C1)),
                       tickfont=dict(size=10, color=C1), thickness=12),
         hovertemplate="%{text}<extra></extra>",
-        showscale=True,
     ))
-    fig.update_geos(
-        scope="europe",
-        showland=True, landcolor="#F7F4F0",
-        showocean=True, oceancolor="#EAF2F8",
-        showcoastlines=True, coastlinecolor="#CCC",
-        showborders=True, bordercolor="#CCC",
-    )
     fig.update_layout(
-        height=460, margin=dict(l=0, r=0, t=40, b=0),
+        height=460,
+        margin=dict(l=0, r=0, t=40, b=0),
         paper_bgcolor=WHT,
         title=dict(text=f"<b>DA Spot Price — Europe — Avg {zoom}</b>",
                    font=dict(size=13, color=C1, family="Calibri")),
+        geo=dict(
+            scope="europe",
+            showland=True, landcolor="#F7F4F0",
+            showocean=True, oceancolor="#EAF2F8",
+            showcoastlines=True, coastlinecolor="#CCC",
+            showborders=True, bordercolor="#CCC",
+            lonaxis=dict(range=[-15, 25]),
+            lataxis=dict(range=[35, 60]),
+        ),
     )
     return fig
 
