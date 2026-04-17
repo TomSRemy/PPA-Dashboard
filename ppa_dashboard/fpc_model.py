@@ -1,51 +1,72 @@
 """
-fpc_model.py — KAL-EL : Forward-Looking FPC Monte Carlo Engine
-==============================================================
-Causal flow: Solar Capacity → SolarMW → Hourly Prices → Capture Price → Shape Discount → P&L
+fpc_model.py — KAL-EL : Generic Forward-Looking FPC Monte Carlo Engine v2
+=========================================================================
+Technology-agnostic capture price simulation framework.
+
+Causal flow:
+    Renewable Capacity (GW)
+    → Renewable Output Multiplier
+    → Simulated Hourly Prices (OLS + block bootstrap residuals)
+    → Forward Anchoring (no-arbitrage: annual avg = forward input)
+    → Capture Price (production-weighted average price)
+    → Shape Discount (endogenous output: 1 - CP / baseload)
+    → P&L
 
 Key design decisions:
-- Shape discount is an OUTPUT, not an input
-- Hourly prices simulated first, then capture price derived
-- Forward anchoring: simulated annual avg = forward input (absence of arbitrage)
-- baseload = mean of ALL simulated hours (not just production hours)
-- capture_price = production-weighted average price
-- shape_discount = 1 - capture_price / baseload
+- Generic: works for Solar and Wind (and any technology with a national series)
+- beta_renewable replaces beta_solar — linked to selected technology
+- OLS fitted on production hours only (above configurable threshold)
+  to avoid dilution of beta by irrelevant zero-production hours
+- Baseload = mean of ALL simulated hours (not just production hours)
+- Capture price = production-weighted average over production hours
+- Shape discount = 1 - capture_price / baseload
 - For "Both": identical simulated price paths, two separate capture prices
-- Block bootstrap on residuals (168h blocks), not Gaussian
+- Defensive: all functions return (result, error_message) tuples
 
-Defensive: all functions return (result, error_message) tuples.
+Production thresholds (MW) — configurable here:
+    SOLAR_THRESHOLD_MW : minimum NatMW to include in OLS fit
+    WIND_THRESHOLD_MW  : minimum WindMW to include in OLS fit
 """
 
 import numpy as np
 import pandas as pd
 from typing import Optional, Tuple, Dict
 
-# ── Constants ─────────────────────────────────────────────────────────────────
-MIN_OBS_FOR_FIT    = 5_000    # minimum hourly observations to fit OLS
-MIN_R2_WARNING     = 0.20     # warn if R² below this
-MIN_ASSET_HOURS    = 2_000    # minimum asset hours for profile
-BLOCK_SIZE         = 168      # 7 days × 24h
-N_BLOCKS_PER_YEAR  = 52
-HOURS_YEAR         = 8_760
-HOURS_BLOCK_YEAR   = N_BLOCKS_PER_YEAR * BLOCK_SIZE   # 8736
+# ── Configurable thresholds ───────────────────────────────────────────────────
+SOLAR_THRESHOLD_MW   = 100    # MW — exclude hours below this for Solar OLS fit
+WIND_THRESHOLD_MW    = 200    # MW — exclude hours below this for Wind OLS fit
 
-# PPE3 reference trajectory (Solar FR, GW installed)
-PPE3_TRAJECTORY = {
-    2020: 13.0,
-    2021: 15.0,
-    2022: 17.0,
-    2023: 20.0,
-    2024: 24.0,
-    2025: 27.0,
-    2030: 48.0,
-    2035: 67.5,
+# ── Other constants ───────────────────────────────────────────────────────────
+MIN_OBS_FOR_FIT      = 3_000  # minimum filtered hours to fit OLS
+MIN_R2_WARNING       = 0.10   # warn if R² below this
+BETA_ZERO_THRESHOLD  = -0.0001  # warn if beta_renewable >= this (not meaningfully negative)
+MIN_ASSET_HOURS      = 2_000  # minimum asset production hours
+BLOCK_SIZE           = 168    # 7 days × 24h for block bootstrap
+N_BLOCKS_PER_YEAR    = 52
+HOURS_YEAR           = 8_760
+
+# ── PPE3 capacity scenarios by technology ─────────────────────────────────────
+PPE3_TARGETS = {
+    "Solar": {2030: 48.0,  2035: 67.5},
+    "Wind":  {2030: 31.0,  2035: 37.5},
 }
 
 CAPACITY_SCENARIOS = {
-    "Central (PPE3)":      {2030: 48.0, 2035: 67.5},
-    "Conservative":        {2030: 40.0, 2035: 55.0},
-    "Accelerated":         {2028: 48.0, 2032: 67.5},
-    "Custom":              None,   # user-defined
+    "Central (PPE3)":  "ppe3",
+    "Conservative":    "conservative",
+    "Accelerated":     "accelerated",
+    "Custom":          "custom",
+}
+
+_SCENARIO_MULTIPLIERS = {
+    "Solar": {
+        "conservative": {2030: 40.0,  2035: 55.0},
+        "accelerated":  {2028: 48.0,  2032: 67.5},
+    },
+    "Wind": {
+        "conservative": {2030: 26.0,  2035: 32.0},
+        "accelerated":  {2028: 31.0,  2032: 45.0},
+    },
 }
 
 
@@ -57,38 +78,52 @@ def build_capacity_trajectory(
     current_cap_gw: float,
     current_year: int,
     tenor_years: list,
+    techno: str = "Solar",
     scenario: str = "Central (PPE3)",
     custom_target_gw: float = 48.0,
     custom_target_year: int = 2030,
 ) -> Tuple[Dict[int, float], Optional[str]]:
     """
-    Build capacity trajectory for tenor years.
+    Build renewable capacity trajectory for tenor years.
+
+    Parameters
+    ----------
+    current_cap_gw    : current installed capacity (GW) from ENTSO-E B09
+    current_year      : last historical year
+    tenor_years       : list of future years to simulate
+    techno            : "Solar" or "Wind"
+    scenario          : one of CAPACITY_SCENARIOS keys
+    custom_target_gw  : used if scenario == "Custom"
+    custom_target_year: used if scenario == "Custom"
 
     Returns
     -------
     (capacity_by_year, error_message)
-    capacity_by_year : {year: cap_gw}
     """
     try:
-        # Build control points: current + scenario targets
         control = {current_year: current_cap_gw}
+        ppe3    = PPE3_TARGETS.get(techno, PPE3_TARGETS["Solar"])
 
-        if scenario == "Custom":
+        scenario_key = CAPACITY_SCENARIOS.get(scenario, "ppe3")
+
+        if scenario_key == "ppe3":
+            control.update(ppe3)
+        elif scenario_key == "conservative":
+            control.update(_SCENARIO_MULTIPLIERS.get(techno, {}).get("conservative", ppe3))
+        elif scenario_key == "accelerated":
+            control.update(_SCENARIO_MULTIPLIERS.get(techno, {}).get("accelerated", ppe3))
+        elif scenario_key == "custom":
             control[custom_target_year] = custom_target_gw
-        elif scenario in CAPACITY_SCENARIOS and CAPACITY_SCENARIOS[scenario]:
-            control.update(CAPACITY_SCENARIOS[scenario])
         else:
-            # Central PPE3
-            control.update({2030: 48.0, 2035: 67.5})
+            control.update(ppe3)
 
-        # Interpolate linearly between control points for each tenor year
         ctrl_years = sorted(control.keys())
         ctrl_vals  = [control[y] for y in ctrl_years]
 
         result = {}
         for yr in tenor_years:
             cap = float(np.interp(yr, ctrl_years, ctrl_vals))
-            cap = max(current_cap_gw, cap)   # never below current
+            cap = max(current_cap_gw, cap)
             result[yr] = round(cap, 2)
 
         return result, None
@@ -98,29 +133,38 @@ def build_capacity_trajectory(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 2. OLS PRICE MODEL
+# 2. GENERIC OLS PRICE MODEL
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_threshold(techno: str) -> float:
+    """Return the production threshold (MW) for the given technology."""
+    if techno == "Wind":
+        return float(WIND_THRESHOLD_MW)
+    return float(SOLAR_THRESHOLD_MW)
+
 
 def fit_price_model(
     hourly: pd.DataFrame,
+    renewable_col: str,
+    techno: str = "Solar",
     exclude_2022: bool = False,
-    prod_col: str = "NatMW",
 ) -> Tuple[Optional[dict], Optional[str]]:
     """
-    Fit OLS price model on historical hourly data.
+    Fit generic OLS price model on historical hourly data.
 
-    Model:
+    Model (fitted on production hours only, above technology threshold):
         Spot_h = alpha
-               + beta_solar × SolarMW_h
-               + sum_k(gamma_k × I(Hour=k))     k=1..23 (ref=0)
-               + sum_m(delta_m × I(Month=m))    m=2..12 (ref=1)
+               + beta_renewable × RenewableMW_h
+               + Σ gamma_k × I(Hour=k)    k=1..23  (ref=0)
+               + Σ delta_m × I(Month=m)   m=2..12  (ref=1)
                + epsilon_h
 
     Parameters
     ----------
-    hourly     : DataFrame with Date, Spot, NatMW (or prod_col), Hour, Month, Year
-    exclude_2022: exclude 2022 from fit
-    prod_col   : solar production column
+    hourly       : DataFrame with Date, Spot, Hour, Month, Year + renewable_col
+    renewable_col: column name for renewable generation (e.g. "NatMW", "WindMW")
+    techno       : "Solar" or "Wind" — determines production threshold
+    exclude_2022 : exclude 2022 from calibration
 
     Returns
     -------
@@ -130,101 +174,134 @@ def fit_price_model(
         h = hourly.copy()
         h["Date"] = pd.to_datetime(h["Date"])
 
-        # Filter
+        # Check renewable column exists
+        if renewable_col not in h.columns:
+            return None, (
+                f"Column '{renewable_col}' not found in hourly data. "
+                f"Available columns: {list(h.columns)}. "
+                f"Run the ENTSO-E update script to populate {renewable_col}."
+            )
+
         if exclude_2022:
             h = h[h["Year"] != 2022]
 
-        # Drop missing / extreme spots
-        h = h.dropna(subset=["Spot", prod_col])
-        h = h[h["Spot"].between(-100, 800)]    # physical bounds
-        h = h[h[prod_col] >= 0]
+        # Basic quality filters
+        h = h.dropna(subset=["Spot", renewable_col])
+        h = h[h["Spot"].between(-200, 1000)]
+        h = h[h[renewable_col] >= 0]
 
-        if len(h) < MIN_OBS_FOR_FIT:
+        # ── Production threshold filter ───────────────────────────────────────
+        # Only fit on hours where the technology actually produces
+        # This prevents dilution of beta_renewable by zero-production hours
+        threshold = _get_threshold(techno)
+        h_fit = h[h[renewable_col] > threshold].copy()
+
+        n_all      = len(h)
+        n_filtered = len(h_fit)
+        pct_kept   = n_filtered / n_all * 100 if n_all > 0 else 0
+
+        if n_filtered < MIN_OBS_FOR_FIT:
             return None, (
-                f"Not enough observations to fit model: {len(h):,} rows "
-                f"(minimum required: {MIN_OBS_FOR_FIT:,}). "
-                f"Check that hourly_spot.csv contains sufficient data."
+                f"Not enough production hours after filtering "
+                f"({renewable_col} > {threshold:.0f} MW): "
+                f"{n_filtered:,} rows (minimum: {MIN_OBS_FOR_FIT:,}). "
+                f"Total hours available: {n_all:,}. "
+                f"Check that {renewable_col} is populated in hourly_spot.csv. "
+                f"Consider lowering the threshold ({techno} threshold = {threshold:.0f} MW)."
             )
 
-        # Build design matrix manually (no sklearn dependency)
-        n = len(h)
-        solar = h[prod_col].values.astype(np.float64)
-        hours  = h["Hour"].values.astype(int)
-        months = h["Month"].values.astype(int)
-        spot   = h["Spot"].values.astype(np.float64)
+        # ── Build design matrix ───────────────────────────────────────────────
+        renewable = h_fit[renewable_col].values.astype(np.float64)
+        hours_arr = h_fit["Hour"].values.astype(int)
+        months_arr = h_fit["Month"].values.astype(int)
+        spot_arr  = h_fit["Spot"].values.astype(np.float64)
+        n = len(h_fit)
 
-        # Features: intercept + solar + 23 hour dummies + 11 month dummies
-        # hour ref = 0, month ref = 1
-        n_feat = 1 + 1 + 23 + 11   # = 36
+        # Features: intercept(1) + renewable(1) + hour dummies(23) + month dummies(11) = 36
+        n_feat = 36
         X = np.zeros((n, n_feat), dtype=np.float64)
+        X[:, 0] = 1.0
+        X[:, 1] = renewable
+        for k in range(1, 24):
+            X[:, 1 + k] = (hours_arr == k).astype(float)
+        for m in range(2, 13):
+            X[:, 24 + (m - 2)] = (months_arr == m).astype(float)
 
-        X[:, 0] = 1.0           # intercept
-        X[:, 1] = solar         # solar MW
-
-        for k in range(1, 24):  # hour dummies (ref=0)
-            X[:, 1 + k] = (hours == k).astype(float)
-
-        for m in range(2, 13):  # month dummies (ref=1)
-            X[:, 24 + (m - 2)] = (months == m).astype(float)
-
-        # OLS: (X'X)^-1 X'y — use lstsq for numerical stability
-        coeffs, residuals_ss, rank, sv = np.linalg.lstsq(X, spot, rcond=None)
+        # OLS via least squares (numerically stable)
+        coeffs, _, rank, _ = np.linalg.lstsq(X, spot_arr, rcond=None)
 
         fitted    = X @ coeffs
-        residuals = spot - fitted
+        residuals = spot_arr - fitted
 
-        ss_tot = np.sum((spot - spot.mean()) ** 2)
-        ss_res = np.sum(residuals ** 2)
-        r2     = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        ss_tot = float(np.sum((spot_arr - spot_arr.mean()) ** 2))
+        ss_res = float(np.sum(residuals ** 2))
+        r2     = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
         rmse   = float(np.sqrt(np.mean(residuals ** 2)))
 
-        alpha      = float(coeffs[0])
-        beta_solar = float(coeffs[1])
-        gamma      = coeffs[2:25].tolist()    # 23 hour dummies
-        delta      = coeffs[25:36].tolist()   # 11 month dummies
+        alpha         = float(coeffs[0])
+        beta_renewable = float(coeffs[1])
+        gamma_full    = [0.0] + coeffs[2:25].tolist()   # index 0..23
+        delta_full    = [0.0] + coeffs[25:36].tolist()  # index 0..11 (month-1)
 
-        # Full hour and month coefficients (including reference=0)
-        gamma_full = [0.0] + gamma             # index 0..23
-        delta_full = [0.0] + delta             # index 0..11 (month-1)
+        # ── Validation ────────────────────────────────────────────────────────
+        warnings_list = []
 
-        warning = None
-        if r2 < MIN_R2_WARNING:
-            warning = (
-                f"Model R² = {r2:.2f} is low. "
-                f"Predictions may be unreliable. "
-                f"Consider using more historical data or checking data quality."
+        if beta_renewable >= BETA_ZERO_THRESHOLD:
+            warnings_list.append(
+                f"WARNING: beta_renewable = {beta_renewable:.5f} is zero or positive. "
+                f"Expected: negative (more {techno.lower()} generation → lower prices). "
+                f"Possible causes: insufficient data, wrong column, or data quality issues. "
+                f"Simulated shape discounts will be unreliable."
             )
 
-        # Store residuals with their index for block bootstrap
-        resid_series = pd.Series(residuals, index=h.index)
+        if r2 < MIN_R2_WARNING:
+            warnings_list.append(
+                f"Model R² = {r2:.3f} is low. "
+                f"Residual uncertainty (RMSE = {rmse:.1f} EUR/MWh) dominates. "
+                f"P&L fan charts will be wide. Consider more historical data."
+            )
 
-        # Monthly fitted vs actual for validation chart
-        h2 = h.copy()
-        h2["_fitted"]   = fitted
-        h2["_residual"] = residuals
-        monthly_check = h2.groupby(["Year", "Month"]).agg(
+        effect_at_peak = beta_renewable * h_fit[renewable_col].quantile(0.95)
+        if abs(effect_at_peak) < 1.0 and beta_renewable < BETA_ZERO_THRESHOLD:
+            warnings_list.append(
+                f"beta_renewable is negative but very small "
+                f"(effect at P95 production = {effect_at_peak:.2f} EUR/MWh). "
+                f"Simulated shape discounts may be close to zero."
+            )
+
+        warning_str = "\n".join(warnings_list) if warnings_list else None
+
+        # Monthly fitted vs actual (for validation chart)
+        h_fit2 = h_fit.copy()
+        h_fit2["_fitted"] = fitted
+        monthly_check = h_fit2.groupby(["Year", "Month"]).agg(
             actual=("Spot", "mean"),
             fitted=("_fitted", "mean"),
         ).reset_index()
 
         return {
-            "alpha":         alpha,
-            "beta_solar":    beta_solar,
-            "gamma_full":    gamma_full,    # list(24): index = hour
-            "delta_full":    delta_full,    # list(12): index = month-1
-            "r2":            float(r2),
-            "rmse":          rmse,
-            "n_obs":         n,
-            "residuals":     residuals,     # np.array — used for bootstrap
-            "fitted":        fitted,
-            "monthly_check": monthly_check,
-            "exclude_2022":  exclude_2022,
-            "prod_col":      prod_col,
-            "warning":       warning,
+            "alpha":           alpha,
+            "beta_renewable":  beta_renewable,
+            "gamma_full":      gamma_full,
+            "delta_full":      delta_full,
+            "r2":              r2,
+            "rmse":            rmse,
+            "n_obs":           n_filtered,
+            "n_obs_total":     n_all,
+            "pct_hours_kept":  pct_kept,
+            "threshold_mw":    threshold,
+            "residuals":       residuals,
+            "fitted":          fitted,
+            "monthly_check":   monthly_check,
+            "renewable_col":   renewable_col,
+            "techno":          techno,
+            "exclude_2022":    exclude_2022,
+            "warning":         warning_str,
         }, None
 
     except Exception as e:
-        return None, f"Model fitting failed: {e}"
+        import traceback
+        return None, f"Model fitting failed: {e}\n{traceback.format_exc()}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -233,7 +310,8 @@ def fit_price_model(
 
 def build_national_profile(
     hourly: pd.DataFrame,
-    prod_col: str = "NatMW",
+    renewable_col: str,
+    techno: str = "Solar",
     exclude_2022: bool = False,
 ) -> Tuple[Optional[np.ndarray], Optional[str]]:
     """
@@ -242,25 +320,31 @@ def build_national_profile(
     Returns
     -------
     (profile_288, error_message)
-    profile_288 : np.array(12, 24) — profile[month-1, hour]
+    profile_288 : np.array(12, 24) — profile[month-1, hour], mean MW
     """
     try:
         h = hourly.copy()
         if exclude_2022:
             h = h[h["Year"] != 2022]
 
-        h = h[h[prod_col] > 0].copy()
+        if renewable_col not in h.columns:
+            return None, f"Column '{renewable_col}' not found in hourly data."
+
+        h = h[h[renewable_col] > 0].copy()
 
         if len(h) < 1000:
-            return None, f"Not enough production hours in {prod_col} for profile."
+            return None, (
+                f"Not enough production hours in '{renewable_col}' "
+                f"({len(h)} rows). Check data availability."
+            )
 
         profile = (
-            h.groupby(["Month", "Hour"])[prod_col]
+            h.groupby(["Month", "Hour"])[renewable_col]
             .mean()
             .unstack("Hour")
             .reindex(index=range(1, 13), columns=range(0, 24), fill_value=0.0)
         )
-        return profile.values, None   # shape (12, 24)
+        return profile.values.astype(np.float64), None
 
     except Exception as e:
         return None, f"National profile build failed: {e}"
@@ -277,11 +361,14 @@ def build_asset_profile(
     (profile_288, error_message)
     profile_288 : np.array(12, 24)
     """
-    if asset_raw is None or len(asset_raw) < MIN_ASSET_HOURS:
+    if asset_raw is None:
+        return None, "No asset load curve uploaded. Upload a file in the sidebar."
+
+    if len(asset_raw) < MIN_ASSET_HOURS:
         return None, (
-            f"Asset profile not available or insufficient "
-            f"(minimum {MIN_ASSET_HOURS:,} hours required, "
-            f"got {len(asset_raw) if asset_raw is not None else 0:,})."
+            f"Asset load curve has {len(asset_raw):,} rows, "
+            f"minimum required: {MIN_ASSET_HOURS:,}. "
+            "Upload more historical production data."
         )
 
     try:
@@ -293,8 +380,8 @@ def build_asset_profile(
 
         if len(a) < MIN_ASSET_HOURS:
             return None, (
-                f"Asset has {len(a):,} production hours, "
-                f"minimum required: {MIN_ASSET_HOURS:,}."
+                f"Asset has only {len(a):,} production hours "
+                f"(minimum: {MIN_ASSET_HOURS:,}). Upload more data."
             )
 
         profile = (
@@ -303,7 +390,7 @@ def build_asset_profile(
             .unstack("Hour")
             .reindex(index=range(1, 13), columns=range(0, 24), fill_value=0.0)
         )
-        return profile.values, None   # shape (12, 24)
+        return profile.values.astype(np.float64), None
 
     except Exception as e:
         return None, f"Asset profile build failed: {e}"
@@ -316,65 +403,79 @@ def build_asset_profile(
 def _simulate_one_year(
     model: dict,
     forward: float,
-    solar_multiplier: float,
-    nat_profile_288: np.ndarray,
+    renewable_multiplier: float,
+    tech_profile_288: np.ndarray,
     asset_profile_288: Optional[np.ndarray],
     rng: np.random.Generator,
     residuals: np.ndarray,
-    basis: str,   # "National", "Asset", "Both"
+    basis: str,
 ) -> dict:
     """
-    Simulate one year of hourly prices and compute outputs.
+    Simulate one year of hourly prices and compute capture prices.
 
-    Returns dict with keys depending on basis:
-        price_sim      : np.array(8760) — simulated anchored prices
-        nat_cp         : float (if National or Both)
-        nat_sd         : float
-        nat_baseload   : float
-        asset_cp       : float (if Asset or Both)
-        asset_sd       : float
+    Guardrails:
+    - Same simulated price path used for both National and Asset in "Both"
+    - Baseload = mean of ALL 8760 simulated hours
+    - Capture price = production-weighted average price
+
+    Parameters
+    ----------
+    model               : fitted OLS model dict
+    forward             : forward price for anchoring (EUR/MWh)
+    renewable_multiplier: cap_t / cap_current — scales national renewable output
+    tech_profile_288    : np.array(12,24) national technology profile (mean MW)
+    asset_profile_288   : np.array(12,24) asset profile (mean MWh/h) or None
+    rng                 : numpy random generator
+    residuals           : OLS residuals array for block bootstrap
+    basis               : "National", "Asset", or "Both"
+
+    Returns
+    -------
+    dict with: price_sim, baseload, nat_cp, nat_sd (if nat), asset_cp, asset_sd (if asset)
     """
-    # ── Block bootstrap on residuals ──────────────────────────────────────────
-    # 52 blocks of 168h = 8736h, then top up with 24 more random hours
     n_resid = len(residuals)
+
+    # ── Block bootstrap on OLS residuals (168h blocks) ────────────────────────
     block_starts = rng.integers(0, max(1, n_resid - BLOCK_SIZE), size=N_BLOCKS_PER_YEAR)
-    resid_sim = np.concatenate([
-        residuals[s: s + BLOCK_SIZE] for s in block_starts
-    ])  # 8736h
+    resid_parts  = [residuals[s: s + BLOCK_SIZE] for s in block_starts]
+    resid_sim    = np.concatenate(resid_parts)  # 8736h
 
-    # Top up to 8760h
-    top_up = rng.integers(0, max(1, n_resid - 24), size=1)[0]
-    resid_sim = np.concatenate([resid_sim, residuals[top_up: top_up + 24]])
-    resid_sim = resid_sim[:HOURS_YEAR]   # exactly 8760
+    # Top-up to 8760h
+    top_start  = int(rng.integers(0, max(1, n_resid - 24)))
+    resid_sim  = np.concatenate([resid_sim, residuals[top_start: top_start + 24]])
+    resid_sim  = resid_sim[:HOURS_YEAR]
 
-    # ── Build simulated prices hour by hour ───────────────────────────────────
-    prices = np.empty(HOURS_YEAR, dtype=np.float64)
+    # ── Build hour and month index arrays ─────────────────────────────────────
+    # Each hour maps to a (month_idx 0..11, hour_of_day 0..23)
+    # Simple uniform month approximation: 730h per month
+    month_idx_arr   = np.minimum(np.arange(HOURS_YEAR) // 730, 11).astype(int)
+    hour_of_day_arr = (np.arange(HOURS_YEAR) % 24).astype(int)
 
-    for h in range(HOURS_YEAR):
-        # Map hour index to (month, hour_of_day)
-        # Simple approximation: 8760h, months of equal weight
-        # Month 1..12, each ~730h
-        month_idx = min(h // 730, 11)          # 0..11
-        hour_of_day = h % 24
+    # ── Renewable generation for each simulated hour ──────────────────────────
+    # tech_profile_288[month_idx, hour_of_day] × multiplier
+    renewable_sim = (
+        tech_profile_288[month_idx_arr, hour_of_day_arr] * renewable_multiplier
+    )
 
-        # Solar MW for this hour (use profile × multiplier)
-        solar_base = nat_profile_288[month_idx, hour_of_day]
-        solar_sim  = solar_base * solar_multiplier
+    # ── Simulate hourly prices ────────────────────────────────────────────────
+    gamma_arr = np.array(model["gamma_full"])[hour_of_day_arr]   # (8760,)
+    delta_arr = np.array(model["delta_full"])[month_idx_arr]     # (8760,)
 
-        prices[h] = (
-            model["alpha"]
-            + model["beta_solar"] * solar_sim
-            + model["gamma_full"][hour_of_day]
-            + model["delta_full"][month_idx]
-            + resid_sim[h]
-        )
+    prices = (
+        model["alpha"]
+        + model["beta_renewable"] * renewable_sim
+        + gamma_arr
+        + delta_arr
+        + resid_sim
+    )
 
-    # ── Forward anchoring ─────────────────────────────────────────────────────
+    # ── Forward anchoring (no-arbitrage) ──────────────────────────────────────
+    # Rescale so annual average = forward input
     annual_avg = prices.mean()
-    if annual_avg > 0:
+    if annual_avg != 0:
         prices = prices * (forward / annual_avg)
     else:
-        prices = prices + (forward - annual_avg)
+        prices = prices + forward
 
     # ── Baseload = mean of ALL simulated hours ────────────────────────────────
     baseload = float(prices.mean())
@@ -383,11 +484,7 @@ def _simulate_one_year(
 
     # ── National capture price ────────────────────────────────────────────────
     if basis in ("National", "Both"):
-        nat_weights = np.array([
-            nat_profile_288[min(h // 730, 11), h % 24]
-            for h in range(HOURS_YEAR)
-        ])
-        nat_weights = nat_weights * solar_multiplier   # scale with capacity
+        nat_weights    = tech_profile_288[month_idx_arr, hour_of_day_arr] * renewable_multiplier
         nat_prod_total = nat_weights.sum()
 
         if nat_prod_total > 0:
@@ -395,16 +492,13 @@ def _simulate_one_year(
         else:
             nat_cp = baseload
 
-        nat_sd = 1.0 - nat_cp / baseload if baseload > 0 else 0.0
+        nat_sd = float(np.clip(1.0 - nat_cp / baseload if baseload != 0 else 0.0, -0.5, 0.99))
         result["nat_cp"] = nat_cp
-        result["nat_sd"] = float(np.clip(nat_sd, -0.5, 0.99))
+        result["nat_sd"] = nat_sd
 
-    # ── Asset capture price ───────────────────────────────────────────────────
+    # ── Asset capture price (same price path) ────────────────────────────────
     if basis in ("Asset", "Both") and asset_profile_288 is not None:
-        asset_weights = np.array([
-            asset_profile_288[min(h // 730, 11), h % 24]
-            for h in range(HOURS_YEAR)
-        ])
+        asset_weights    = asset_profile_288[month_idx_arr, hour_of_day_arr]
         asset_prod_total = asset_weights.sum()
 
         if asset_prod_total > 0:
@@ -412,99 +506,101 @@ def _simulate_one_year(
         else:
             asset_cp = baseload
 
-        asset_sd = 1.0 - asset_cp / baseload if baseload > 0 else 0.0
+        asset_sd = float(np.clip(1.0 - asset_cp / baseload if baseload != 0 else 0.0, -0.5, 0.99))
         result["asset_cp"] = asset_cp
-        result["asset_sd"] = float(np.clip(asset_sd, -0.5, 0.99))
+        result["asset_sd"] = asset_sd
 
     return result
 
 
 def run_fpc_montecarlo(
-    hourly: pd.DataFrame,
     model: dict,
-    nat_profile_288: np.ndarray,
+    tech_profile_288: np.ndarray,
     asset_profile_288: Optional[np.ndarray],
     capacity_by_year: Dict[int, float],
     current_cap_gw: float,
     tenor_years: list,
-    forward_by_year: Dict[int, float],   # {year: EUR/MWh} — flat in V1
+    forward_by_year: Dict[int, float],
     ppa: float,
     prod_p50_mwh: float,
     imb_rate: float,
     imb_forfait: float,
-    basis: str,   # "National", "Asset", "Both"
-    n_sim: int = 5_000,
+    basis: str,
+    n_sim: int = 1_000,
     seed: int = 42,
 ) -> Tuple[Optional[dict], Optional[str]]:
     """
-    Run full FPC Monte Carlo simulation.
+    Run generic FPC Monte Carlo simulation.
+
+    For "Both": identical price paths, separate National and Asset capture prices.
 
     Returns
     -------
     (results_dict, error_message)
     """
     try:
-        rng       = np.random.default_rng(seed)
+        rng      = np.random.default_rng(seed)
         residuals = model["residuals"]
-        tenor     = len(tenor_years)
+        tenor    = len(tenor_years)
 
-        # ── Pre-allocate output matrices ──────────────────────────────────────
         do_nat   = basis in ("National", "Both")
         do_asset = basis in ("Asset", "Both") and asset_profile_288 is not None
 
         if not do_nat and not do_asset:
-            return None, "No valid basis to simulate. Check asset profile."
+            return None, (
+                "No valid basis to simulate. "
+                "Check that asset profile is available or select National."
+            )
 
-        # Shape: (n_sim, tenor)
-        nat_sd_mat   = np.full((n_sim, tenor), np.nan) if do_nat   else None
-        nat_cp_mat   = np.full((n_sim, tenor), np.nan) if do_nat   else None
-        nat_pnl_mat  = np.full((n_sim, tenor), np.nan) if do_nat   else None
-        asset_sd_mat  = np.full((n_sim, tenor), np.nan) if do_asset else None
-        asset_cp_mat  = np.full((n_sim, tenor), np.nan) if do_asset else None
-        asset_pnl_mat = np.full((n_sim, tenor), np.nan) if do_asset else None
+        # ── Pre-allocate (n_sim × tenor) matrices ─────────────────────────────
+        def _alloc():
+            return np.full((n_sim, tenor), np.nan)
 
-        # ── Simulate ──────────────────────────────────────────────────────────
+        nat_sd_mat    = _alloc() if do_nat   else None
+        nat_cp_mat    = _alloc() if do_nat   else None
+        nat_pnl_mat   = _alloc() if do_nat   else None
+        asset_sd_mat  = _alloc() if do_asset else None
+        asset_cp_mat  = _alloc() if do_asset else None
+        asset_pnl_mat = _alloc() if do_asset else None
+
+        imb_cost_per_yr = prod_p50_mwh * imb_rate * imb_forfait / 1000  # kEUR
+
+        # ── Simulation loop ───────────────────────────────────────────────────
         for i in range(n_sim):
             for t, yr in enumerate(tenor_years):
-                forward  = forward_by_year.get(yr, forward_by_year.get(tenor_years[0], 55.0))
+                forward  = forward_by_year.get(yr, list(forward_by_year.values())[0])
                 cap_yr   = capacity_by_year.get(yr, current_cap_gw)
-                solar_mult = cap_yr / current_cap_gw if current_cap_gw > 0 else 1.0
+                mult     = cap_yr / current_cap_gw if current_cap_gw > 0 else 1.0
 
                 sim = _simulate_one_year(
-                    model, forward, solar_mult,
-                    nat_profile_288, asset_profile_288,
+                    model, forward, mult,
+                    tech_profile_288, asset_profile_288,
                     rng, residuals, basis,
                 )
-
-                imb_cost = prod_p50_mwh * imb_rate * imb_forfait / 1000
 
                 if do_nat and "nat_cp" in sim:
                     nat_sd_mat[i, t]  = sim["nat_sd"]
                     nat_cp_mat[i, t]  = sim["nat_cp"]
-                    pnl = prod_p50_mwh * (sim["nat_cp"] - ppa) / 1000 - imb_cost
-                    nat_pnl_mat[i, t] = pnl
+                    nat_pnl_mat[i, t] = prod_p50_mwh * (sim["nat_cp"] - ppa) / 1000 - imb_cost_per_yr
 
                 if do_asset and "asset_cp" in sim:
                     asset_sd_mat[i, t]  = sim["asset_sd"]
                     asset_cp_mat[i, t]  = sim["asset_cp"]
-                    pnl = prod_p50_mwh * (sim["asset_cp"] - ppa) / 1000 - imb_cost
-                    asset_pnl_mat[i, t] = pnl
+                    asset_pnl_mat[i, t] = prod_p50_mwh * (sim["asset_cp"] - ppa) / 1000 - imb_cost_per_yr
 
-        # ── Aggregate ─────────────────────────────────────────────────────────
+        # ── Aggregate results ─────────────────────────────────────────────────
         def _bands(mat):
-            """Compute percentile bands per year from (n_sim, tenor) matrix."""
-            out = {}
-            for p in [10, 25, 50, 75, 90]:
-                out[p] = np.nanpercentile(mat, p, axis=0).tolist()
-            return out
+            return {p: np.nanpercentile(mat, p, axis=0).tolist()
+                    for p in [10, 25, 50, 75, 90]}
 
-        def _cumul_stats(pnl_mat):
+        def _cumul(pnl_mat):
             cumul = np.nansum(pnl_mat, axis=1)
             pcts  = {p: float(np.nanpercentile(cumul, p))
                      for p in [5, 10, 25, 50, 75, 90, 95]}
             prob_loss = float((cumul < 0).mean())
             thresh    = np.nanpercentile(cumul, 10)
-            es        = float(cumul[cumul <= thresh].mean()) if (cumul <= thresh).any() else float(cumul.min())
+            es_vals   = cumul[cumul <= thresh]
+            es        = float(es_vals.mean()) if len(es_vals) > 0 else float(cumul.min())
             return {
                 "cumul_pnl":          cumul,
                 "percentiles_cumul":  pcts,
@@ -514,65 +610,65 @@ def run_fpc_montecarlo(
                 "upside":             pcts[90] - pcts[50],
             }
 
-        def _scenario_table(sd_mat, cp_mat, pnl_mat, years):
+        def _table(sd_mat, cp_mat, pnl_mat, years):
             rows = []
             for t, yr in enumerate(years):
                 sd_col  = sd_mat[:, t]
                 cp_col  = cp_mat[:, t]
                 pnl_col = pnl_mat[:, t]
                 rows.append({
-                    "Year":             yr,
-                    "SD P10":           f"{np.nanpercentile(sd_col,10)*100:.1f}%",
-                    "SD P25":           f"{np.nanpercentile(sd_col,25)*100:.1f}%",
-                    "SD P50":           f"{np.nanpercentile(sd_col,50)*100:.1f}%",
-                    "SD P75":           f"{np.nanpercentile(sd_col,75)*100:.1f}%",
-                    "SD P90":           f"{np.nanpercentile(sd_col,90)*100:.1f}%",
-                    "Capture P50 (EUR)":f"{np.nanpercentile(cp_col,50):.2f}",
-                    "P&L P10 (kEUR)":   f"{np.nanpercentile(pnl_col,10):+.0f}k",
-                    "P&L P50 (kEUR)":   f"{np.nanpercentile(pnl_col,50):+.0f}k",
-                    "P&L P90 (kEUR)":   f"{np.nanpercentile(pnl_col,90):+.0f}k",
-                    "Downside":         f"{(np.nanpercentile(pnl_col,10)-np.nanpercentile(pnl_col,50)):+.0f}k",
-                    "Upside":           f"{(np.nanpercentile(pnl_col,90)-np.nanpercentile(pnl_col,50)):+.0f}k",
-                    "Volatility (std)": f"{np.nanstd(pnl_col):.0f}k",
+                    "Year":                yr,
+                    "SD P10":              f"{np.nanpercentile(sd_col,10)*100:.1f}%",
+                    "SD P25":              f"{np.nanpercentile(sd_col,25)*100:.1f}%",
+                    "SD P50":              f"{np.nanpercentile(sd_col,50)*100:.1f}%",
+                    "SD P75":              f"{np.nanpercentile(sd_col,75)*100:.1f}%",
+                    "SD P90":              f"{np.nanpercentile(sd_col,90)*100:.1f}%",
+                    "Capture P50 (EUR/MWh)": f"{np.nanpercentile(cp_col,50):.2f}",
+                    "P&L P10 (kEUR)":      f"{np.nanpercentile(pnl_col,10):+.0f}k",
+                    "P&L P50 (kEUR)":      f"{np.nanpercentile(pnl_col,50):+.0f}k",
+                    "P&L P90 (kEUR)":      f"{np.nanpercentile(pnl_col,90):+.0f}k",
+                    "Downside (P10−P50)":  f"{(np.nanpercentile(pnl_col,10)-np.nanpercentile(pnl_col,50)):+.0f}k",
+                    "Upside (P90−P50)":    f"{(np.nanpercentile(pnl_col,90)-np.nanpercentile(pnl_col,50)):+.0f}k",
+                    "Volatility (std)":    f"{np.nanstd(pnl_col):.0f}k",
                 })
             return rows
 
         result = {
-            "years":         tenor_years,
-            "basis":         basis,
-            "n_sim":         n_sim,
+            "years":            tenor_years,
+            "basis":            basis,
+            "n_sim":            n_sim,
             "capacity_by_year": capacity_by_year,
             "forward_by_year":  forward_by_year,
         }
 
         if do_nat:
-            cumul_nat = _cumul_stats(nat_pnl_mat)
+            c = _cumul(nat_pnl_mat)
             result["nat"] = {
-                "sd_bands":        _bands(nat_sd_mat),
-                "cp_bands":        _bands(nat_cp_mat),
-                "pnl_bands":       _bands(nat_pnl_mat),
-                "cumul_pnl":       cumul_nat["cumul_pnl"],
-                "percentiles_cumul": cumul_nat["percentiles_cumul"],
-                "prob_loss":       cumul_nat["prob_loss"],
-                "expected_shortfall": cumul_nat["expected_shortfall"],
-                "downside":        cumul_nat["downside"],
-                "upside":          cumul_nat["upside"],
-                "scenario_table":  _scenario_table(nat_sd_mat, nat_cp_mat, nat_pnl_mat, tenor_years),
+                "sd_bands":           _bands(nat_sd_mat),
+                "cp_bands":           _bands(nat_cp_mat),
+                "pnl_bands":          _bands(nat_pnl_mat),
+                "cumul_pnl":          c["cumul_pnl"],
+                "percentiles_cumul":  c["percentiles_cumul"],
+                "prob_loss":          c["prob_loss"],
+                "expected_shortfall": c["expected_shortfall"],
+                "downside":           c["downside"],
+                "upside":             c["upside"],
+                "scenario_table":     _table(nat_sd_mat, nat_cp_mat, nat_pnl_mat, tenor_years),
             }
 
         if do_asset:
-            cumul_asset = _cumul_stats(asset_pnl_mat)
+            c = _cumul(asset_pnl_mat)
             result["asset"] = {
-                "sd_bands":        _bands(asset_sd_mat),
-                "cp_bands":        _bands(asset_cp_mat),
-                "pnl_bands":       _bands(asset_pnl_mat),
-                "cumul_pnl":       cumul_asset["cumul_pnl"],
-                "percentiles_cumul": cumul_asset["percentiles_cumul"],
-                "prob_loss":       cumul_asset["prob_loss"],
-                "expected_shortfall": cumul_asset["expected_shortfall"],
-                "downside":        cumul_asset["downside"],
-                "upside":          cumul_asset["upside"],
-                "scenario_table":  _scenario_table(asset_sd_mat, asset_cp_mat, asset_pnl_mat, tenor_years),
+                "sd_bands":           _bands(asset_sd_mat),
+                "cp_bands":           _bands(asset_cp_mat),
+                "pnl_bands":          _bands(asset_pnl_mat),
+                "cumul_pnl":          c["cumul_pnl"],
+                "percentiles_cumul":  c["percentiles_cumul"],
+                "prob_loss":          c["prob_loss"],
+                "expected_shortfall": c["expected_shortfall"],
+                "downside":           c["downside"],
+                "upside":             c["upside"],
+                "scenario_table":     _table(asset_sd_mat, asset_cp_mat, asset_pnl_mat, tenor_years),
             }
 
         return result, None
