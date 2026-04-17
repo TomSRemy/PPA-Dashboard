@@ -907,3 +907,855 @@ def summary_stats(bal: pd.DataFrame) -> dict:
             result[label] = {"mean": recent[col].mean(), "min": recent[col].min(),
                              "max": recent[col].max(), "std": recent[col].std()}
     return result
+
+# ══════════════════════════════════════════════════════════════════════════════
+# APPEND TO BOTTOM OF charts.py — Market Overview helpers
+# (Everything below the existing summary_stats function)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── internal helpers ─────────────────────────────────────────────────────────
+
+def _mo_last_n(df: pd.DataFrame, n: int) -> pd.DataFrame:
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
+    cutoff = df["Date"].max() - pd.Timedelta(days=n)
+    return df[df["Date"] >= cutoff].sort_values("Date")
+
+
+def _mo_monthly(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    d = df[df[col].notna()].copy()
+    d["YM"] = pd.to_datetime(d["Date"].astype(str).str[:7])
+    return d.groupby("YM")[col].mean().reset_index()
+
+
+def _mo_daily_avg(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    d = df[df[col].notna()].copy()
+    d["Date"] = pd.to_datetime(d["Date"])
+    d["Day"] = d["Date"].dt.normalize()
+    return d.groupby("Day")[col].mean().reset_index().rename(columns={"Day": "Date"})
+
+
+def _mo_stub(title: str, source_note: str) -> go.Figure:
+    """Return a clean placeholder figure for data not yet in the pipeline."""
+    fig = go.Figure()
+    fig.add_annotation(
+        text=(f"<b>{title}</b><br>"
+              f"<span style='font-size:12px;color:#888'>Data not yet in pipeline — {source_note}</span>"),
+        xref="paper", yref="paper", x=0.5, y=0.5,
+        showarrow=False,
+        font=dict(size=14, color=C1, family="Calibri, Arial"),
+        align="center",
+    )
+    fig.update_layout(
+        height=260, paper_bgcolor=WHT, plot_bgcolor=WHT,
+        margin=dict(l=20, r=20, t=20, b=20),
+        xaxis=dict(visible=False), yaxis=dict(visible=False),
+    )
+    return fig
+
+
+# ── KPI helper ────────────────────────────────────────────────────────────────
+
+def mo_kpis(hourly: pd.DataFrame, bal) -> dict:
+    """
+    Returns dict of KPI values.
+    Keys: da_7d, da_30d, spread_7d, spread_30d, solar_7d, wind_7d,
+          afrr_7d, da_7d_prev
+    """
+    out = {}
+    if bal is not None and len(bal) > 0 and "DA" in bal.columns:
+        b = bal.copy(); b["Date"] = pd.to_datetime(b["Date"])
+        b7  = _mo_last_n(b, 7)
+        b30 = _mo_last_n(b, 30)
+        b7p = _mo_last_n(b, 14)
+        b7p = b7p[b7p["Date"] < b7["Date"].min()]
+
+        out["da_7d"]      = b7["DA"].mean()  if b7["DA"].notna().any()  else float("nan")
+        out["da_30d"]     = b30["DA"].mean() if b30["DA"].notna().any() else float("nan")
+        out["da_7d_prev"] = b7p["DA"].mean() if len(b7p) > 0 and b7p["DA"].notna().any() else float("nan")
+
+        b7["Day"]  = b7["Date"].dt.normalize()
+        b30["Day"] = b30["Date"].dt.normalize()
+        sp7  = b7.groupby("Day")["DA"].agg(lambda x: x.max() - x.min())
+        sp30 = b30.groupby("Day")["DA"].agg(lambda x: x.max() - x.min())
+        out["spread_7d"]  = sp7.mean()  if len(sp7)  > 0 else float("nan")
+        out["spread_30d"] = sp30.mean() if len(sp30) > 0 else float("nan")
+
+        if "aFRR" in b7.columns and b7["aFRR"].notna().any():
+            out["afrr_7d"] = b7["aFRR"].mean()
+        else:
+            out["afrr_7d"] = float("nan")
+
+    if hourly is not None and len(hourly) > 0:
+        h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+        h7 = _mo_last_n(h, 7)
+        out["solar_7d"] = h7["NatMW"].mean()  if "NatMW"  in h7.columns and h7["NatMW"].notna().any()  else float("nan")
+        out["wind_7d"]  = h7["WindMW"].mean() if "WindMW" in h7.columns and h7["WindMW"].notna().any() else float("nan")
+
+    return out
+
+
+# ── Main spot chart ───────────────────────────────────────────────────────────
+
+def mo_chart_spot_main(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
+    """
+    FR DA spot — main chart.
+    zoom: '7D'|'1M'|'3M'|'1Y'|'2Y'|'5Y'|'All'
+    mode: 'Hourly'|'Daily average'
+    """
+    if hourly is None or len(hourly) == 0 or "Spot" not in hourly.columns:
+        return _mo_stub("FR DA Spot Price", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+
+    fig = go.Figure()
+
+    if mode == "Hourly":
+        fig.add_trace(go.Scatter(
+            x=h["Date"], y=h["Spot"],
+            mode="lines", name="FR DA Spot",
+            line=dict(color=C1, width=1.0),
+            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            hovertemplate="<b>%{x|%d %b %H:%M}</b>: %{y:.1f} EUR/MWh<extra></extra>",
+        ))
+    else:
+        daily = _mo_daily_avg(h, "Spot")
+        fig.add_trace(go.Scatter(
+            x=daily["Date"], y=daily["Spot"],
+            mode="lines", name="Daily avg",
+            line=dict(color=C1, width=1.2),
+            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} EUR/MWh<extra></extra>",
+        ))
+        if zoom in ("1M", "3M") and len(daily) >= 7:
+            roll7 = daily["Spot"].rolling(7, min_periods=3).mean()
+            fig.add_trace(go.Scatter(
+                x=daily["Date"], y=roll7, mode="lines", name="7d rolling avg",
+                line=dict(color=C2, width=2.2),
+                hovertemplate="<b>7d avg</b>: %{y:.1f}<extra></extra>",
+            ))
+        elif zoom in ("1Y", "2Y", "5Y", "All") and len(daily) >= 30:
+            roll30 = daily["Spot"].rolling(30, min_periods=10).mean()
+            fig.add_trace(go.Scatter(
+                x=daily["Date"], y=roll30, mode="lines", name="30d rolling avg",
+                line=dict(color=C2, width=2.2),
+                hovertemplate="<b>30d avg</b>: %{y:.1f}<extra></extra>",
+            ))
+
+    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=400)
+    fig.update_layout(
+        title=dict(text=f"<b>FR Day-Ahead Spot Price — {mode} — {zoom}</b>"),
+        hovermode="x unified",
+    )
+    return fig
+
+
+# ── Hourly overlay ────────────────────────────────────────────────────────────
+
+def mo_chart_hourly_overlay(hourly: pd.DataFrame) -> go.Figure:
+    """7 lines (one per day), x=hour, + 7-day average + min-max envelope."""
+    if hourly is None or len(hourly) == 0 or "Spot" not in hourly.columns:
+        return _mo_stub("Hourly DA Profile", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    h7 = _mo_last_n(h, 7)
+    h7["Day"] = h7["Date"].dt.normalize()
+    h7["Hour"] = h7["Date"].dt.hour
+    days = sorted(h7["Day"].unique())
+
+    ALPHAS = [0.30, 0.40, 0.50, 0.58, 0.66, 0.74, 1.0]
+    fig = go.Figure()
+    pivot = h7.groupby(["Day","Hour"])["Spot"].mean().reset_index()
+
+    for i, day in enumerate(days):
+        d = pivot[pivot["Day"] == day].sort_values("Hour")
+        alpha = ALPHAS[i] if i < len(ALPHAS) else 0.5
+        is_last = (i == len(days) - 1)
+        fig.add_trace(go.Scatter(
+            x=d["Hour"], y=d["Spot"],
+            mode="lines", name=pd.Timestamp(day).strftime("%a %d %b"),
+            line=dict(color=rgba(C1, alpha), width=2.5 if is_last else 1.2),
+            hovertemplate=f"<b>{pd.Timestamp(day).strftime('%d %b')}</b> h%{{x}}: %{{y:.1f}}<extra></extra>",
+        ))
+
+    avg_by_hour = pivot.groupby("Hour")["Spot"].mean().reset_index()
+    fig.add_trace(go.Scatter(
+        x=avg_by_hour["Hour"], y=avg_by_hour["Spot"],
+        mode="lines", name="7-day avg",
+        line=dict(color=C2, width=3.0),
+        hovertemplate="<b>7d avg</b> h%{x}: %{y:.1f}<extra></extra>",
+    ))
+
+    mn = pivot.groupby("Hour")["Spot"].min()
+    mx = pivot.groupby("Hour")["Spot"].max()
+    hrs = avg_by_hour["Hour"].tolist()
+    fig.add_trace(go.Scatter(
+        x=hrs + hrs[::-1], y=mx.tolist() + mn.tolist()[::-1],
+        fill="toself", fillcolor="rgba(42,157,143,0.08)",
+        line=dict(color="rgba(0,0,0,0)"), name="Min-Max range",
+        hoverinfo="skip",
+    ))
+
+    fig.update_xaxes(title_text="Hour of Day", tickmode="array",
+                     tickvals=list(range(0, 24, 2)),
+                     ticktext=[f"{x}h" for x in range(0, 24, 2)])
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=380)
+    fig.update_layout(
+        title=dict(text="<b>Hourly DA Profile — Last 7 Days (one line per day)</b>"),
+        hovermode="x unified",
+    )
+    return fig
+
+
+# ── DA daily spread ───────────────────────────────────────────────────────────
+
+def mo_chart_da_spread(hourly: pd.DataFrame, zoom: str) -> go.Figure:
+    """Daily spread = max hourly - min hourly, monthly avg."""
+    if hourly is None or len(hourly) == 0 or "Spot" not in hourly.columns:
+        return _mo_stub("DA Daily Spread", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+
+    h["Day"] = h["Date"].dt.normalize()
+    daily = h.groupby("Day")["Spot"].agg(lambda x: x.max() - x.min()).reset_index()
+    daily.columns = ["Day","spread"]
+    daily["YM"] = pd.to_datetime(daily["Day"].astype(str).str[:7])
+    monthly = daily.groupby("YM")["spread"].mean().reset_index()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=monthly["YM"], y=monthly["spread"],
+        marker_color=[rgba(C5, 0.75) if v > 100 else rgba(C2, 0.75) for v in monthly["spread"]],
+        marker_line_color=WHT, marker_line_width=0.5,
+        text=[f"<b>{v:.0f}</b>" for v in monthly["spread"]],
+        textposition="outside",
+        textfont=dict(size=10, color=C1, family="Calibri"),
+        name="Daily Spread",
+        hovertemplate="<b>%{x|%b %Y}</b>: %{y:.1f} EUR/MWh<extra></extra>",
+    ))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=320, show_legend=False)
+    fig.update_layout(title=dict(text="<b>FR DA Daily Spread — Monthly Avg (Max-Min, EUR/MWh)</b>"))
+    return fig
+
+
+# ── Negative price hours ──────────────────────────────────────────────────────
+
+def mo_chart_neg_hours(hourly: pd.DataFrame, zoom: str) -> go.Figure:
+    if hourly is None or len(hourly) == 0 or "Spot" not in hourly.columns:
+        return _mo_stub("Negative DA Hours", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+
+    neg = h[h["Spot"] < 0].copy()
+    if len(neg) == 0:
+        return _mo_stub("Negative DA Hours", "no negative price hours in selected window")
+
+    neg["YM"] = neg["Date"].dt.to_period("M").dt.to_timestamp()
+    monthly = neg.groupby("YM").size().reset_index(name="neg_hours")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=monthly["YM"], y=monthly["neg_hours"],
+        marker_color=[rgba(C5, 0.75) if v > 100 else rgba(C4, 0.75) for v in monthly["neg_hours"]],
+        marker_line_color=WHT, marker_line_width=0.5,
+        text=[f"<b>{v}</b>" for v in monthly["neg_hours"]],
+        textposition="outside",
+        textfont=dict(size=10, color=C1, family="Calibri"),
+        name="Negative hours",
+        hovertemplate="<b>%{x|%b %Y}</b>: %{y} hours<extra></extra>",
+    ))
+    fig.update_yaxes(title_text="Hours")
+    plotly_base(fig, h=320, show_legend=False)
+    fig.update_layout(title=dict(text="<b>Negative DA Price Hours — Monthly Count</b>"))
+    return fig
+
+
+# ── Price distribution ────────────────────────────────────────────────────────
+
+def mo_chart_distribution(hourly: pd.DataFrame, zoom: str) -> go.Figure:
+    if hourly is None or len(hourly) == 0 or "Spot" not in hourly.columns:
+        return _mo_stub("DA Price Distribution", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+
+    q5 = h["Spot"].quantile(0.05); q95 = h["Spot"].quantile(0.95)
+    med = h["Spot"].median(); mn = h["Spot"].mean()
+
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=h["Spot"], nbinsx=60,
+        marker_color=rgba(C1, 0.65), marker_line_color=WHT, marker_line_width=0.5,
+        name="DA Price",
+        hovertemplate="Price: %{x:.0f} EUR/MWh<br>Count: %{y}<extra></extra>",
+    ))
+    for val, label, col in [(med, f"Median {med:.0f}", C2), (mn, f"Mean {mn:.0f}", C4)]:
+        fig.add_vline(x=val, line=dict(color=col, width=2, dash="dash"),
+                      annotation_text=f"<b>{label}</b>",
+                      annotation_font=dict(color=col, size=11, family="Calibri"),
+                      annotation_position="top right")
+    fig.add_vrect(x0=q5, x1=q95, fillcolor=rgba(C3, 0.12), line_width=0,
+                  annotation_text="P5-P95", annotation_position="top left",
+                  annotation_font=dict(color="#888", size=10, family="Calibri"))
+
+    fig.update_xaxes(title_text="EUR/MWh"); fig.update_yaxes(title_text="Hours")
+    plotly_base(fig, h=340, show_legend=False)
+    fig.update_layout(title=dict(text=f"<b>DA Spot Price Distribution — {zoom}</b>"))
+    return fig
+
+
+# ── Renewable generation ──────────────────────────────────────────────────────
+
+def mo_chart_renewables_7d(hourly: pd.DataFrame) -> go.Figure:
+    if hourly is None or len(hourly) == 0:
+        return _mo_stub("Renewable Generation", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    h7 = _mo_last_n(h, 7); h7["Day"] = h7["Date"].dt.normalize()
+    daily = h7.groupby("Day").agg(SolarMW=("NatMW","mean"), WindMW=("WindMW","mean")).reset_index()
+
+    fig = go.Figure()
+    if "SolarMW" in daily.columns and daily["SolarMW"].sum() > 0:
+        fig.add_trace(go.Bar(x=daily["Day"], y=daily["SolarMW"], name="Solar",
+                             marker_color=rgba(C3, 0.85), marker_line_color=WHT, marker_line_width=0.5))
+    if "WindMW" in daily.columns and daily["WindMW"].sum() > 0:
+        fig.add_trace(go.Bar(x=daily["Day"], y=daily["WindMW"], name="Wind",
+                             marker_color=rgba(C1, 0.70), marker_line_color=WHT, marker_line_width=0.5))
+
+    fig.update_layout(barmode="stack")
+    fig.update_xaxes(title_text="Date"); fig.update_yaxes(title_text="Avg MW")
+    plotly_base(fig, h=320)
+    fig.update_layout(title=dict(text="<b>Renewable Generation — Last 7 Days (daily avg MW)</b>"))
+    return fig
+
+
+def mo_chart_renewables_profile(hourly: pd.DataFrame, zoom: str) -> go.Figure:
+    if hourly is None or len(hourly) == 0:
+        return _mo_stub("Renewable Hourly Profile", "check hourly_spot.csv")
+
+    h = hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+    h["Hour"] = h["Date"].dt.hour
+
+    fig = go.Figure()
+    if "NatMW" in h.columns and h["NatMW"].sum() > 0:
+        sol = h.groupby("Hour")["NatMW"].mean().reset_index()
+        fig.add_trace(go.Scatter(x=sol["Hour"], y=sol["NatMW"], mode="lines",
+                                 name="Solar", line=dict(color=C3, width=2.5),
+                                 fill="tozeroy", fillcolor=rgba(C3, 0.12)))
+    if "WindMW" in h.columns and h["WindMW"].sum() > 0:
+        win = h.groupby("Hour")["WindMW"].mean().reset_index()
+        fig.add_trace(go.Scatter(x=win["Hour"], y=win["WindMW"], mode="lines",
+                                 name="Wind", line=dict(color=C1, width=2.5),
+                                 fill="tozeroy", fillcolor=rgba(C1, 0.08)))
+
+    fig.update_xaxes(title_text="Hour", tickmode="array",
+                     tickvals=list(range(0, 24, 2)),
+                     ticktext=[f"{x}h" for x in range(0, 24, 2)])
+    fig.update_yaxes(title_text="Avg MW")
+    plotly_base(fig, h=320)
+    fig.update_layout(
+        title=dict(text=f"<b>Renewable Hourly Profile — {zoom}</b>"),
+        hovermode="x unified")
+    return fig
+
+
+# ── Imbalance charts ──────────────────────────────────────────────────────────
+
+def mo_chart_imbalance_lines(bal: pd.DataFrame) -> go.Figure:
+    if bal is None or len(bal) == 0:
+        return _mo_stub("Imbalance Prices", "run ENTSO-E balancing script")
+
+    fig = go.Figure()
+    for col, label, col_clr in [("Imb_Pos","Imbalance Positive", COL_IMB_POS),
+                                  ("Imb_Neg","Imbalance Negative", COL_IMB_NEG)]:
+        if col not in bal.columns or not bal[col].notna().any():
+            continue
+        m = _mo_monthly(bal, col)
+        fig.add_trace(go.Scatter(x=m["YM"], y=m[col], mode="lines", name=label,
+                                 line=dict(color=col_clr, width=2)))
+
+    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=340)
+    fig.update_layout(title=dict(
+        text="<b>Imbalance Prices — Positive vs Negative (monthly avg)</b>"))
+    return fig
+
+
+def mo_chart_imbalance_spread(bal: pd.DataFrame) -> go.Figure:
+    if bal is None or len(bal) == 0 or "Imb_Pos" not in bal.columns or "Imb_Neg" not in bal.columns:
+        return _mo_stub("Imbalance Spread", "Imb_Pos / Imb_Neg columns not found")
+
+    mp = _mo_monthly(bal, "Imb_Pos"); mn_df = _mo_monthly(bal, "Imb_Neg")
+    merged = mp.merge(mn_df, on="YM", how="inner")
+    merged["spread"] = merged["Imb_Pos"] - merged["Imb_Neg"]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=merged["YM"], y=merged["spread"],
+        marker_color=[rgba(C5, 0.75) if v < 0 else rgba(C2, 0.75) for v in merged["spread"]],
+        marker_line_color=WHT, marker_line_width=0.5,
+        text=[f"<b>{v:+.0f}</b>" for v in merged["spread"]],
+        textposition="outside",
+        textfont=dict(size=10, color=C1, family="Calibri"),
+        name="Imb Spread",
+    ))
+    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=320, show_legend=False)
+    fig.update_layout(title=dict(
+        text="<b>Imbalance Spread (Imb_Pos - Imb_Neg) — Monthly Avg</b>"))
+    return fig
+
+
+def mo_chart_imbalance_vs_da_new(bal: pd.DataFrame) -> go.Figure:
+    """Renamed to avoid collision with existing chart_imbalance_vs_da."""
+    if bal is None or len(bal) == 0 or "DA" not in bal.columns:
+        return _mo_stub("Imbalance vs DA", "run ENTSO-E balancing script")
+
+    mda = _mo_monthly(bal, "DA")
+    fig = go.Figure()
+    for col, label, col_clr in [("Imb_Pos","Imb_Pos - DA", COL_IMB_POS),
+                                  ("Imb_Neg","Imb_Neg - DA", COL_IMB_NEG)]:
+        if col not in bal.columns or not bal[col].notna().any():
+            continue
+        m = _mo_monthly(bal, col)
+        mg = mda.merge(m, on="YM", how="inner")
+        mg["delta"] = mg[col] - mg["DA"]
+        fig.add_trace(go.Scatter(x=mg["YM"], y=mg["delta"], mode="lines",
+                                 name=label, line=dict(color=col_clr, width=2)))
+
+    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1.5))
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=320)
+    fig.update_layout(title=dict(
+        text="<b>Imbalance vs Day-Ahead — Monthly Avg Spread</b>"))
+    return fig
+
+
+def mo_chart_afrr(bal) -> go.Figure:
+    if bal is None or len(bal) == 0:
+        return _mo_stub("aFRR / mFRR", "run ENTSO-E balancing script")
+
+    fig = go.Figure()
+    for col, label, col_clr in [("aFRR","aFRR", COL_AFRR), ("mFRR","mFRR", COL_MFRR)]:
+        if col not in bal.columns or not bal[col].notna().any():
+            continue
+        m = _mo_monthly(bal, col)
+        fig.add_trace(go.Scatter(x=m["YM"], y=m[col], mode="lines", name=label,
+                                 line=dict(color=col_clr, width=2)))
+
+    if not fig.data:
+        return _mo_stub("aFRR / mFRR", "aFRR/mFRR columns not found in balancing_prices.csv")
+
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=340)
+    fig.update_layout(title=dict(
+        text="<b>Ancillary Services — aFRR & mFRR Monthly Avg (France)</b>"))
+    return fig
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Charts for market_prices.csv (TTF, Brent, EUA)
+# Append to bottom of charts.py, after the existing mo_chart_afrr function
+# ══════════════════════════════════════════════════════════════════════════════
+
+def mo_chart_eua(mkt: pd.DataFrame, zoom: str) -> go.Figure:
+    """EUA carbon price — daily series."""
+    if mkt is None or len(mkt) == 0 or "EUA_EUR_tCO2" not in mkt.columns:
+        return _mo_stub("Carbon Price (EUA)", "run update_market_data.py")
+
+    h = mkt[mkt["EUA_EUR_tCO2"].notna()].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+    if len(h) == 0:
+        return _mo_stub("Carbon Price (EUA)", "no data in selected window")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=h["Date"], y=h["EUA_EUR_tCO2"],
+        mode="lines", name="EUA (€/tCO2)",
+        line=dict(color="#5B8DEF", width=2),
+        fill="tozeroy", fillcolor="rgba(91,141,239,0.08)",
+        hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.2f} €/tCO2<extra></extra>",
+    ))
+    if len(h) >= 30:
+        roll30 = h["EUA_EUR_tCO2"].rolling(30, min_periods=10).mean()
+        fig.add_trace(go.Scatter(
+            x=h["Date"], y=roll30, mode="lines", name="30d avg",
+            line=dict(color="#264653", width=1.5, dash="dash"),
+        ))
+    fig.update_yaxes(title_text="€/tCO2")
+    plotly_base(fig, h=320)
+    fig.update_layout(
+        title=dict(text=f"<b>Carbon Price — EUA (€/tCO2) — {zoom}</b>"),
+        hovermode="x unified")
+    return fig
+
+
+def mo_chart_ttf(mkt: pd.DataFrame, zoom: str) -> go.Figure:
+    """TTF gas futures price — daily series."""
+    if mkt is None or len(mkt) == 0 or "TTF_EUR_MWh" not in mkt.columns:
+        return _mo_stub("TTF Gas Price", "run update_market_data.py")
+
+    h = mkt[mkt["TTF_EUR_MWh"].notna()].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+    if len(h) == 0:
+        return _mo_stub("TTF Gas Price", "no data in selected window")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=h["Date"], y=h["TTF_EUR_MWh"],
+        mode="lines", name="TTF (€/MWh)",
+        line=dict(color=C4, width=2),
+        fill="tozeroy", fillcolor=rgba(C4, 0.08),
+        hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.2f} €/MWh<extra></extra>",
+    ))
+    if len(h) >= 30:
+        roll30 = h["TTF_EUR_MWh"].rolling(30, min_periods=10).mean()
+        fig.add_trace(go.Scatter(
+            x=h["Date"], y=roll30, mode="lines", name="30d avg",
+            line=dict(color=C5, width=1.5, dash="dash"),
+        ))
+    fig.update_yaxes(title_text="€/MWh")
+    plotly_base(fig, h=320)
+    fig.update_layout(
+        title=dict(text=f"<b>TTF Gas Price (€/MWh) — {zoom}</b>"),
+        hovermode="x unified")
+    return fig
+
+
+def mo_chart_brent(mkt: pd.DataFrame, zoom: str) -> go.Figure:
+    """Brent crude oil price — daily series."""
+    if mkt is None or len(mkt) == 0 or "Brent_USD_bbl" not in mkt.columns:
+        return _mo_stub("Brent Oil Price", "run update_market_data.py")
+
+    h = mkt[mkt["Brent_USD_bbl"].notna()].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+    if len(h) == 0:
+        return _mo_stub("Brent Oil Price", "no data in selected window")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=h["Date"], y=h["Brent_USD_bbl"],
+        mode="lines", name="Brent ($/bbl)",
+        line=dict(color="#6A994E", width=2),
+        fill="tozeroy", fillcolor="rgba(106,153,78,0.08)",
+        hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.2f} $/bbl<extra></extra>",
+    ))
+    if len(h) >= 30:
+        roll30 = h["Brent_USD_bbl"].rolling(30, min_periods=10).mean()
+        fig.add_trace(go.Scatter(
+            x=h["Date"], y=roll30, mode="lines", name="30d avg",
+            line=dict(color="#386641", width=1.5, dash="dash"),
+        ))
+    fig.update_yaxes(title_text="$/bbl")
+    plotly_base(fig, h=320)
+    fig.update_layout(
+        title=dict(text=f"<b>Brent Crude Oil ($/bbl) — {zoom}</b>"),
+        hovermode="x unified")
+    return fig
+
+
+def mo_chart_commodity_kpis(mkt: pd.DataFrame) -> dict:
+    """
+    Returns dict of last values for KPI display.
+    Keys: ttf_last, ttf_chg, brent_last, brent_chg, eua_last, eua_chg
+    """
+    out = {}
+    if mkt is None or len(mkt) == 0:
+        return out
+    mkt = mkt.copy(); mkt["Date"] = pd.to_datetime(mkt["Date"])
+    for col, key in [("TTF_EUR_MWh","ttf"), ("Brent_USD_bbl","brent"), ("EUA_EUR_tCO2","eua")]:
+        if col in mkt.columns and mkt[col].notna().any():
+            s = mkt[mkt[col].notna()][col]
+            out[f"{key}_last"] = s.iloc[-1]
+            out[f"{key}_chg"]  = s.iloc[-1] - s.iloc[-2] if len(s) >= 2 else float("nan")
+    return out
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Charts for xborder_da_prices.csv and fcr_prices.csv
+# Append to bottom of charts.py (after mo_chart_afrr / commodity charts)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Country display config
+_XBORDER_COUNTRIES = {
+    "DE": {"label": "Germany",     "color": "#264653"},
+    "BE": {"label": "Belgium",     "color": "#2A9D8F"},
+    "ES": {"label": "Spain",       "color": "#E9C46A"},
+    "IT": {"label": "Italy",       "color": "#F4A261"},
+    "NL": {"label": "Netherlands", "color": "#E76F51"},
+}
+
+
+def _xb_last_n(df: pd.DataFrame, n: int) -> pd.DataFrame:
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
+    cutoff = df["Date"].max() - pd.Timedelta(days=n)
+    return df[df["Date"] >= cutoff]
+
+
+def _xb_daily_avg(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Resample hourly DA to daily average."""
+    d = df[df[col].notna()].copy()
+    d["Date"] = pd.to_datetime(d["Date"])
+    d["Day"] = d["Date"].dt.normalize()
+    return d.groupby("Day")[col].mean().reset_index().rename(columns={"Day": "Date"})
+
+
+# ── Country ranking bar (avg last 7 days) ─────────────────────────────────────
+
+def mo_chart_country_ranking(xb: pd.DataFrame, fr_hourly: pd.DataFrame) -> go.Figure:
+    """
+    Average DA spot price last 7 days — FR + DE/BE/ES/IT/NL.
+    Bar chart ranked low to high.
+    """
+    if (xb is None or len(xb) == 0) and (fr_hourly is None or len(fr_hourly) == 0):
+        return _mo_stub("Country DA Ranking", "run update_entsoe_xborder.py")
+
+    rows = []
+
+    # FR from hourly_spot.csv
+    if fr_hourly is not None and len(fr_hourly) > 0 and "Spot" in fr_hourly.columns:
+        h = fr_hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+        h7 = _mo_last_n(h, 7)
+        if h7["Spot"].notna().any():
+            rows.append({"Country": "FR", "Label": "France",
+                         "Avg": h7["Spot"].mean(), "Color": C1})
+
+    # Other countries from xborder_da_prices.csv
+    if xb is not None and len(xb) > 0:
+        xb7 = _xb_last_n(xb, 7)
+        for code, cfg in _XBORDER_COUNTRIES.items():
+            if code in xb7.columns and xb7[code].notna().any():
+                rows.append({"Country": code, "Label": cfg["label"],
+                             "Avg": xb7[code].mean(), "Color": cfg["color"]})
+
+    if not rows:
+        return _mo_stub("Country DA Ranking", "no data yet — run full refresh")
+
+    df_rank = pd.DataFrame(rows).sort_values("Avg")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_rank["Avg"],
+        y=df_rank["Label"],
+        orientation="h",
+        marker_color=df_rank["Color"].tolist(),
+        marker_line_color=WHT, marker_line_width=1,
+        text=[f"<b>{v:.1f}</b>" for v in df_rank["Avg"]],
+        textposition="outside",
+        textfont=dict(size=12, color=C1, family="Calibri"),
+        hovertemplate="<b>%{y}</b>: %{x:.1f} EUR/MWh<extra></extra>",
+    ))
+    fig.update_xaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=320, show_legend=False)
+    fig.update_layout(
+        title=dict(text="<b>DA Spot Price by Country — Avg Last 7 Days (EUR/MWh)</b>"),
+        margin=dict(l=100, r=60, t=40, b=40),
+    )
+    return fig
+
+
+# ── Spread vs France ──────────────────────────────────────────────────────────
+
+def mo_chart_spread_vs_fr(xb: pd.DataFrame, fr_hourly: pd.DataFrame,
+                           zoom: str) -> go.Figure:
+    """
+    Country DA minus France DA — monthly average.
+    Positive = country more expensive than FR.
+    """
+    if xb is None or len(xb) == 0:
+        return _mo_stub("Spread vs France", "run update_entsoe_xborder.py")
+
+    # Build daily FR average
+    if fr_hourly is None or len(fr_hourly) == 0 or "Spot" not in fr_hourly.columns:
+        return _mo_stub("Spread vs France", "no FR spot data in hourly_spot.csv")
+
+    h = fr_hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+
+    # Apply zoom
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+    if n:
+        cutoff = h["Date"].max() - pd.Timedelta(days=n)
+        h = h[h["Date"] >= cutoff]
+        xb = _xb_last_n(xb, n)
+
+    # FR daily avg
+    h["Day"] = h["Date"].dt.normalize()
+    fr_daily = h.groupby("Day")["Spot"].mean().reset_index()
+    fr_daily.columns = ["Date", "FR"]
+    fr_daily["Date"] = pd.to_datetime(fr_daily["Date"])
+
+    # Merge with xborder
+    xb2 = xb.copy(); xb2["Date"] = pd.to_datetime(xb2["Date"]).dt.normalize()
+    # xborder is already hourly — resample to daily
+    xb_daily = xb2.copy()
+    xb_daily["Date"] = pd.to_datetime(xb_daily["Date"]).dt.normalize()
+    num_cols = [c for c in _XBORDER_COUNTRIES.keys() if c in xb_daily.columns]
+    xb_daily = xb_daily.groupby("Date")[num_cols].mean().reset_index()
+
+    merged = fr_daily.merge(xb_daily, on="Date", how="inner")
+
+    # Monthly average of spread
+    merged["YM"] = pd.to_datetime(merged["Date"].astype(str).str[:7])
+
+    fig = go.Figure()
+    has_data = False
+    for code, cfg in _XBORDER_COUNTRIES.items():
+        if code not in merged.columns:
+            continue
+        merged[f"spread_{code}"] = merged[code] - merged["FR"]
+        monthly = merged.groupby("YM")[f"spread_{code}"].mean().reset_index()
+        if monthly[f"spread_{code}"].notna().any():
+            fig.add_trace(go.Scatter(
+                x=monthly["YM"], y=monthly[f"spread_{code}"],
+                mode="lines", name=cfg["label"],
+                line=dict(color=cfg["color"], width=2),
+                hovertemplate=f"<b>{cfg['label']}</b> %{{x|%b %Y}}: %{{y:+.1f}} EUR/MWh<extra></extra>",
+            ))
+            has_data = True
+
+    if not has_data:
+        return _mo_stub("Spread vs France", "no xborder data yet — run full refresh")
+
+    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5, dash="dot"),
+                  annotation_text="= France price",
+                  annotation_font=dict(color="#999", size=11, family="Calibri"),
+                  annotation_position="top left")
+    fig.update_yaxes(title_text="EUR/MWh (vs FR)")
+    plotly_base(fig, h=360)
+    fig.update_layout(
+        title=dict(text=f"<b>DA Spread vs France — Monthly Avg — {zoom}</b>"),
+        hovermode="x unified",
+    )
+    return fig
+
+
+# ── Multi-country DA historical lines ─────────────────────────────────────────
+
+def mo_chart_country_da_history(xb: pd.DataFrame, fr_hourly: pd.DataFrame,
+                                 zoom: str) -> go.Figure:
+    """
+    Historical DA price lines for all countries — daily avg, same chart.
+    """
+    if xb is None or len(xb) == 0:
+        return _mo_stub("Country DA History", "run update_entsoe_xborder.py")
+
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+
+    fig = go.Figure()
+
+    # FR
+    if fr_hourly is not None and "Spot" in fr_hourly.columns:
+        h = fr_hourly.copy(); h["Date"] = pd.to_datetime(h["Date"])
+        if n:
+            h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+        fr_d = _xb_daily_avg(h.rename(columns={"Spot":"FR"}), "FR")
+        if len(fr_d) > 0:
+            fig.add_trace(go.Scatter(
+                x=fr_d["Date"], y=fr_d["FR"], mode="lines",
+                name="France", line=dict(color=C1, width=2.5),
+                hovertemplate="<b>France</b> %{x|%d %b}: %{y:.1f}<extra></extra>",
+            ))
+
+    # Other countries
+    xb2 = xb.copy(); xb2["Date"] = pd.to_datetime(xb2["Date"])
+    if n:
+        xb2 = xb2[xb2["Date"] >= xb2["Date"].max() - pd.Timedelta(days=n)]
+
+    for code, cfg in _XBORDER_COUNTRIES.items():
+        if code not in xb2.columns or not xb2[code].notna().any():
+            continue
+        d = _xb_daily_avg(xb2, code)
+        fig.add_trace(go.Scatter(
+            x=d["Date"], y=d[code], mode="lines",
+            name=cfg["label"], line=dict(color=cfg["color"], width=1.5),
+            hovertemplate=f"<b>{cfg['label']}</b> %{{x|%d %b}}: %{{y:.1f}}<extra></extra>",
+        ))
+
+    if not fig.data:
+        return _mo_stub("Country DA History", "no data yet")
+
+    fig.update_yaxes(title_text="EUR/MWh")
+    plotly_base(fig, h=380)
+    fig.update_layout(
+        title=dict(text=f"<b>DA Spot Price — France vs Neighbours — {zoom}</b>"),
+        hovermode="x unified",
+    )
+    return fig
+
+
+# ── FCR price chart ───────────────────────────────────────────────────────────
+
+def mo_chart_fcr(fcr: pd.DataFrame, zoom: str) -> go.Figure:
+    """FCR contracted reserve price — France — daily series (EUR/MW/day)."""
+    if fcr is None or len(fcr) == 0 or "FCR_EUR_MW_day" not in fcr.columns:
+        return _mo_stub("FCR Price (France)", "run update_entsoe_xborder.py --fcr-only")
+
+    h = fcr[fcr["FCR_EUR_MW_day"].notna()].copy()
+    h["Date"] = pd.to_datetime(h["Date"])
+    zoom_days = {"7D":7,"1M":30,"3M":90,"1Y":365,"2Y":730,"5Y":1825,"All":None}
+    n = zoom_days.get(zoom)
+    if n:
+        h = h[h["Date"] >= h["Date"].max() - pd.Timedelta(days=n)]
+    if len(h) == 0:
+        return _mo_stub("FCR Price (France)", "no data in selected window")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=h["Date"], y=h["FCR_EUR_MW_day"],
+        mode="lines", name="FCR FR (€/MW/day)",
+        line=dict(color=COL_AFRR, width=2),
+        fill="tozeroy", fillcolor="rgba(155,89,182,0.08)",
+        hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} €/MW/day<extra></extra>",
+    ))
+    if len(h) >= 30:
+        roll30 = h["FCR_EUR_MW_day"].rolling(30, min_periods=10).mean()
+        fig.add_trace(go.Scatter(
+            x=h["Date"], y=roll30, mode="lines", name="30d avg",
+            line=dict(color="#6C3483", width=1.5, dash="dash"),
+        ))
+
+    fig.update_yaxes(title_text="€/MW/day")
+    plotly_base(fig, h=340)
+    fig.update_layout(
+        title=dict(text=f"<b>FCR Contracted Reserve Price — France (€/MW/day) — {zoom}</b>"),
+        hovermode="x unified",
+    )
+    return fig
