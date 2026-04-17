@@ -1,0 +1,65 @@
+# .github/workflows/update_xborder.yml
+# Daily fetch of DA prices (DE/BE/ES/IT/NL) + FCR prices (FR)
+# Runs at 08:30 UTC — after ENTSO-E (08:00) and market data (08:15)
+
+name: Update Cross-Border DA & FCR Prices
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'full or incremental'
+        required: false
+        default: 'incremental'
+      dataset:
+        description: 'all, da-only, or fcr-only'
+        required: false
+        default: 'all'
+
+jobs:
+  update-xborder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas entsoe-py
+
+      - name: Run incremental update
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'incremental'
+        env:
+          ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.dataset }}" = "da-only" ]; then ARGS="--da-only"; fi
+          if [ "${{ github.event.inputs.dataset }}" = "fcr-only" ]; then ARGS="--fcr-only"; fi
+          python ppa_dashboard/scripts/update_entsoe_xborder.py $ARGS
+
+      - name: Run full refresh
+        if: github.event.inputs.mode == 'full'
+        env:
+          ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
+        run: |
+          ARGS="--full"
+          if [ "${{ github.event.inputs.dataset }}" = "da-only" ]; then ARGS="$ARGS --da-only"; fi
+          if [ "${{ github.event.inputs.dataset }}" = "fcr-only" ]; then ARGS="$ARGS --fcr-only"; fi
+          python ppa_dashboard/scripts/update_entsoe_xborder.py $ARGS
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ppa_dashboard/data/xborder_da_prices.csv \
+                  ppa_dashboard/data/fcr_prices.csv
+          git diff --cached --quiet || git commit -m "chore: update xborder DA + FCR prices $(date -u +'%Y-%m-%d')"
+          git pull --rebase origin main
+          git push
