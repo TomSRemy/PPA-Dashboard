@@ -2428,51 +2428,48 @@ def mk_chart_afrr(bal, zoom) -> go.Figure:
 # ── Europe map ────────────────────────────────────────────────────────────────
 
 def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
-    country_iso = {"FR":"FRA","DE":"DEU","BE":"BEL","ES":"ESP","NL":"NLD","IT":"ITA"}
+    """Bar chart ranked by DA price — replaces choropleth (geo not supported)."""
     prices = {}
     if hourly is not None and "Spot" in hourly.columns:
         h = _mk_clip(hourly.copy(), zoom)
         v = h["Spot"].mean()
         if v == v:
-            prices["FR"] = v
+            prices["France"] = v
     if xb is not None and len(xb) > 0:
         x = _mk_clip(xb.copy(), zoom)
-        for code in ["DE","BE","ES","NL","IT"]:
+        for code, label in [("DE","Germany"),("BE","Belgium"),
+                             ("ES","Spain"),("NL","Netherlands"),("IT","Italy")]:
             if code in x.columns and x[code].notna().any():
-                prices[code] = x[code].mean()
+                prices[label] = x[code].mean()
     if not prices:
-        return _mk_stub("Europe DA Map", "run update_entsoe_xborder.py")
-    codes  = list(prices.keys())
-    vals   = [prices[c] for c in codes]
-    isos   = [country_iso.get(c, c) for c in codes]
-    labels = [f"{c}: {v:.1f} €/MWh" for c, v in zip(codes, vals)]
-    fig = go.Figure(data=go.Choropleth(
-        locations=isos, z=vals, text=labels,
-        locationmode="ISO-3",
-        colorscale=[[0,"#2A9D8F"],[0.5,"#E9C46A"],[1,"#E76F51"]],
-        colorbar=dict(title=dict(text="€/MWh",
-                      font=dict(size=11, color=C1)),
-                      tickfont=dict(size=10, color=C1), thickness=12),
-        hovertemplate="%{text}<extra></extra>",
+        return _mk_stub("Europe DA Prices", "run update_entsoe_xborder.py")
+
+    df = pd.DataFrame(list(prices.items()), columns=["Country","Price"]).sort_values("Price")
+    mn, mx = df["Price"].min(), df["Price"].max()
+    def _color(v):
+        t = (v - mn) / (mx - mn) if mx > mn else 0.5
+        r = int(42  + t * (231 - 42))
+        g = int(157 - t * (157 - 111))
+        b = int(143 - t * (143 - 81))
+        return f"rgb({r},{g},{b})"
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["Price"], y=df["Country"], orientation="h",
+        marker_color=[_color(v) for v in df["Price"]],
+        marker_line_width=0,
+        text=[f"<b>{v:.1f} €/MWh</b>" for v in df["Price"]],
+        textposition="outside",
+        textfont=dict(size=12, color=C1, family="Calibri"),
+        hovertemplate="<b>%{y}</b>: %{x:.1f} €/MWh<extra></extra>",
     ))
+    fig.update_xaxes(title_text="€/MWh")
+    plotly_base(fig, h=360, show_legend=False)
     fig.update_layout(
-        height=460,
-        margin=dict(l=0, r=0, t=40, b=0),
-        paper_bgcolor=WHT,
-        title=dict(text=f"<b>DA Spot Price — Europe — Avg {zoom}</b>",
-                   font=dict(size=13, color=C1, family="Calibri")),
-        geo=dict(
-            scope="europe",
-            showland=True, landcolor="#F7F4F0",
-            showocean=True, oceancolor="#EAF2F8",
-            showcoastlines=True, coastlinecolor="#CCC",
-            showborders=True, bordercolor="#CCC",
-            lonaxis=dict(range=[-15, 25]),
-            lataxis=dict(range=[35, 60]),
-        ),
+        title=dict(text=f"<b>DA Spot Price by Country — Avg {zoom} (Green=Low / Red=High)</b>"),
+        margin=dict(l=110, r=80, t=40, b=40),
     )
     return fig
-
 
 # ── Multi-country historical ──────────────────────────────────────────────────
 
