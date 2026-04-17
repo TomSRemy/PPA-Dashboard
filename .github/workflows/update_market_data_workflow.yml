@@ -1,0 +1,51 @@
+# .github/workflows/update_market_data.yml
+# Daily fetch of TTF, Brent, EUA carbon prices
+# Runs after the ENTSO-E update (08:15 UTC vs 08:00 for ENTSO-E)
+
+name: Update Market Data (TTF / Brent / EUA)
+
+on:
+  schedule:
+    - cron: '15 8 * * *'   # 08:15 UTC daily
+  workflow_dispatch:         # manual trigger
+    inputs:
+      mode:
+        description: 'full = backfill from 2018, incremental = last 14 days'
+        required: false
+        default: 'incremental'
+
+jobs:
+  update-market-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pandas requests yfinance
+
+      - name: Run incremental update
+        if: github.event_name == 'schedule' || github.event.inputs.mode == 'incremental'
+        run: |
+          python ppa_dashboard/scripts/update_market_data.py
+
+      - name: Run full refresh
+        if: github.event.inputs.mode == 'full'
+        run: |
+          python ppa_dashboard/scripts/update_market_data.py --full
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ppa_dashboard/data/market_prices.csv
+          git diff --cached --quiet || git commit -m "chore: update market prices (TTF/Brent/EUA) $(date -u +'%Y-%m-%d')"
+          git pull --rebase origin main
+          git push
