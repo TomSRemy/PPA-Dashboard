@@ -26,7 +26,7 @@ import requests
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).parent
-DATA_DIR   = SCRIPT_DIR.parent / "data"
+DATA_DIR   = SCRIPT_DIR / "data"
 OUT_FILE   = DATA_DIR / "market_prices.csv"
 
 # ── Config ────────────────────────────────────────────────────────────────────
