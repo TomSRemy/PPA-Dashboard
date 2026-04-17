@@ -68,6 +68,17 @@ from charts  import (
     mo_chart_country_ranking,
     mo_chart_spread_vs_fr,
     mo_chart_country_da_history,
+    mk_kpis,
+    mk_chart_spot, mk_table_spot,
+    mk_chart_spread, mk_table_spread,
+    mk_chart_neg_bars, mk_chart_neg_calendar,
+    mk_chart_distribution,
+    mk_chart_eua, mk_chart_ttf, mk_chart_brent, mk_table_commodity,
+    mk_chart_renewables_lines, mk_chart_renewables_mix, mk_chart_renewables_hourly,
+    mk_chart_imb_pos_neg, mk_chart_imb_spread, mk_chart_imb_vs_da, mk_table_imbalance,
+    mk_chart_fcr, mk_chart_afrr,
+    mk_chart_europe_map, mk_chart_country_history,
+    _mk_stub, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN,
 )
 from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel import build_excel
@@ -644,17 +655,15 @@ with tab5:
     )
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Market Overview (Prices + Spot + Mix + Commentary)
-# ══════════════════════════════════════════════════════════════════════════════
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Market Overview (Power Market & Battery Dashboard)
-# COMPLETE REPLACEMENT for the "with tab6:" block in app.py
-# Replace everything from "with tab6:" down to (not including) "with tab7:"
+# TAB 6 — Market Overview v2
+# COMPLETE replacement for the "with tab6:" block in app.py
+# Replace from "with tab6:" down to (not including) "with tab7:"
 # ══════════════════════════════════════════════════════════════════════════════
 with tab6:
     st.markdown("## Market Overview — France Power Market")
 
-    hourly_full = load_hourly()   # unfiltered by yr_range
+    # ── Data loading ─────────────────────────────────────────────────────────
+    hourly_full = load_hourly()
     bal         = load_balancing()
     xb          = load_xborder_da()
     fcr         = load_fcr()
@@ -665,270 +674,263 @@ with tab6:
     has_fcr = fcr is not None and len(fcr)  > 0
     has_mkt = mkt is not None and len(mkt)  > 0
 
-    # ── Shared time filter ───────────────────────────────────────────────────
-    ZOOM_OPTS = ["7D", "1M", "3M", "1Y", "2Y", "5Y", "All"]
-    zoom = st.radio("Time window", ZOOM_OPTS, index=3, horizontal=True, key="mo_zoom")
-
+    # ── Global time filter ───────────────────────────────────────────────────
+    st.markdown("#### Global time window")
+    g_zoom = st.radio("", MK_ZOOM_OPTS, index=3, horizontal=True, key="mk_global_zoom")
+    st.caption("Each chart also has its own local filter — override the global window per chart.")
     st.markdown("---")
 
+    # ── Helper: local zoom selector ───────────────────────────────────────────
+    def local_zoom(key: str, default: str = None) -> str:
+        idx = MK_ZOOM_OPTS.index(default or g_zoom)
+        return st.radio("", MK_ZOOM_OPTS, index=idx, horizontal=True, key=key)
+
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 1 — KPI strip
+    # ROW 1 — KPIs
     # ════════════════════════════════════════════════════════════════════════
     section("Key Market Indicators")
+    kpis = mk_kpis(hourly_full, bal if has_bal else None, mkt if has_mkt else None)
 
-    kpis  = mo_kpis(hourly_full, bal if has_bal else None)
-    ckpis = mo_chart_commodity_kpis(mkt) if has_mkt else {}
-
-    def _delta(val, prev, unit=""):
-        if val != val or prev != prev:
+    def _kpi_delta(val, prev, unit="", pct=True):
+        if val != val or prev != prev or prev == 0:
             return ""
-        d = val - prev
+        d   = val - prev
+        dp  = d / abs(prev) * 100
         col = C2 if d >= 0 else C5
-        arrow = "+" if d >= 0 else ""
-        return (f'<span style="font-size:11px;color:{col};font-weight:600;">'
-                f'{arrow}{d:.1f}{unit} vs prev 7d</span>')
+        arr = "▲" if d >= 0 else "▼"
+        txt = f"{arr} {dp:+.1f}%" if pct else f"{arr} {d:+.1f}{unit}"
+        return f'<span style="font-size:11px;color:{col};font-weight:700">{txt} vs prev 7D</span>'
 
-    # Row 1a — spot & spread
-    ka = st.columns(5)
-    with ka[0]:
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
         v = kpis.get("da_7d", float("nan"))
-        kpi_card("DA avg — 7d", f"{v:.1f}" if v == v else "N/A", color=C1)
-        st.markdown(_delta(v, kpis.get("da_7d_prev", float("nan")), " €/MWh"),
+        kpi_card("DA Spot — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=C1)
+        st.markdown(_kpi_delta(v, kpis.get("da_7d_prev", float("nan")), " €/MWh", pct=False),
                     unsafe_allow_html=True)
-    with ka[1]:
+    with k2:
         v = kpis.get("da_30d", float("nan"))
-        kpi_card("DA avg — 30d", f"{v:.1f}" if v == v else "N/A", color=C1)
-    with ka[2]:
+        kpi_card("DA Spot — 30D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=C1)
+    with k3:
         v = kpis.get("spread_7d", float("nan"))
-        kpi_card("DA spread — 7d", f"{v:.1f}" if v == v else "N/A",
-                 color=C5 if v == v and v > 100 else C2)
-        st.markdown('<span style="font-size:10px;color:#888;">max-min daily</span>',
+        kpi_card("DA Spread — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A",
+                 color=C5 if v==v and v>100 else C2)
+        st.markdown('<span style="font-size:10px;color:#888">max−min daily</span>',
                     unsafe_allow_html=True)
-    with ka[3]:
-        v = kpis.get("spread_30d", float("nan"))
-        kpi_card("DA spread — 30d", f"{v:.1f}" if v == v else "N/A",
-                 color=C5 if v == v and v > 100 else C2)
-    with ka[4]:
+    with k4:
         v = kpis.get("afrr_7d", float("nan"))
-        kpi_card("aFRR avg — 7d", f"{v:.1f}" if v == v else "N/A", color=C2)
+        kpi_card("aFRR — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=MK_PURPLE)
+    with k5:
+        v = kpis.get("eua_last", float("nan"))
+        kpi_card("EUA Carbon", f"{v:.1f} €/tCO2" if v==v else "N/A", color=MK_BLUE)
+        st.markdown(_kpi_delta(v, kpis.get("eua_7d_prev", float("nan")), " €/tCO2", pct=True),
+                    unsafe_allow_html=True)
 
-    # Row 1b — generation & commodities
-    kb = st.columns(5)
-    with kb[0]:
+    k6, k7, k8, k9, k10 = st.columns(5)
+    with k6:
         v = kpis.get("solar_7d", float("nan"))
-        kpi_card("Solar — 7d MW", f"{v:.0f}" if v == v else "N/A",
-                 color=C3, extra_cls="kpi-gold")
-    with kb[1]:
+        kpi_card("Solar — 7D avg", f"{v:.0f} MW" if v==v else "N/A", color=C3, extra_cls="kpi-gold")
+        st.markdown(_kpi_delta(v, kpis.get("solar_7d_prev", float("nan")), " MW", pct=True),
+                    unsafe_allow_html=True)
+    with k7:
         v = kpis.get("wind_7d", float("nan"))
-        kpi_card("Wind — 7d MW", f"{v:.0f}" if v == v else "N/A", color=C2)
-    with kb[2]:
-        v = ckpis.get("ttf_last", float("nan"))
-        c = ckpis.get("ttf_chg",  float("nan"))
-        kpi_card("TTF Gas", f"{v:.1f} €/MWh" if v == v else "N/A", color=C4)
-        if c == c:
-            arrow = "+" if c >= 0 else ""
-            col = C2 if c >= 0 else C5
-            st.markdown(f'<span style="font-size:11px;color:{col}">{arrow}{c:.2f} D-1</span>',
-                        unsafe_allow_html=True)
-    with kb[3]:
-        v = ckpis.get("eua_last", float("nan"))
-        c = ckpis.get("eua_chg",  float("nan"))
-        kpi_card("EUA Carbon", f"{v:.1f} €/tCO2" if v == v else "N/A", color="#5B8DEF")
-        if c == c:
-            arrow = "+" if c >= 0 else ""
-            col = C2 if c >= 0 else C5
-            st.markdown(f'<span style="font-size:11px;color:{col}">{arrow}{c:.2f} D-1</span>',
-                        unsafe_allow_html=True)
-    with kb[4]:
-        v = ckpis.get("brent_last", float("nan"))
-        kpi_card("Brent", f"{v:.1f} $/bbl" if v == v else "N/A", color="#6A994E")
+        kpi_card("Wind — 7D avg", f"{v:.0f} MW" if v==v else "N/A", color=C2)
+        st.markdown(_kpi_delta(v, kpis.get("wind_7d_prev", float("nan")), " MW", pct=True),
+                    unsafe_allow_html=True)
+    with k8:
+        v = kpis.get("ttf_last", float("nan"))
+        kpi_card("TTF Gas", f"{v:.1f} €/MWh" if v==v else "N/A", color=C4)
+        st.markdown(_kpi_delta(v, kpis.get("ttf_7d_prev", float("nan")), " €/MWh", pct=True),
+                    unsafe_allow_html=True)
+    with k9:
+        v = kpis.get("brent_last", float("nan"))
+        kpi_card("Brent Oil", f"{v:.1f} $/bbl" if v==v else "N/A", color=MK_GREEN)
+        st.markdown(_kpi_delta(v, kpis.get("brent_7d_prev", float("nan")), " $/bbl", pct=True),
+                    unsafe_allow_html=True)
+    with k10:
+        v = kpis.get("da_7d", float("nan"))
+        neg_h = int((hourly_full["Spot"] < 0).sum()) if hourly_full is not None and "Spot" in hourly_full.columns else 0
+        kpi_card("Neg hours — YTD", f"{neg_h:,} h", color=C5 if neg_h > 200 else C4)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 2 — Main spot chart
+    # ROW 2 — FR DA Spot (main chart)
     # ════════════════════════════════════════════════════════════════════════
     section("FR Day-Ahead Spot Price")
-    desc("Use the time window selector above. Daily average adds rolling avg "
-         "(7d for 1M/3M, 30d for 1Y+).")
+    desc("Hourly or daily average. Daily mode adds 7D and 30D rolling averages.")
     mode = st.radio("Display mode", ["Hourly", "Daily average"], index=1,
-                    horizontal=True, key="mo_mode")
-    st.plotly_chart(mo_chart_spot_main(hourly_full, zoom, mode),
-                    use_container_width=True)
+                    horizontal=True, key="mk_spot_mode")
+    z = local_zoom("mk_spot_zoom")
+    sc, tc = st.columns([3, 1])
+    with sc:
+        st.plotly_chart(mk_chart_spot(hourly_full, z, mode), use_container_width=True)
+    with tc:
+        st.markdown("##### Statistics")
+        st.plotly_chart(mk_table_spot(hourly_full, z), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 3 — Hourly overlay + DA spread
+    # ROW 3 — DA Spread
     # ════════════════════════════════════════════════════════════════════════
-    section("Intraday Structure & Spread")
-    r3a, r3b = st.columns(2)
-    with r3a:
-        section("Hourly Profile — Last 7 Days")
-        desc("One line per day (oldest = lightest). Thick teal = 7-day average. "
-             "Shaded band = min-max envelope.")
-        st.plotly_chart(mo_chart_hourly_overlay(hourly_full),
-                        use_container_width=True)
-    with r3b:
-        section("DA Daily Spread (Max - Min)")
-        desc("Monthly average of daily spread. Higher = more arbitrage potential for batteries.")
-        st.plotly_chart(mo_chart_da_spread(hourly_full, zoom),
-                        use_container_width=True)
+    section("DA Daily Spread")
+    desc("Daily max−min + 30D rolling average. Measures intraday arbitrage potential.")
+    z = local_zoom("mk_spread_zoom")
+    sc, tc = st.columns([3, 1])
+    with sc:
+        st.plotly_chart(mk_chart_spread(hourly_full, z), use_container_width=True)
+    with tc:
+        st.markdown("##### Statistics")
+        st.plotly_chart(mk_table_spread(hourly_full, z), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 4 — Negative prices + distribution
+    # ROW 4 — Negative price hours
     # ════════════════════════════════════════════════════════════════════════
-    section("Oversupply & Volatility")
-    r4a, r4b = st.columns(2)
-    with r4a:
-        section("Negative DA Price Hours")
-        desc("Monthly count. High frequency = oversupply, charging opportunities.")
-        st.plotly_chart(mo_chart_neg_hours(hourly_full, zoom),
-                        use_container_width=True)
-    with r4b:
-        section("DA Spot Price Distribution")
-        desc("Histogram of hourly prices — P5/P95 band, median and mean lines.")
-        st.plotly_chart(mo_chart_distribution(hourly_full, zoom),
-                        use_container_width=True)
+    section("Negative DA Price Hours")
+    desc("Daily bars + calendar heatmap. Red = high negative hour count.")
+    z = local_zoom("mk_neg_zoom")
+    st.plotly_chart(mk_chart_neg_bars(hourly_full, z), use_container_width=True)
+    st.plotly_chart(mk_chart_neg_calendar(hourly_full, z), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 5 — Market drivers (commodities + renewables)
+    # ROW 5 — Distribution
+    # ════════════════════════════════════════════════════════════════════════
+    section("DA Spot Price Distribution")
+    desc("Histogram of hourly prices. Mean and median shown at different heights to avoid overlap.")
+    z = local_zoom("mk_dist_zoom")
+    st.plotly_chart(mk_chart_distribution(hourly_full, z), use_container_width=True)
+
+    st.markdown("---")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # ROW 6 — Market drivers (one per row)
     # ════════════════════════════════════════════════════════════════════════
     section("Market Drivers")
-    r5a, r5b, r5c = st.columns(3)
-    with r5a:
-        section("EUA Carbon Price")
-        desc("Daily EUA futures (€/tCO2). Source: Ember Climate. "
-             "Key driver of gas and wholesale power prices.")
-        st.plotly_chart(mo_chart_eua(mkt if has_mkt else None, zoom),
-                        use_container_width=True)
-    with r5b:
-        section("TTF Gas Price")
-        desc("Front-month futures (€/MWh). Source: Yahoo Finance. "
-             "Primary marginal cost driver for FR power price.")
-        st.plotly_chart(mo_chart_ttf(mkt if has_mkt else None, zoom),
-                        use_container_width=True)
-    with r5c:
-        section("Brent Crude Oil")
-        desc("Front-month ($/bbl). Source: Yahoo Finance. "
-             "Secondary driver, correlated to LNG and gas.")
-        st.plotly_chart(mo_chart_brent(mkt if has_mkt else None, zoom),
-                        use_container_width=True)
 
-    st.markdown("---")
-    section("Renewable Generation")
-    r5d, r5e = st.columns(2)
-    with r5d:
-        section("Solar & Wind — Last 7 Days")
-        desc("Daily average MW. Source: ENTSO-E hourly_spot.csv.")
-        st.plotly_chart(mo_chart_renewables_7d(hourly_full),
-                        use_container_width=True)
-    with r5e:
-        section("Renewable Hourly Profile")
-        desc("Average generation by hour of day — links shape to price cannibalization.")
-        st.plotly_chart(mo_chart_renewables_profile(hourly_full, zoom),
-                        use_container_width=True)
+    st.markdown("#### Carbon Price (EUA)")
+    desc("EUA daily futures (€/tCO2). Source: Ember Climate. Includes 7D and 30D rolling avg.")
+    z = local_zoom("mk_eua_zoom")
+    sc, tc = st.columns([3, 1])
+    with sc:
+        st.plotly_chart(mk_chart_eua(mkt if has_mkt else None, z), use_container_width=True)
+    with tc:
+        st.markdown("##### Statistics")
+        st.plotly_chart(mk_table_commodity(mkt, "EUA_EUR_tCO2", "€/tCO2")
+                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
+
+    st.markdown("#### TTF Gas Price")
+    desc("TTF front-month (€/MWh). Source: Yahoo Finance. Primary marginal cost driver for FR power.")
+    z = local_zoom("mk_ttf_zoom")
+    sc, tc = st.columns([3, 1])
+    with sc:
+        st.plotly_chart(mk_chart_ttf(mkt if has_mkt else None, z), use_container_width=True)
+    with tc:
+        st.markdown("##### Statistics")
+        st.plotly_chart(mk_table_commodity(mkt, "TTF_EUR_MWh", "€/MWh")
+                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
+
+    st.markdown("#### Brent Crude Oil")
+    desc("Brent front-month ($/bbl). Source: Yahoo Finance.")
+    z = local_zoom("mk_brent_zoom")
+    sc, tc = st.columns([3, 1])
+    with sc:
+        st.plotly_chart(mk_chart_brent(mkt if has_mkt else None, z), use_container_width=True)
+    with tc:
+        st.markdown("##### Statistics")
+        st.plotly_chart(mk_table_commodity(mkt, "Brent_USD_bbl", "$/bbl")
+                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 6 — Imbalance
+    # ROW 7 — Renewable generation
+    # ════════════════════════════════════════════════════════════════════════
+    section("Renewable Generation")
+
+    st.markdown("#### Wind & Solar — Daily Trend")
+    desc("Daily average + 7D rolling. Separate lines for Wind and Solar.")
+    z = local_zoom("mk_ren_lines_zoom")
+    st.plotly_chart(mk_chart_renewables_lines(hourly_full, z), use_container_width=True)
+
+    st.markdown("#### Generation Mix — Stacked Area")
+    desc("Wind + Solar stacked. Resampled to 6h when zoomed out.")
+    z = local_zoom("mk_ren_mix_zoom")
+    st.plotly_chart(mk_chart_renewables_mix(hourly_full, z), use_container_width=True)
+
+    st.markdown("#### Raw Hourly Generation")
+    desc("Actual hourly MW — no averaging. Best used on 7D or 1M window.")
+    z = local_zoom("mk_ren_hourly_zoom", default="7D")
+    st.plotly_chart(mk_chart_renewables_hourly(hourly_full, z), use_container_width=True)
+
+    st.markdown("---")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # ROW 8 — Imbalance (one per row)
     # ════════════════════════════════════════════════════════════════════════
     section("Flexibility & Imbalance Markets")
     if not has_bal:
         st.warning("balancing_prices.csv not found — run the ENTSO-E balancing script.")
     else:
-        r6a, r6b, r6c = st.columns(3)
-        with r6a:
-            section("Imbalance — Positive vs Negative")
-            desc("Monthly average. Gap between lines = system asymmetry.")
-            st.plotly_chart(mo_chart_imbalance_lines(bal),
-                            use_container_width=True)
-        with r6b:
-            section("Imbalance Spread (Pos - Neg)")
-            desc("Measures imbalance market depth and volatility.")
-            st.plotly_chart(mo_chart_imbalance_spread(bal),
-                            use_container_width=True)
-        with r6c:
-            section("Imbalance vs DA")
-            desc("Imb_Pos - DA and Imb_Neg - DA. "
-                 "Negative leg below DA = double penalty for short producers.")
-            st.plotly_chart(mo_chart_imbalance_vs_da_new(bal),
-                            use_container_width=True)
+        st.markdown("#### Imbalance Prices — Positive vs Negative")
+        desc("Daily average. Gap between lines = system asymmetry and imbalance risk.")
+        z = local_zoom("mk_imb_pn_zoom")
+        sc, tc = st.columns([3, 1])
+        with sc:
+            st.plotly_chart(mk_chart_imb_pos_neg(bal, z), use_container_width=True)
+        with tc:
+            st.markdown("##### Statistics")
+            st.plotly_chart(mk_table_imbalance(bal, z), use_container_width=True)
+
+        st.markdown("#### Imbalance Spread (Positive − Negative)")
+        desc("Measures imbalance market depth. Higher = more volatile system.")
+        z = local_zoom("mk_imb_spread_zoom")
+        st.plotly_chart(mk_chart_imb_spread(bal, z), use_container_width=True)
+
+        st.markdown("#### Imbalance vs Day-Ahead")
+        desc("Imb Pos − DA and Imb Neg − DA. Negative leg below DA = double penalty for short producers.")
+        z = local_zoom("mk_imb_da_zoom")
+        st.plotly_chart(mk_chart_imb_vs_da(bal, z), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 7 — Intraday (stub — EPEX not on ENTSO-E)
-    # ════════════════════════════════════════════════════════════════════════
-    section("Intraday Market")
-    r7a, r7b = st.columns(2)
-    with r7a:
-        section("Intraday Price — Historical")
-        desc("Not available via ENTSO-E — EPEX ID prices are not published on "
-             "the Transparency Platform. Source to add: EPEX direct or RTE eco2mix.")
-        st.plotly_chart(
-            _mo_stub("Intraday Price", "EPEX ID not on ENTSO-E Transparency Platform"),
-            use_container_width=True)
-    with r7b:
-        section("Intraday vs DA Spread")
-        desc("ID - DA = re-optimisation value. Requires ID price feed.")
-        st.plotly_chart(
-            _mo_stub("ID vs DA Spread", "requires EPEX ID price feed"),
-            use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 8 — Ancillary services (FCR + aFRR/mFRR)
+    # ROW 9 — Ancillary services
     # ════════════════════════════════════════════════════════════════════════
     section("Ancillary Services")
-    r8a, r8b = st.columns(2)
-    with r8a:
-        section("FCR Price — France (€/MW/day)")
-        desc("Contracted capacity price for Frequency Containment Reserve. "
-             "Source: ENTSO-E query_contracted_reserve_prices (process_type=A51).")
-        st.plotly_chart(mo_chart_fcr(fcr if has_fcr else None, zoom),
-                        use_container_width=True)
-    with r8b:
-        section("aFRR & mFRR — Activated Prices")
-        desc("Monthly average activated energy prices. "
-             "Source: ENTSO-E balancing_prices.csv. Sparse before 2022 for France.")
-        st.plotly_chart(mo_chart_afrr(bal if has_bal else None),
-                        use_container_width=True)
+
+    st.markdown("#### FCR — Frequency Containment Reserve (France)")
+    desc("Contracted capacity price (€/MW/day). Source: ENTSO-E.")
+    z = local_zoom("mk_fcr_zoom", default="1Y")
+    st.plotly_chart(mk_chart_fcr(fcr if has_fcr else None, z), use_container_width=True)
+
+    st.markdown("#### aFRR & mFRR — Activated Prices")
+    desc("Daily average activated energy prices. Source: ENTSO-E balancing_prices.csv.")
+    z = local_zoom("mk_afrr_zoom")
+    st.plotly_chart(mk_chart_afrr(bal if has_bal else None, z), use_container_width=True)
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════════════════════
-    # ROW 9 — Regional view
+    # ROW 10 — Regional view
     # ════════════════════════════════════════════════════════════════════════
-    section("Regional View — France vs Neighbours")
-    r9a, r9b = st.columns(2)
-    with r9a:
-        section("DA Spot by Country — Avg Last 7 Days")
-        desc("Ranked bar. FR from hourly_spot.csv. "
-             "DE/BE/ES/IT/NL from xborder_da_prices.csv (update_entsoe_xborder.py).")
-        st.plotly_chart(
-            mo_chart_country_ranking(xb if has_xb else None, hourly_full),
-            use_container_width=True)
-    with r9b:
-        section("DA Spread vs France")
-        desc("Country DA minus France DA — monthly average. "
-             "Positive = country more expensive than FR.")
-        st.plotly_chart(
-            mo_chart_spread_vs_fr(xb if has_xb else None, hourly_full, zoom),
-            use_container_width=True)
+    section("Regional View — Europe")
 
-    st.markdown("---")
-    section("Historical DA Prices — All Countries")
-    desc("Daily average. FR in navy, neighbours in lighter tones.")
-    st.plotly_chart(
-        mo_chart_country_da_history(xb if has_xb else None, hourly_full, zoom),
-        use_container_width=True)
+    st.markdown("#### DA Spot Map — Europe")
+    desc("Average DA price by country for selected window. Green = low, Red = high. "
+         "Data: FR from hourly_spot.csv, DE/BE/ES/NL from xborder_da_prices.csv.")
+    z = local_zoom("mk_map_zoom", default="7D")
+    st.plotly_chart(mk_chart_europe_map(xb if has_xb else None, hourly_full, z),
+                    use_container_width=True)
+
+    st.markdown("#### Historical DA Prices — France vs Neighbours")
+    desc("Daily average. France in navy. Same controls as main spot chart.")
+    z = local_zoom("mk_xb_hist_zoom")
+    st.plotly_chart(mk_chart_country_history(xb if has_xb else None, hourly_full, z),
+                    use_container_width=True)
     
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 7 — Export & SPOT Extractor
