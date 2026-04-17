@@ -28,14 +28,15 @@ import pandas as pd
 # ── Paths ─────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR   = SCRIPT_DIR / "data"
-OUT_FILE   = DATA_DIR / "market_prices.csv"
+DA_FILE    = DATA_DIR / "xborder_da_prices.csv"
+FCR_FILE   = DATA_DIR / "fcr_prices.csv"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DA_COUNTRIES = {
     "DE": "DE_LU",   # Germany-Luxembourg
     "BE": "BE",
     "ES": "ES",
-    "IT": "IT",
+    "IT": "IT_NORD",
     "NL": "NL",
 }
 FCR_PROCESS_TYPE          = "A51"   # FCR
