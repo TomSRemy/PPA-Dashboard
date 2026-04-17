@@ -2464,7 +2464,6 @@ def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
         showocean=True, oceancolor="#EAF2F8",
         showcoastlines=True, coastlinecolor="#CCC",
         showborders=True, bordercolor="#CCC",
-        fitbounds="locations",
     )
     fig.update_layout(
         height=460, margin=dict(l=0, r=0, t=40, b=0),
