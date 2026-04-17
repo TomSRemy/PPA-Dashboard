@@ -40,7 +40,7 @@ jobs:
           if [ "${{ github.event.inputs.mode }}" = "full" ]; then ARGS="--full"; fi
           if [ "${{ github.event.inputs.dataset }}" = "da-only" ];  then ARGS="$ARGS --da-only";  fi
           if [ "${{ github.event.inputs.dataset }}" = "fcr-only" ]; then ARGS="$ARGS --fcr-only"; fi
-          python ppa_dashboard/scripts/update_entsoe_xborder.py $ARGS
+          python ppa_dashboard/update_entsoe_xborder.py $ARGS
 
       - name: Commit and push
         run: |
