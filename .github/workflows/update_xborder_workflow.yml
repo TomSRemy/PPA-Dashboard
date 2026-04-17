@@ -15,26 +15,28 @@ on:
         required: false
         default: 'all'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   update-xborder:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: pip install pandas entsoe-py
 
       - name: Run update
+        env:
+          ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
         run: |
           ARGS=""
           if [ "${{ github.event.inputs.mode }}" = "full" ]; then ARGS="--full"; fi
@@ -44,10 +46,8 @@ jobs:
 
       - name: Commit and push
         run: |
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ppa_dashboard/data/xborder_da_prices.csv \
-                  ppa_dashboard/data/fcr_prices.csv || true
-          git diff --cached --quiet || git commit -m "chore: update xborder DA + FCR prices $(date -u +'%Y-%m-%d')"
-          git pull --rebase origin main
-          git push || true
+          git add ppa_dashboard/data/
+          git diff --staged --quiet || git commit -m "Auto-update xborder DA + FCR $(date -u '+%Y-%m-%d')"
+          git push
