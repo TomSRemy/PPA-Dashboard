@@ -270,21 +270,21 @@ def render_fpc_tab(
         st.markdown(f'<div style="font-size:12px;font-weight:700;color:{C1};">Contract</div>',
                     unsafe_allow_html=True)
         ppa_input    = st.number_input("PPA Price (EUR/MWh)", 10.0, 200.0, 38.0,
-                                       step=0.5, key="fpc_ppa")
+                                       step=0.5, key="fpcmc_ppa")
         fwd_input    = st.number_input("Baseload Forward — flat across tenor (EUR/MWh)",
                                        10.0, 200.0,
                                        float(DEFAULT_FWD.get(2026, 55.0)),
-                                       step=0.5, key="fpc_fwd",
+                                       step=0.5, key="fpcmc_fwd",
                                        help="V1: single forward applied to all tenor years.")
-        tenor_yr     = st.slider("Tenor (years)", 1, 15, 5, key="fpc_tenor")
+        tenor_yr     = st.slider("Tenor (years)", 1, 15, 5, key="fpcmc_tenor")
         _prod_def    = max(1.0, min(
             float(asset_ann["prod_gwh"].mean()) if has_asset else 52.0, 50000.0))
         prod_gwh     = st.number_input("P50 Production (GWh/yr)", 1.0, 50000.0,
-                                       _prod_def, step=0.5, key="fpc_prod")
+                                       _prod_def, step=0.5, key="fpcmc_prod")
         imb_forfait  = st.number_input("Imbalance forfait (EUR/MWh)", 0.0, 10.0, 1.9,
-                                       step=0.1, key="fpc_imb")
+                                       step=0.1, key="fpcmc_imb")
         imb_rate     = st.number_input("Imbalance rate (% of production)",
-                                       0.5, 15.0, 3.0, step=0.5, key="fpc_imb_rate") / 100
+                                       0.5, 15.0, 3.0, step=0.5, key="fpcmc_imb_rate") / 100
 
     with c_right:
         st.markdown(f'<div style="font-size:12px;font-weight:700;color:{C1};">Model</div>',
@@ -299,7 +299,7 @@ def render_fpc_tab(
         if _asset_ok:
             _basis_opts += ["Asset", "Both"]
 
-        basis = st.radio("Analysis basis", _basis_opts, horizontal=True, key="fpc_basis",
+        basis = st.radio("Analysis basis", _basis_opts, horizontal=True, key="fpcmc_basis",
                          help=(
                              "National = market benchmark. "
                              "Asset = deal P&L using uploaded load curve. "
@@ -311,27 +311,27 @@ def render_fpc_tab(
             else:
                 st.info("Upload an asset load curve in the sidebar to enable Asset / Both.")
 
-        exclude_2022 = st.toggle("Exclude 2022 from calibration", value=True, key="fpc_ex22")
+        exclude_2022 = st.toggle("Exclude 2022 from calibration", value=True, key="fpcmc_ex22")
 
         ppe3_label = f"PPE3 {techno} targets: " + \
                      " | ".join(f"{yr}: {gw:.0f} GW"
                                 for yr, gw in PPE3_TARGETS.get(techno, {}).items())
         scenario_choice = st.selectbox(
             "Capacity scenario", list(CAPACITY_SCENARIOS.keys()), index=0,
-            key="fpc_scenario", help=ppe3_label)
+            key="fpcmc_scenario", help=ppe3_label)
 
         custom_gw, custom_yr = None, None
         if scenario_choice == "Custom":
             custom_gw = st.slider("Custom target (GW)", 10.0, 120.0, 48.0,
-                                  step=1.0, key="fpc_custom_gw")
-            custom_yr = st.slider("Target year", 2026, 2040, 2030, key="fpc_custom_yr")
+                                  step=1.0, key="fpcmc_custom_gw")
+            custom_yr = st.slider("Target year", 2026, 2040, 2030, key="fpcmc_custom_yr")
 
         n_sim = st.select_slider(
             "Simulations", options=[500, 1_000, 2_000, 5_000],
-            value=1_000, key="fpc_nsim",
+            value=1_000, key="fpcmc_nsim",
             help="500-1000 for exploration. 5000 for final analysis.")
 
-        run_btn = st.button(f"▶ Run FPC Monte Carlo — {techno}", key="fpc_run")
+        run_btn = st.button(f"▶ Run FPC Monte Carlo — {techno}", key="fpcmc_run")
 
     # Derived parameters
     prod_mwh    = prod_gwh * 1000
