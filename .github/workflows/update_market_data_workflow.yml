@@ -32,9 +32,9 @@ jobs:
       - name: Run update
         run: |
           if [ "${{ github.event.inputs.mode }}" = "full" ]; then
-            python ppa_dashboard/scripts/update_market_data.py --full
+            python ppa_dashboard/update_market_data.py --full
           else
-            python ppa_dashboard/scripts/update_market_data.py
+            python ppa_dashboard/update_market_data.py
           fi
 
       - name: Commit and push
