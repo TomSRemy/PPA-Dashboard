@@ -37,7 +37,7 @@ TO RESIZE ALL CHARTS: edit CHART SIZES section.
 _LIGHT = dict(
     PAGE_BG        = "#FAFAF8",   # 
     SURFACE        = "#FFFFFF",   # White — cards, chart bg
-    SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
+    SIDEBAR_BG     = "#FDFBF7",   # 
     TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
     TEXT_SECONDARY = "#005F73",   # Dark Teal — secondary labels
     TEXT_FAINT     = "#0A9396",   # Dark Cyan — hints, metadata
