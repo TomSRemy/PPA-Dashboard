@@ -58,19 +58,19 @@ def plotly_base(fig: go.Figure, h: int = 480,
     Pass p=palette_dict for correct dark/light colors.
     Falls back to light palette if p not provided.
     """
-    pal = p or _DEFAULT
-    text   = pal["TEXT_DARK"]
-    bg_w   = pal["BG_WHITE"]
-    bg_p   = pal["BG_PAGE"]
-    grid   = pal["GRID_LINE"]
-    border = pal["BORDER_MED"]
+    pal    = p or _DEFAULT
+    text   = pal.get("TEXT_PRIMARY", pal.get("TEXT_DARK", "#001219"))
+    bg_w   = pal.get("SURFACE",      pal.get("BG_WHITE",  "#FFFFFF"))
+    bg_p   = pal.get("PAGE_BG",      pal.get("BG_PAGE",   "#E9D8A6"))
+    grid   = pal.get("GRID",         pal.get("GRID_LINE", "#E9D8A6"))
+    border = pal.get("BORDER",       pal.get("BORDER_MED","#94D2BD"))
 
     legend_cfg = dict(
         orientation="h", yanchor="top",
         y=-0.15 if legend_below else 1.02,
         xanchor="center", x=0.5,
         font=dict(size=12, color=text, family="Calibri, Arial"),
-        bgcolor="rgba(255,255,255,0.9)" if pal == _DEFAULT else "rgba(26,46,61,0.9)",
+        bgcolor=bg_w,
         bordercolor=border, borderwidth=1,
     ) if show_legend else dict(visible=False)
 

@@ -2,32 +2,137 @@
 theme.py — KAL-EL PPA Dashboard
 ================================
 Single source of truth for ALL colors, sizes, and helpers.
-Supports light and dark mode via set_mode(dark=True/False).
 
-TO RETHEME: edit CORE PALETTE section only.
-TO RESIZE ALL CHARTS: edit CHART SIZES section only.
+HOW TO RETHEME — edit ONLY the 2 palette dicts below.
+Names are ROLES, not colors. Never use color names as keys.
+
+LIGHT PALETTE roles:
+  PAGE_BG       — main page background
+  SURFACE       — cards, chart backgrounds
+  SIDEBAR_BG    — sidebar background
+  TEXT_PRIMARY  — main readable text
+  TEXT_SECONDARY— muted labels, captions
+  TEXT_FAINT    — metadata, footnotes
+  SOLAR_ACC     — solar tech accent / positive / CTA
+  SOLAR_FILL    — solar light fill (badges, bands)
+  WIND_ACC      — wind tech accent
+  WIND_FILL     — wind light fill
+  WARN_ACC      — warnings, bands, tab highlight
+  WARN_FILL     — warning background fill
+  NEG_ACC       — losses, negative P&L
+  NEG_FILL      — negative background fill
+  BORDER        — card borders, separators
+  GRID          — plotly gridlines
+  REF           — y=0, y=1 reference lines
+  SECTION_BG    — section title background
+  SECTION_TEXT  — section title text
+  SECTION_BORDER— section title left border
+
+TO RESIZE ALL CHARTS: edit CHART SIZES section.
 """
 
-# ── CORE PALETTE ──────────────────────────────────────────────────────────────
-_TEAL    = "#2A9D8F"
-_TEAL_D  = "#3DBFB0"
-_GOLD    = "#E6B800"
-_GOLD_RAW= "#FFD700"
-_BRICK   = "#E76F51"
-_BRICK_D = "#F08060"
-_BLUE    = "#3A7BD5"
-_BLUE_D  = "#5B9EEF"
+# ══════════════════════════════════════════════════════════════════════════════
+# LIGHT PALETTE
+# ══════════════════════════════════════════════════════════════════════════════
+_LIGHT = dict(
+    PAGE_BG        = "#E9D8A6",   # Wheat — warm parchment background
+    SURFACE        = "#FFFFFF",   # White — cards, chart bg
+    SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
+    TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
+    TEXT_SECONDARY = "#005F73",   # Dark Teal — secondary labels
+    TEXT_FAINT     = "#0A9396",   # Dark Cyan — hints, metadata
+    SOLAR_ACC      = "#0A9396",   # Dark Cyan — solar, positive, CTA
+    SOLAR_FILL     = "#94D2BD",   # Pearl Aqua — solar light fill
+    WIND_ACC       = "#005F73",   # Dark Teal — wind accent
+    WIND_FILL      = "#94D2BD",   # Pearl Aqua — wind light fill
+    WARN_ACC       = "#EE9B00",   # Golden Orange — warnings, tabs (replaces yellow)
+    WARN_FILL      = "#E9D8A6",   # Wheat — warning background
+    NEG_ACC        = "#BB3E03",   # Rusty Spice — losses, negative
+    NEG_FILL       = "#AE2012",   # Oxidized Iron (dark fill variant)
+    BORDER         = "#94D2BD",   # Pearl Aqua — subtle border
+    GRID           = "#E9D8A6",   # Wheat — soft gridlines
+    REF            = "#CA6702",   # Burnt Caramel — reference lines
+    SECTION_BG     = "#005F73",   # Dark Teal — section header bg
+    SECTION_TEXT   = "#E9D8A6",   # Wheat — section header text
+    SECTION_BORDER = "#EE9B00",   # Golden Orange — section left border
+)
 
-COL_AFRR = "#9B59B6"
-COL_MFRR = "#E67E22"
+# ══════════════════════════════════════════════════════════════════════════════
+# DARK PALETTE
+# ══════════════════════════════════════════════════════════════════════════════
+_DARK = dict(
+    PAGE_BG        = "#001219",   # Ink Black — deep dark background
+    SURFACE        = "#005F73",   # Dark Teal — elevated surface
+    SIDEBAR_BG     = "#001219",   # Ink Black — same as page in dark
+    TEXT_PRIMARY   = "#E9D8A6",   # Wheat — warm readable on dark
+    TEXT_SECONDARY = "#94D2BD",   # Pearl Aqua — muted on dark
+    TEXT_FAINT     = "#0A9396",   # Dark Cyan — faint on dark
+    SOLAR_ACC      = "#94D2BD",   # Pearl Aqua — solar on dark bg
+    SOLAR_FILL     = "#0A9396",   # Dark Cyan — solar fill on dark
+    WIND_ACC       = "#94D2BD",   # Pearl Aqua — wind on dark
+    WIND_FILL      = "#005F73",   # Dark Teal — wind fill on dark
+    WARN_ACC       = "#EE9B00",   # Golden Orange — same, always visible
+    WARN_FILL      = "#CA6702",   # Burnt Caramel — warn fill on dark
+    NEG_ACC        = "#BB3E03",   # Rusty Spice — same on dark
+    NEG_FILL       = "#001219",   # Ink Black fill variant
+    BORDER         = "#0A9396",   # Dark Cyan — border on dark
+    GRID           = "#005F73",   # Dark Teal — gridlines on dark
+    REF            = "#94D2BD",   # Pearl Aqua — ref lines on dark
+    SECTION_BG     = "#005F73",   # Dark Teal — same section bg
+    SECTION_TEXT   = "#E9D8A6",   # Wheat — same section text
+    SECTION_BORDER = "#EE9B00",   # Golden Orange — same border
+)
 
-CHART_PALETTE = [
-    "#8ECAE6","#219EBC","#023047",
-    "#FFB703","#FB8500","#6A994E",
-    _TEAL, _BRICK, _BLUE, _GOLD_RAW,
-]
+# ══════════════════════════════════════════════════════════════════════════════
+# BACKWARD COMPAT KEYS — added to both palettes
+# ══════════════════════════════════════════════════════════════════════════════
+def _add_compat(p: dict, dark: bool) -> dict:
+    """Add legacy key aliases so existing code doesn't break."""
+    p["ACCENT_PRIMARY"] = p["SOLAR_ACC"]
+    p["ACCENT_WARN"]    = p["WARN_ACC"]
+    p["ACCENT_NEG"]     = p["NEG_ACC"]
+    p["BG_PAGE"]        = p["PAGE_BG"]
+    p["BG_WHITE"]       = p["SURFACE"]
+    p["BG_LIGHT"]       = p["SOLAR_FILL"]
+    p["BG_WARN"]        = p["WARN_FILL"]
+    p["TEXT_DARK"]      = p["TEXT_PRIMARY"]
+    p["TEXT_MUTED"]     = p["TEXT_SECONDARY"]
+    p["BORDER_LIGHT"]   = p["BORDER"]
+    p["BORDER_FAINT"]   = p["GRID"]
+    p["BORDER_MED"]     = p["BORDER"]
+    p["GRID_LINE"]      = p["GRID"]
+    p["REF_LINE"]       = p["REF"]
+    p["REF_LINE_L"]     = p["REF"]
+    p["REF_LINE_LL"]    = p["REF"]
+    p["COL_SOLAR"]      = p["SOLAR_ACC"]
+    p["COL_SOLAR_L"]    = p["SOLAR_FILL"]
+    p["COL_WIND"]       = p["WIND_ACC"]
+    p["COL_WIND_L"]     = p["WIND_FILL"]
+    p["C1"]  = p["TEXT_PRIMARY"]
+    p["C2"]  = p["SOLAR_ACC"]
+    p["C3"]  = p["WARN_ACC"]
+    p["C4"]  = p["WARN_FILL"]
+    p["C5"]  = p["NEG_ACC"]
+    p["BG"]  = p["PAGE_BG"]
+    p["WHT"] = p["SURFACE"]
+    p["C2L"] = p["SOLAR_FILL"]
+    p["C3L"] = p["WARN_FILL"]
+    p["C4L"] = p["WARN_FILL"]
+    p["C5L"] = p["NEG_FILL"]
+    p["C_WIND"]   = p["WIND_ACC"]
+    p["C_WIND_L"] = p["WIND_FILL"]
+    return p
 
-# ── CHART SIZES ───────────────────────────────────────────────────────────────
+
+def get_palette(dark: bool = False) -> dict:
+    """Return full color palette for light or dark mode."""
+    base = _DARK.copy() if dark else _LIGHT.copy()
+    return _add_compat(base, dark)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CHART SIZES — edit to resize ALL charts at once
+# ══════════════════════════════════════════════════════════════════════════════
 CHART_H_XS  = 300
 CHART_H_SM  = 380
 CHART_H_MD  = 480
@@ -35,108 +140,42 @@ CHART_H_LG  = 580
 CHART_H_XL  = 720
 CHART_H_TBL = 300
 
-# ── PALETTES ──────────────────────────────────────────────────────────────────
-_LIGHT = dict(
-    BG_PAGE="#F7F4F0", BG_WHITE="#FFFFFF", BG_LIGHT="#C8EDE9", BG_WARN="#FFF3B0",
-    TEXT_DARK="#1D3A4A", TEXT_MUTED="#4A6070", TEXT_FAINT="#7A8F9A",
-    TEAL=_TEAL, GOLD=_GOLD, GOLD_RAW=_GOLD_RAW, BRICK=_BRICK, BLUE=_BLUE,
-    TEAL_L="#D4EDEA", GOLD_LL="#FFF8DC", GOLD_LM="#FFFACD", BRICK_L="#FAEAE6", BLUE_L="#D6E6FC",
-    BORDER_LIGHT="#E0E0E0", BORDER_FAINT="#EEEEEE", BORDER_MED="#CCCCCC",
-    GRID_LINE="#EEEEEE", REF_LINE="#AAAAAA", REF_LINE_L="#BBBBBB", REF_LINE_LL="#CCCCCC",
-    SECTION_BG=_TEAL, SECTION_TEXT="#E8F0F5", SECTION_BORDER=_GOLD_RAW,
-    C4="#F7DC6F", WHT="#FFFFFF", COL_SOLAR=_TEAL, COL_WIND=_BLUE, COL_WIND_L="#D6E6FC",
-    ACCENT_PRIMARY=_TEAL, ACCENT_WARN=_GOLD, ACCENT_NEG=_BRICK,
-)
+# ══════════════════════════════════════════════════════════════════════════════
+# CHART PALETTE — categorical, same in both modes
+# ══════════════════════════════════════════════════════════════════════════════
+COL_AFRR      = "#9B59B6"
+COL_MFRR      = "#E67E22"
+CHART_PALETTE = [
+    "#94D2BD",  # Pearl Aqua
+    "#0A9396",  # Dark Cyan
+    "#005F73",  # Dark Teal
+    "#EE9B00",  # Golden Orange
+    "#CA6702",  # Burnt Caramel
+    "#BB3E03",  # Rusty Spice
+    "#AE2012",  # Oxidized Iron
+    "#9B2226",  # Brown Red
+    "#94D2BD",
+    "#E9D8A6",
+]
 
-_DARK = dict(
-    BG_PAGE="#0F1E28", BG_WHITE="#1A2E3D", BG_LIGHT="#0D3530", BG_WARN="#1E1A00",
-    TEXT_DARK="#E8F0F5", TEXT_MUTED="#9DB5C5", TEXT_FAINT="#6A8A9A",
-    TEAL=_TEAL_D, GOLD=_GOLD_RAW, GOLD_RAW=_GOLD_RAW, BRICK=_BRICK_D, BLUE=_BLUE_D,
-    TEAL_L="#0D3530", GOLD_LL="#1E1A00", GOLD_LM="#1A1700", BRICK_L="#2A1510", BLUE_L="#0D1E35",
-    BORDER_LIGHT="#2A4055", BORDER_FAINT="#1E3448", BORDER_MED="#2A4055",
-    GRID_LINE="#1E3448", REF_LINE="#3A5570", REF_LINE_L="#2A4A60", REF_LINE_LL="#1E3A50",
-    SECTION_BG="#1A3545", SECTION_TEXT="#E8F0F5", SECTION_BORDER=_GOLD_RAW,
-    C4="#F7DC6F", WHT="#1A2E3D", COL_SOLAR=_TEAL_D, COL_WIND=_BLUE_D, COL_WIND_L="#0D1E35",
-    ACCENT_PRIMARY=_TEAL_D, ACCENT_WARN=_GOLD_RAW, ACCENT_NEG=_BRICK_D,
-)
-
-
-def get_palette(dark: bool = False) -> dict:
-    return _DARK.copy() if dark else _LIGHT.copy()
-
-
-# ── ACTIVE VARS — updated by set_mode() ───────────────────────────────────────
-_p = _LIGHT
-
-TEXT_DARK = TEXT_MUTED = TEXT_FAINT = ""
-ACCENT_PRIMARY = ACCENT_WARN = ACCENT_NEG = ""
-BG_PAGE = BG_WHITE = BG_LIGHT = BG_WARN = ""
-BORDER_LIGHT = BORDER_FAINT = BORDER_MED = GRID_LINE = ""
-REF_LINE = REF_LINE_L = REF_LINE_LL = ""
-COL_SOLAR = COL_SOLAR_L = COL_WIND = COL_WIND_L = ""
-SECTION_BG = SECTION_TEXT = SECTION_BORDER = ""
-C1 = C2 = C3 = C4 = C5 = BG = WHT = ""
-C2L = C3L = C4L = C5L = C_WIND = C_WIND_L = ""
-
+# ══════════════════════════════════════════════════════════════════════════════
+# MODULE-LEVEL VARS — set by set_mode(), used by legacy imports
+# ══════════════════════════════════════════════════════════════════════════════
+_p = get_palette(dark=False)
 
 def set_mode(dark: bool = False):
-    """Call once in app.py after reading the sidebar toggle."""
-    global _p, \
-        TEXT_DARK, TEXT_MUTED, TEXT_FAINT, \
-        ACCENT_PRIMARY, ACCENT_WARN, ACCENT_NEG, \
-        BG_PAGE, BG_WHITE, BG_LIGHT, BG_WARN, \
-        BORDER_LIGHT, BORDER_FAINT, BORDER_MED, GRID_LINE, \
-        REF_LINE, REF_LINE_L, REF_LINE_LL, \
-        COL_SOLAR, COL_SOLAR_L, COL_WIND, COL_WIND_L, \
-        SECTION_BG, SECTION_TEXT, SECTION_BORDER, \
-        C1, C2, C3, C4, C5, BG, WHT, C2L, C3L, C4L, C5L, C_WIND, C_WIND_L
+    global _p
+    _p = get_palette(dark=dark)
 
-    _p = _DARK if dark else _LIGHT
+# Expose flat vars (legacy — prefer get_palette())
+def __getattr__(name):
+    if name in _p:
+        return _p[name]
+    raise AttributeError(f"module 'theme' has no attribute {name!r}")
 
-    TEXT_DARK      = _p["TEXT_DARK"]
-    TEXT_MUTED     = _p["TEXT_MUTED"]
-    TEXT_FAINT     = _p["TEXT_FAINT"]
-    ACCENT_PRIMARY = _p["TEAL"]
-    ACCENT_WARN    = _p["GOLD"]
-    ACCENT_NEG     = _p["BRICK"]
-    BG_PAGE        = _p["BG_PAGE"]
-    BG_WHITE       = _p["BG_WHITE"]
-    BG_LIGHT       = _p["BG_LIGHT"]
-    BG_WARN        = _p["BG_WARN"]
-    BORDER_LIGHT   = _p["BORDER_LIGHT"]
-    BORDER_FAINT   = _p["BORDER_FAINT"]
-    BORDER_MED     = _p["BORDER_MED"]
-    GRID_LINE      = _p["GRID_LINE"]
-    REF_LINE       = _p["REF_LINE"]
-    REF_LINE_L     = _p["REF_LINE_L"]
-    REF_LINE_LL    = _p["REF_LINE_LL"]
-    COL_SOLAR      = _p["TEAL"]
-    COL_SOLAR_L    = _p["TEAL_L"]
-    COL_WIND       = _p["BLUE"]
-    COL_WIND_L     = _p["BLUE_L"]
-    SECTION_BG     = _p["SECTION_BG"]
-    SECTION_TEXT   = _p["SECTION_TEXT"]
-    SECTION_BORDER = _p["SECTION_BORDER"]
-    C1   = TEXT_DARK
-    C2   = ACCENT_PRIMARY
-    C3   = _p["GOLD_RAW"]
-    C4   = _p["GOLD_LM"]
-    C5   = ACCENT_NEG
-    BG   = BG_PAGE
-    WHT  = BG_WHITE
-    C2L  = _p["TEAL_L"]
-    C3L  = _p["GOLD_LL"]
-    C4L  = _p["GOLD_LM"]
-    C5L  = _p["BRICK_L"]
-    C_WIND   = COL_WIND
-    C_WIND_L = COL_WIND_L
-
-
-# Initialise light mode
-set_mode(dark=False)
-
-
-# ── HELPERS ───────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def rgba(hex_c: str, alpha: float) -> str:
     h = hex_c.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
@@ -153,6 +192,6 @@ def band_colors(color: str) -> dict:
 
 def pos_neg_colors(values: list, pos_color: str = None,
                    neg_color: str = None, alpha: float = 0.80) -> list:
-    pos = pos_color or ACCENT_PRIMARY
-    neg = neg_color or ACCENT_NEG
+    pos = pos_color or _p["SOLAR_ACC"]
+    neg = neg_color or _p["NEG_ACC"]
     return [rgba(pos, alpha) if v >= 0 else rgba(neg, alpha) for v in values]

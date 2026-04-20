@@ -68,16 +68,20 @@ def get_css(p: dict = None):
     if p is None:
         from theme import get_palette
         p = get_palette(dark=False)
+    # Sidebar always uses Ink Black regardless of mode
+    SIDEBAR = "#001219"
+    SIDEBAR_TEXT = "#E9D8A6"
+    SIDEBAR_ACCENT = "#94D2BD"
     return f"""<style>
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
     font-size: 15px !important;
-    background-color: {p["BG_PAGE"]} !important;
+    background-color: {p["PAGE_BG"]} !important;
 }}
-h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {p["C4"]} !important; font-family: Calibri, Arial, sans-serif !important; }}
-h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {p["C4"]} !important; }}
-h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {p["C4"]} !important; }}
-p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {p["C4"]} !important; }}
+h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {p["WARN_ACC"]} !important; font-family: Calibri, Arial, sans-serif !important; }}
+h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {p["TEXT_PRIMARY"]} !important; }}
+h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {p["TEXT_PRIMARY"]} !important; }}
+p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {p["TEXT_PRIMARY"]} !important; }}
 .section-title {{
     font-size: 13px !important; font-weight: 700; color: {p["SECTION_TEXT"]};
     background: {p["SECTION_BG"]};
@@ -86,103 +90,94 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     border-left: 4px solid {p["SECTION_BORDER"]};
 }}
 .chart-desc {{
-    font-size: 13px !important; color: {p["TEXT_DARK"]} !important;
-    background: {p["BG_WARN"]}; border-left: 4px solid {p["ACCENT_WARN"]};
+    font-size: 13px !important; color: {p["TEXT_PRIMARY"]} !important;
+    background: {p["WARN_FILL"]}; border-left: 4px solid {p["WARN_ACC"]};
     padding: 10px 14px; border-radius: 0 6px 6px 0;
     margin: 0 0 16px 0; line-height: 1.6; font-family: Calibri, Arial, sans-serif;
 }}
 .ppa-card {{
-    background: linear-gradient(90deg, {p["TEXT_DARK"]}, {p["TEXT_DARK"]}); color: {p["WHT"]};
+    background: {p["SECTION_BG"]}; color: {p["SECTION_TEXT"]};
     padding: 20px 22px; border-radius: 10px; text-align: center;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }}
-.ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["WHT"]} !important; font-family: Calibri, Arial, sans-serif; }}
-.ppa-card .lbl {{ font-size: 11px; color: {p["WHT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
+.ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["SECTION_TEXT"]} !important; font-family: Calibri, Arial, sans-serif; }}
+.ppa-card .lbl {{ font-size: 11px; color: {p["SECTION_TEXT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
-    background: {p["BG_WHITE"]}; border-left: 5px solid {p["ACCENT_PRIMARY"]}; padding: 14px 18px; border-radius: 6px;
-    border: 1px solid {p["BORDER_LIGHT"]}; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: {p["SURFACE"]}; border-left: 5px solid {p["SOLAR_ACC"]}; padding: 14px 18px; border-radius: 6px;
+    border: 1px solid {p["BORDER"]}; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }}
-.kpi-val {{ font-size: 24px; font-weight: 700; color: {p["TEXT_DARK"]}; font-family: Calibri, Arial, sans-serif; }}
-.kpi-lbl {{ font-size: 11px; color: {p["TEXT_MUTED"]}; text-transform: uppercase; letter-spacing: 0.05em; }}
-.kpi-red  {{ border-left-color: {p["ACCENT_NEG"]} !important; }}
-.kpi-gold {{ border-left-color: {p["ACCENT_WARN"]} !important; }}
+.kpi-val {{ font-size: 24px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; }}
+.kpi-lbl {{ font-size: 11px; color: {p["TEXT_SECONDARY"]}; text-transform: uppercase; letter-spacing: 0.05em; }}
+.kpi-red  {{ border-left-color: {p["NEG_ACC"]} !important; }}
+.kpi-gold {{ border-left-color: {p["WARN_ACC"]} !important; }}
 .tech-badge-solar {{
-    display: inline-block; background: {p["COL_SOLAR"]}; color: {p["WHT"]};
+    display: inline-block; background: {p["SOLAR_ACC"]}; color: {p["SURFACE"]};
     font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .tech-badge-wind {{
-    display: inline-block; background: {p["COL_WIND"]}; color: {p["WHT"]};
+    display: inline-block; background: {p["WIND_ACC"]}; color: {p["SURFACE"]};
     font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .update-pill {{
-    background: {p["TEXT_DARK"]} !important; border: 1px solid {p["ACCENT_WARN"]} !important; border-radius: 20px !important;
-    padding: 5px 16px !important; font-size: 12px !important; color: {p["ACCENT_WARN"]} !important;
+    background: {p["SECTION_BG"]} !important; border: 1px solid {p["WARN_ACC"]} !important; border-radius: 20px !important;
+    padding: 5px 16px !important; font-size: 12px !important; color: {p["WARN_ACC"]} !important;
     display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important;
 }}
 .ytd-badge {{
-    font-size: 10px; font-weight: 700; color: {p["TEXT_DARK"]}; background: {p["ACCENT_WARN"]};
+    font-size: 10px; font-weight: 700; color: {p["SECTION_BG"]}; background: {p["WARN_ACC"]};
     padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle;
 }}
 .status-msg {{
-    background: linear-gradient(90deg, {p["BG_LIGHT"]}, {p["BG_LIGHT"]}); border: 1px solid {p["ACCENT_PRIMARY"]};
-    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_DARK"]} !important; font-weight: 500; margin: 10px 0;
+    background: {p["SOLAR_FILL"]}; border: 1px solid {p["SOLAR_ACC"]};
+    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_PRIMARY"]} !important; font-weight: 500; margin: 10px 0;
 }}
 .wind-msg {{
-    background: linear-gradient(90deg, {p["COL_WIND_L"]}, {p["COL_WIND_L"]}); border: 1px solid {p["COL_WIND"]};
-    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_DARK"]} !important; font-weight: 500; margin: 10px 0;
+    background: {p["WIND_FILL"]}; border: 1px solid {p["WIND_ACC"]};
+    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_PRIMARY"]} !important; font-weight: 500; margin: 10px 0;
 }}
-[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {p["TEXT_DARK"]}, {p["TEXT_DARK"]}CC) !important; }}
-[data-testid="stSidebar"] * {{ color: {p["WHT"]} !important; font-family: Calibri, Arial, sans-serif !important; }}
+[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {SIDEBAR}, {SIDEBAR}EE) !important; }}
+[data-testid="stSidebar"] * {{ color: {SIDEBAR_TEXT} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
+[data-testid="stSidebar"] p {{ color: {SIDEBAR_ACCENT} !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
-    color: {p["WHT"]} !important; font-size: 15px !important;
-    border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px;
+    color: {SIDEBAR_TEXT} !important; font-size: 15px !important;
+    border-bottom: 1px solid rgba(148,210,189,0.3); padding-bottom: 6px;
 }}
 [data-baseweb="slider"] [role="slider"] {{
-    background-color: {p["ACCENT_WARN"]} !important; border: 2px solid {p["WHT"]} !important;
+    background-color: {p["WARN_ACC"]} !important; border: 2px solid {p["SURFACE"]} !important;
     box-shadow: none !important; border-radius: 50% !important;
     width: 14px !important; height: 14px !important;
 }}
-[data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
-.stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247,220,111,0.7) !important; }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {p["ACCENT_WARN"]} !important; background: {p["BG_WARN"]} !important; }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {p["ACCENT_PRIMARY"]} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {p["WARN_ACC"]} !important; background: {p["WARN_FILL"]} !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {p["SOLAR_ACC"]} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
 div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{
-    font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {p["TEXT_DARK"]} !important;
+    font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {p["TEXT_PRIMARY"]} !important;
 }}
 .stButton > button {{
-    background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important; color: {p["WHT"]} !important;
+    background: {p["SOLAR_ACC"]} !important; color: {p["SURFACE"]} !important;
     border: none !important; border-radius: 6px !important;
     font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important;
     font-weight: 600 !important; padding: 10px 24px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important; transition: all 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
 }}
-.stButton > button:hover {{ background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important; transform: translateY(-1px) !important; }}
-.stDownloadButton > button {{ background: linear-gradient(90deg, {p["ACCENT_WARN"]}, {p["ACCENT_WARN"]}) !important; color: {p["TEXT_DARK"]} !important; border: none !important; font-weight: 700 !important; }}
-.stAlert {{ background-color: {p["BG_WARN"]} !important; border: 1px solid {p["ACCENT_WARN"]} !important; border-radius: 6px !important; }}
-.stAlert > div {{ color: {p["TEXT_DARK"]} !important; }}
+.stDownloadButton > button {{ background: {p["WARN_ACC"]} !important; color: {p["SECTION_BG"]} !important; border: none !important; font-weight: 700 !important; }}
+.stAlert {{ background-color: {p["WARN_FILL"]} !important; border: 1px solid {p["WARN_ACC"]} !important; border-radius: 6px !important; }}
+.stAlert > div {{ color: {p["TEXT_PRIMARY"]} !important; }}
+[data-testid="stFileUploaderDropzone"] {{
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    min-height: 60px !important;
+    background: {p["SOLAR_ACC"]} !important;
+    border: none !important; border-radius: 8px !important;
+    cursor: pointer !important;
+}}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg  {{ display: none !important; }}
-[data-testid="stFileUploaderDropzone"] {{
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important;
-    min-height: 60px !important;
-    background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important;
-    border: none !important; border-radius: 8px !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
-    cursor: pointer !important; transition: all 0.2s ease !important;
-}}
-[data-testid="stFileUploaderDropzone"]:hover {{
-    box-shadow: 0 6px 16px rgba(0,0,0,0.25) !important; transform: translateY(-1px) !important;
-}}
 [data-testid="stFileUploaderDropzone"]::before {{
     content: "Upload";
     font-family: Calibri, Arial, sans-serif; font-size: 14px;
-    color: {p["WHT"]}; font-weight: 700; letter-spacing: 0.05em;
+    color: {p["SURFACE"]}; font-weight: 700; letter-spacing: 0.05em;
 }}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 </style>"""

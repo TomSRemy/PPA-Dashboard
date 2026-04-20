@@ -146,3 +146,91 @@ def compute_scenarios(ref_fwd: float, ppa: float, vol_mwh: float,
         p90t  = base * (sm * ref_fwd * (1 - sdp10)         - ppa)
         results.append({"Scenario": name, "p10": p10t, "p50": p50t, "p90": p90t})
     return results
+
+
+def detect_technology(asset_raw: "pd.DataFrame", hourly: "pd.DataFrame",
+                      threshold: float = 0.15) -> dict:
+    """
+    Auto-detect whether an uploaded asset is Solar or Wind
+    by comparing its hourly production profile to national Solar/Wind profiles.
+
+    Method:
+      - Compute average production by hour-of-day for asset, Solar, Wind
+      - Normalise each profile to [0,1]
+      - Compute MAE vs Solar and vs Wind
+      - Pick the closer one if difference > threshold, else return None (ambiguous)
+
+    Returns:
+      dict with keys:
+        "techno"      : "Solar" | "Wind" | None (ambiguous)
+        "confidence"  : float 0-1 (1 = certain)
+        "mae_solar"   : float
+        "mae_wind"    : float
+        "explanation" : str
+    """
+    import pandas as pd
+    import numpy as np
+
+    if asset_raw is None or len(asset_raw) < 24:
+        return {"techno": None, "confidence": 0, "mae_solar": None,
+                "mae_wind": None, "explanation": "Not enough data"}
+
+    # Asset hourly profile
+    a = asset_raw.copy()
+    a["Date"] = pd.to_datetime(a["Date"])
+    a["Hour"] = a["Date"].dt.hour
+    asset_profile = a.groupby("Hour")["Prod_MWh"].mean()
+
+    # National profiles from hourly_spot
+    h = hourly.copy()
+    h["Hour"] = pd.to_datetime(h["Date"]).dt.hour
+
+    solar_profile = h.groupby("Hour")["NatMW"].mean() if "NatMW" in h.columns else None
+    wind_profile  = h.groupby("Hour")["WindMW"].mean() \
+                    if ("WindMW" in h.columns and h["WindMW"].sum() > 0) else None
+
+    def _normalise(s):
+        mn, mx = s.min(), s.max()
+        return (s - mn) / (mx - mn) if mx > mn else s * 0
+
+    def _mae(a, b):
+        idx = a.index.intersection(b.index)
+        if len(idx) < 12:
+            return None
+        return float(np.mean(np.abs(_normalise(a[idx]) - _normalise(b[idx]))))
+
+    mae_solar = _mae(asset_profile, solar_profile) if solar_profile is not None else None
+    mae_wind  = _mae(asset_profile, wind_profile)  if wind_profile  is not None else None
+
+    # Decision
+    if mae_solar is None and mae_wind is None:
+        return {"techno": None, "confidence": 0,
+                "mae_solar": None, "mae_wind": None,
+                "explanation": "National profiles unavailable"}
+
+    if mae_solar is None:
+        techno = "Wind"
+        conf   = max(0.0, 1.0 - mae_wind)
+        expl   = f"Wind profile match (MAE {mae_wind:.2f})"
+    elif mae_wind is None:
+        techno = "Solar"
+        conf   = max(0.0, 1.0 - mae_solar)
+        expl   = f"Solar profile match (MAE {mae_solar:.2f})"
+    else:
+        diff = abs(mae_solar - mae_wind)
+        if diff < threshold:
+            return {"techno": None, "confidence": diff / threshold,
+                    "mae_solar": mae_solar, "mae_wind": mae_wind,
+                    "explanation": f"Ambiguous — Solar MAE {mae_solar:.2f} vs Wind MAE {mae_wind:.2f}"}
+        if mae_solar < mae_wind:
+            techno = "Solar"
+            conf   = min(1.0, diff / 0.3)
+            expl   = f"Solar closer (MAE {mae_solar:.2f} vs Wind {mae_wind:.2f})"
+        else:
+            techno = "Wind"
+            conf   = min(1.0, diff / 0.3)
+            expl   = f"Wind closer (MAE {mae_wind:.2f} vs Solar {mae_solar:.2f})"
+
+    return {"techno": techno, "confidence": conf,
+            "mae_solar": mae_solar, "mae_wind": mae_wind,
+            "explanation": expl}

@@ -22,7 +22,8 @@ from data    import (load_nat, load_hourly, load_log, wind_available,
                      compute_rolling_m0, nat_series, get_nat_sd,
                      load_balancing, load_market_prices, load_xborder_da, load_fcr)
 from compute import (compute_asset_annual, fit_reg, project_cp,
-                     compute_ppa, compute_pnl_curve, compute_scenarios)
+                     compute_ppa, compute_pnl_curve, compute_scenarios,
+                     detect_technology)
 from charts  import chart_scatter_cp_vs_capacity, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN
 from ui      import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
 from excel   import build_excel
@@ -173,6 +174,21 @@ if uploaded and sb_date_col and sb_prod_col:
             columns={sb_date_col:"Date", sb_prod_col:"Prod_MWh"})
         asset_ann  = compute_asset_annual(hourly, asset_raw.copy(), prod_col=cfg["prod_col"])
         asset_name = uploaded.name.rsplit(".",1)[0]
+
+        # Auto-detect technology from production profile
+        _det = detect_technology(asset_raw, hourly)
+        if _det["techno"] and _det["techno"] != techno:
+            _conf_pct = int(_det["confidence"] * 100)
+            st.sidebar.warning(
+                f"⚡ Profile looks like **{_det['techno']}** ({_conf_pct}% confidence)\n"
+                f"{_det['explanation']}"
+            )
+        elif _det["techno"] == techno:
+            _conf_pct = int(_det["confidence"] * 100)
+            st.sidebar.success(f"✓ {_det['techno']} confirmed ({_conf_pct}% match)")
+        else:
+            st.sidebar.info(f"Profile ambiguous — {_det['explanation']}")
+
         st.sidebar.success(f"Loaded: {asset_name}")
     except Exception as e:
         st.sidebar.error(f"Error: {e}")
