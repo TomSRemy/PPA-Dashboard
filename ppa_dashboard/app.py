@@ -284,10 +284,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "FPC Monte Carlo",
 ])
 
-with tab1: render_tab_overview(**ctx)
-with tab2: render_tab_ppa_pricing(**ctx)
-with tab3: render_tab_market_dynamics(**ctx)
-with tab4: render_tab_market_evolution(**ctx)
+with tab1: render_tab_overview(ctx)
+with tab2: render_tab_ppa_pricing(ctx)
+with tab3: render_tab_market_dynamics(ctx)
+with tab4: render_tab_market_evolution(ctx)
 with tab5:
     render_pricer_tab(
         hourly=hourly, nat_ref_complete=nat_ref_complete,
@@ -295,8 +295,8 @@ with tab5:
         cfg=cfg, sl_u=sl_u, ic_u=ic_u, hist_sd_f=hist_sd_f,
         plotly_base=plotly_base, asset_raw=asset_raw,
     )
-with tab6: render_tab_market_overview(**ctx)
-with tab7: render_tab_export(**ctx)
+with tab6: render_tab_market_overview(ctx)
+with tab7: render_tab_export(ctx)
 with tab8:
     render_fpc_tab(
         hourly=hourly, nat_ref_complete=nat_ref_complete,
