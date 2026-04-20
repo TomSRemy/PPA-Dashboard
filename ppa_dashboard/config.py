@@ -13,8 +13,9 @@ from theme import (
     TEXT_DARK, TEXT_MUTED, TEXT_FAINT, ACCENT_PRIMARY, ACCENT_WARN, ACCENT_NEG,
     BG_PAGE, BG_WHITE, BG_LIGHT, BG_WARN, BORDER_LIGHT, GRID_LINE,
     REF_LINE, REF_LINE_L, REF_LINE_LL, COL_SOLAR, COL_SOLAR_L, COL_WIND, COL_WIND_L,
+    SECTION_BG, SECTION_TEXT, SECTION_BORDER,
     CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL, CHART_H_TBL,
-    rgba, with_alpha, transparent, band_colors, pos_neg_colors,
+    rgba, with_alpha, transparent, band_colors, pos_neg_colors, set_mode,
 )
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -75,11 +76,11 @@ h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {C4} !impo
 h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {C4} !important; }}
 p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {C4} !important; }}
 .section-title {{
-    font-size: 13px !important; font-weight: 700; color: {WHT};
-    background: linear-gradient(90deg, {ACCENT_PRIMARY}, {ACCENT_PRIMARY});
+    font-size: 13px !important; font-weight: 700; color: {SECTION_TEXT};
+    background: {SECTION_BG};
     padding: 8px 14px; border-radius: 4px; margin: 24px 0 10px 0;
     letter-spacing: 0.06em; text-transform: uppercase; display: block;
-    border-left: 4px solid {ACCENT_WARN};
+    border-left: 4px solid {SECTION_BORDER};
 }}
 .chart-desc {{
     font-size: 13px !important; color: {TEXT_DARK} !important;

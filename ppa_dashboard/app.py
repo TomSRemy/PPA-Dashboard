@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 from config  import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV
-from theme   import C1, C2, C3, C4, C5, C2L, C3L, WHT
+from theme   import C1, C2, C3, C4, C5, C2L, C3L, WHT, set_mode
 from data    import (load_nat, load_hourly, load_log, wind_available,
                      compute_rolling_m0, nat_series, get_nat_sd,
                      load_balancing, load_market_prices, load_xborder_da, load_fcr)
@@ -36,8 +36,6 @@ from tab_market_evolution import render_tab_market_evolution
 from tab_market_overview import render_tab_market_overview
 from tab_export          import render_tab_export
 
-st.markdown(get_css(), unsafe_allow_html=True)
-
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -47,6 +45,10 @@ with st.sidebar:
                 unsafe_allow_html=True)
     st.markdown("---")
 
+    st.markdown("### Display")
+    dark_mode = st.toggle("🌙 Dark mode", value=False, key="dark_mode")
+
+    st.markdown("---")
     st.markdown("### Technology")
     techno = st.selectbox("Select technology", ["Solar","Wind"], index=0,
                           label_visibility="collapsed")
@@ -111,6 +113,15 @@ with st.sidebar:
     if st.button("Clear Cache"):
         st.cache_data.clear()
         st.rerun()
+
+# ── Apply theme mode ─────────────────────────────────────────────────────────
+import theme as _theme
+_dark = st.session_state.get("dark_mode", False)
+set_mode(dark=_dark)
+# Reload config vars after set_mode (they're module-level, re-import needed)
+from config import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV
+from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT
+st.markdown(get_css(), unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION STATE — PPA premiums
