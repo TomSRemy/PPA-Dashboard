@@ -1,0 +1,11 @@
+[theme]
+base = "light"
+
+# KAL-EL palette — works in both light and dark
+primaryColor     = "#2A9D8F"   # teal — CTAs, sliders, checkboxes
+backgroundColor  = "#F7F4F0"   # warm off-white page bg
+secondaryBackgroundColor = "#FFFFFF"   # sidebar, cards
+textColor        = "#1D3A4A"   # navy — primary text
+
+[server]
+headless = true
