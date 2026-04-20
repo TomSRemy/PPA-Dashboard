@@ -1775,9 +1775,9 @@ def mo_chart_fcr(fcr: pd.DataFrame, zoom: str) -> go.Figure:
 # ── Constants ─────────────────────────────────────────────────────────────────
 MK_ZOOM_OPTS  = ["7D", "1M", "3M", "1Y", "2Y", "5Y", "All"]
 MK_ZOOM_DAYS  = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
-MK_BLUE       = COL_WIND
-MK_GREEN      = CHART_PALETTE[5]
-MK_PURPLE     = "#9B59B6"
+MK_BLUE       = "#5B8DEF"   # wind blue — COL_WIND
+MK_GREEN      = "#6A994E"   # chart palette green
+MK_PURPLE     = "#9B59B6"   # aFRR purple — COL_AFRR
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
