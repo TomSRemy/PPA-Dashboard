@@ -174,7 +174,7 @@ sl_nat2, ic_nat2, r2_nat2 = fit_reg(work_nat, n_reg, True)
 sl_nat_u = sl_nat2 if ex22 else sl_nat
 ic_nat_u = ic_nat2 if ex22 else ic_nat
 
-sl_ast = sl_nat_u; ic_ast = ic_nat_u; r2_ast = r2_nat_u if not ex22 else r2_nat2
+sl_ast = sl_nat_u; ic_ast = ic_nat_u; r2_ast = r2_nat2 if ex22 else r2_nat
 if has_asset:
     sl_ast,  ic_ast,  r2_ast  = fit_reg(asset_ann, n_reg, False)
     sl_ast2, ic_ast2, r2_ast2 = fit_reg(asset_ann, n_reg, True)
