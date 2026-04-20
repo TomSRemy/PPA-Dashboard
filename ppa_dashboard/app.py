@@ -16,8 +16,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-from config  import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV
-from theme   import C1, C2, C3, C4, C5, C2L, C3L, WHT, set_mode
+from config  import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV, COL_AFRR, COL_MFRR
+from theme   import get_palette
 from data    import (load_nat, load_hourly, load_log, wind_available,
                      compute_rolling_m0, nat_series, get_nat_sd,
                      load_balancing, load_market_prices, load_xborder_da, load_fcr)
@@ -114,14 +114,20 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# ── Apply theme mode ─────────────────────────────────────────────────────────
-import theme as _theme
+# ── Apply theme palette ──────────────────────────────────────────────────────
 _dark = st.session_state.get("dark_mode", False)
-set_mode(dark=_dark)
-# Reload config vars after set_mode (they're module-level, re-import needed)
-from config import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV
-from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT
-st.markdown(get_css(), unsafe_allow_html=True)
+_p = get_palette(dark=_dark)
+st.markdown(get_css(_p), unsafe_allow_html=True)
+
+# Convenience aliases used throughout app.py
+C1  = _p["TEXT_DARK"]
+C2  = _p["TEAL"]
+C3  = _p["GOLD_RAW"]
+C4  = _p["GOLD_LM"]
+C5  = _p["BRICK"]
+C2L = _p["TEAL_L"]
+C3L = _p["GOLD_LL"]
+WHT = _p["BG_WHITE"]
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION STATE — PPA premiums
@@ -275,6 +281,8 @@ ctx = dict(
     vol_mwh=vol_mwh, be=be, prod_col_roll=prod_col_roll,
     # UI helpers
     plotly_base=plotly_base,
+    # theme palette (for charts)
+    _palette=_p,
     # market data loaders (lazy — only used in tab 6)
     _load_balancing=load_balancing,
     _load_market_prices=load_market_prices,

@@ -75,6 +75,7 @@ def render_tab_export(ctx):
     load_xborder_da  = ctx.get("_load_xborder_da")
     load_fcr         = ctx.get("_load_fcr")
     load_hourly      = ctx.get("_load_hourly")
+    _p               = ctx.get("_palette")
 
     col_e1, col_e2 = st.columns(2)
     with col_e1:

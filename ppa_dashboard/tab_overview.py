@@ -78,6 +78,7 @@ def render_tab_overview(ctx):
     load_xborder_da  = ctx.get("_load_xborder_da")
     load_fcr         = ctx.get("_load_fcr")
     load_hourly      = ctx.get("_load_hourly")
+    _p               = ctx.get("_palette")
 
     st.markdown(
         f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])} '

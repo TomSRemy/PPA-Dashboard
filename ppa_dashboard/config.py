@@ -15,7 +15,7 @@ from theme import (
     REF_LINE, REF_LINE_L, REF_LINE_LL, COL_SOLAR, COL_SOLAR_L, COL_WIND, COL_WIND_L,
     SECTION_BG, SECTION_TEXT, SECTION_BORDER,
     CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL, CHART_H_TBL,
-    rgba, with_alpha, transparent, band_colors, pos_neg_colors, set_mode,
+    rgba, with_alpha, transparent, band_colors, pos_neg_colors, set_mode, get_palette,
 )
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -64,111 +64,114 @@ EXAMPLE_CSV = (
 )
 
 # ── CSS (injected once in app.py) ─────────────────────────────────────────────
-def get_css():
+def get_css(p: dict = None):
+    if p is None:
+        from theme import get_palette
+        p = get_palette(dark=False)
     return f"""<style>
 html, body, [class*="css"] {{
     font-family: Calibri, 'Segoe UI', Arial, sans-serif !important;
     font-size: 15px !important;
-    background-color: {BG_PAGE} !important;
+    background-color: {p["BG_PAGE"]} !important;
 }}
-h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {C4} !important; font-family: Calibri, Arial, sans-serif !important; }}
-h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {C4} !important; }}
-h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {C4} !important; }}
-p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {C4} !important; }}
+h1 {{ font-size: 24px !important; font-weight: 700 !important; color: {p["C4"]} !important; font-family: Calibri, Arial, sans-serif !important; }}
+h2 {{ font-size: 18px !important; font-weight: 700 !important; color: {p["C4"]} !important; }}
+h3 {{ font-size: 16px !important; font-weight: 700 !important; color: {p["C4"]} !important; }}
+p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; color: {p["C4"]} !important; }}
 .section-title {{
-    font-size: 13px !important; font-weight: 700; color: {SECTION_TEXT};
-    background: {SECTION_BG};
+    font-size: 13px !important; font-weight: 700; color: {p["SECTION_TEXT"]};
+    background: {p["SECTION_BG"]};
     padding: 8px 14px; border-radius: 4px; margin: 24px 0 10px 0;
     letter-spacing: 0.06em; text-transform: uppercase; display: block;
-    border-left: 4px solid {SECTION_BORDER};
+    border-left: 4px solid {p["SECTION_BORDER"]};
 }}
 .chart-desc {{
-    font-size: 13px !important; color: {TEXT_DARK} !important;
-    background: {BG_WARN}; border-left: 4px solid {ACCENT_WARN};
+    font-size: 13px !important; color: {p["TEXT_DARK"]} !important;
+    background: {p["BG_WARN"]}; border-left: 4px solid {p["ACCENT_WARN"]};
     padding: 10px 14px; border-radius: 0 6px 6px 0;
     margin: 0 0 16px 0; line-height: 1.6; font-family: Calibri, Arial, sans-serif;
 }}
 .ppa-card {{
-    background: linear-gradient(90deg, {TEXT_DARK}, {TEXT_DARK}); color: {WHT};
+    background: linear-gradient(90deg, {p["TEXT_DARK"]}, {p["TEXT_DARK"]}); color: {p["WHT"]};
     padding: 20px 22px; border-radius: 10px; text-align: center;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }}
-.ppa-card .val {{ font-size: 32px; font-weight: 700; color: {WHT} !important; font-family: Calibri, Arial, sans-serif; }}
-.ppa-card .lbl {{ font-size: 11px; color: {WHT} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
+.ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["WHT"]} !important; font-family: Calibri, Arial, sans-serif; }}
+.ppa-card .lbl {{ font-size: 11px; color: {p["WHT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
-    background: {BG_WHITE}; border-left: 5px solid {ACCENT_PRIMARY}; padding: 14px 18px; border-radius: 6px;
-    border: 1px solid {BORDER_LIGHT}; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    background: {p["BG_WHITE"]}; border-left: 5px solid {p["ACCENT_PRIMARY"]}; padding: 14px 18px; border-radius: 6px;
+    border: 1px solid {p["BORDER_LIGHT"]}; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }}
-.kpi-val {{ font-size: 24px; font-weight: 700; color: {TEXT_DARK}; font-family: Calibri, Arial, sans-serif; }}
-.kpi-lbl {{ font-size: 11px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.05em; }}
-.kpi-red  {{ border-left-color: {ACCENT_NEG} !important; }}
-.kpi-gold {{ border-left-color: {ACCENT_WARN} !important; }}
+.kpi-val {{ font-size: 24px; font-weight: 700; color: {p["TEXT_DARK"]}; font-family: Calibri, Arial, sans-serif; }}
+.kpi-lbl {{ font-size: 11px; color: {p["TEXT_MUTED"]}; text-transform: uppercase; letter-spacing: 0.05em; }}
+.kpi-red  {{ border-left-color: {p["ACCENT_NEG"]} !important; }}
+.kpi-gold {{ border-left-color: {p["ACCENT_WARN"]} !important; }}
 .tech-badge-solar {{
-    display: inline-block; background: {COL_SOLAR}; color: {WHT};
+    display: inline-block; background: {p["COL_SOLAR"]}; color: {p["WHT"]};
     font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .tech-badge-wind {{
-    display: inline-block; background: {COL_WIND}; color: {WHT};
+    display: inline-block; background: {p["COL_WIND"]}; color: {p["WHT"]};
     font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .update-pill {{
-    background: {TEXT_DARK} !important; border: 1px solid {ACCENT_WARN} !important; border-radius: 20px !important;
-    padding: 5px 16px !important; font-size: 12px !important; color: {ACCENT_WARN} !important;
+    background: {p["TEXT_DARK"]} !important; border: 1px solid {p["ACCENT_WARN"]} !important; border-radius: 20px !important;
+    padding: 5px 16px !important; font-size: 12px !important; color: {p["ACCENT_WARN"]} !important;
     display: inline-block !important; font-family: Calibri, Arial, sans-serif !important; font-weight: 600 !important;
 }}
 .ytd-badge {{
-    font-size: 10px; font-weight: 700; color: {TEXT_DARK}; background: {ACCENT_WARN};
+    font-size: 10px; font-weight: 700; color: {p["TEXT_DARK"]}; background: {p["ACCENT_WARN"]};
     padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle;
 }}
 .status-msg {{
-    background: linear-gradient(90deg, {BG_LIGHT}, {BG_LIGHT}); border: 1px solid {ACCENT_PRIMARY};
-    border-radius: 8px; padding: 12px 18px; color: {TEXT_DARK} !important; font-weight: 500; margin: 10px 0;
+    background: linear-gradient(90deg, {p["BG_LIGHT"]}, {p["BG_LIGHT"]}); border: 1px solid {p["ACCENT_PRIMARY"]};
+    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_DARK"]} !important; font-weight: 500; margin: 10px 0;
 }}
 .wind-msg {{
-    background: linear-gradient(90deg, {COL_WIND_L}, {COL_WIND_L}); border: 1px solid {COL_WIND};
-    border-radius: 8px; padding: 12px 18px; color: {TEXT_DARK} !important; font-weight: 500; margin: 10px 0;
+    background: linear-gradient(90deg, {p["COL_WIND_L"]}, {p["COL_WIND_L"]}); border: 1px solid {p["COL_WIND"]};
+    border-radius: 8px; padding: 12px 18px; color: {p["TEXT_DARK"]} !important; font-weight: 500; margin: 10px 0;
 }}
-[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {TEXT_DARK}, {TEXT_DARK}CC) !important; }}
-[data-testid="stSidebar"] * {{ color: {WHT} !important; font-family: Calibri, Arial, sans-serif !important; }}
+[data-testid="stSidebar"] {{ background: linear-gradient(180deg, {p["TEXT_DARK"]}, {p["TEXT_DARK"]}CC) !important; }}
+[data-testid="stSidebar"] * {{ color: {p["WHT"]} !important; font-family: Calibri, Arial, sans-serif !important; }}
 [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] p {{ color: #D0E4ED !important; font-size: 13px !important; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
-    color: {WHT} !important; font-size: 15px !important;
+    color: {p["WHT"]} !important; font-size: 15px !important;
     border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px;
 }}
 [data-baseweb="slider"] [role="slider"] {{
-    background-color: {ACCENT_WARN} !important; border: 2px solid {WHT} !important;
+    background-color: {p["ACCENT_WARN"]} !important; border: 2px solid {p["WHT"]} !important;
     box-shadow: none !important; border-radius: 50% !important;
     width: 14px !important; height: 14px !important;
 }}
 [data-baseweb="slider"] [role="slider"]:hover {{ box-shadow: none !important; transform: none !important; }}
 .stTabs [data-baseweb="tab"] {{ font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important; font-weight: 600; padding: 10px 20px !important; }}
 .stTabs [data-baseweb="tab"]:not([aria-selected="true"]) p {{ color: rgba(247,220,111,0.7) !important; }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {ACCENT_WARN} !important; background: {BG_WARN} !important; }}
-.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {ACCENT_PRIMARY} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {{ border-bottom: 3px solid {p["ACCENT_WARN"]} !important; background: {p["BG_WARN"]} !important; }}
+.stTabs [data-baseweb="tab"][aria-selected="true"] p {{ color: {p["ACCENT_PRIMARY"]} !important; font-weight: 700 !important; font-size: 15.5px !important; }}
 div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{
-    font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {TEXT_DARK} !important;
+    font-family: Calibri, Arial, sans-serif !important; font-size: 13px !important; color: {p["TEXT_DARK"]} !important;
 }}
 .stButton > button {{
-    background: linear-gradient(90deg, {ACCENT_PRIMARY}, {ACCENT_PRIMARY}) !important; color: {WHT} !important;
+    background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important; color: {p["WHT"]} !important;
     border: none !important; border-radius: 6px !important;
     font-family: Calibri, Arial, sans-serif !important; font-size: 14px !important;
     font-weight: 600 !important; padding: 10px 24px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important; transition: all 0.2s ease !important;
 }}
-.stButton > button:hover {{ background: linear-gradient(90deg, {ACCENT_PRIMARY}, {ACCENT_PRIMARY}) !important; transform: translateY(-1px) !important; }}
-.stDownloadButton > button {{ background: linear-gradient(90deg, {ACCENT_WARN}, {ACCENT_WARN}) !important; color: {TEXT_DARK} !important; border: none !important; font-weight: 700 !important; }}
-.stAlert {{ background-color: {BG_WARN} !important; border: 1px solid {ACCENT_WARN} !important; border-radius: 6px !important; }}
-.stAlert > div {{ color: {TEXT_DARK} !important; }}
+.stButton > button:hover {{ background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important; transform: translateY(-1px) !important; }}
+.stDownloadButton > button {{ background: linear-gradient(90deg, {p["ACCENT_WARN"]}, {p["ACCENT_WARN"]}) !important; color: {p["TEXT_DARK"]} !important; border: none !important; font-weight: 700 !important; }}
+.stAlert {{ background-color: {p["BG_WARN"]} !important; border: 1px solid {p["ACCENT_WARN"]} !important; border-radius: 6px !important; }}
+.stAlert > div {{ color: {p["TEXT_DARK"]} !important; }}
 [data-testid="stFileUploaderDropzone"] span {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] svg  {{ display: none !important; }}
 [data-testid="stFileUploaderDropzone"] {{
     display: flex !important; flex-direction: column !important;
     align-items: center !important; justify-content: center !important;
     min-height: 60px !important;
-    background: linear-gradient(90deg, {ACCENT_PRIMARY}, {ACCENT_PRIMARY}) !important;
+    background: linear-gradient(90deg, {p["ACCENT_PRIMARY"]}, {p["ACCENT_PRIMARY"]}) !important;
     border: none !important; border-radius: 8px !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
     cursor: pointer !important; transition: all 0.2s ease !important;
@@ -179,7 +182,7 @@ div[data-testid="stDataFrame"] td, div[data-testid="stDataFrame"] th {{
 [data-testid="stFileUploaderDropzone"]::before {{
     content: "Upload";
     font-family: Calibri, Arial, sans-serif; font-size: 14px;
-    color: {WHT}; font-weight: 700; letter-spacing: 0.05em;
+    color: {p["WHT"]}; font-weight: 700; letter-spacing: 0.05em;
 }}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p:empty {{ display: none !important; }}
 </style>"""

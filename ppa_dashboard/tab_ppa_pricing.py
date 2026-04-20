@@ -74,6 +74,7 @@ def render_tab_ppa_pricing(ctx):
     load_xborder_da  = ctx.get("_load_xborder_da")
     load_fcr         = ctx.get("_load_fcr")
     load_hourly      = ctx.get("_load_hourly")
+    _p               = ctx.get("_palette")
 
     section("EEX Forward Curve — by Calendar Year")
     desc(f"PPA = Forward x (1 - {cfg['label']} Shape Disc - Imbalance%) - Imbalance EUR.")

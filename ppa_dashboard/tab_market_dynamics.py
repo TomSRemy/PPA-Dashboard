@@ -77,6 +77,7 @@ def render_tab_market_dynamics(ctx):
     load_xborder_da  = ctx.get("_load_xborder_da")
     load_fcr         = ctx.get("_load_fcr")
     load_hourly      = ctx.get("_load_hourly")
+    _p               = ctx.get("_palette")
 
     section("Negative Price Hours — by Year")
     desc("Hours with day-ahead price < 0. Trend line excludes YTD. CRE threshold: 15h/yr.")
