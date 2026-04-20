@@ -148,7 +148,7 @@ def compute_scenarios(ref_fwd: float, ppa: float, vol_mwh: float,
     return results
 
 
-def detect_technology(asset_raw: "pd.DataFrame", hourly: "pd.DataFrame",
+def detect_technology(asset_raw, hourly,
                       threshold: float = 0.15) -> dict:
     """
     Auto-detect whether an uploaded asset is Solar or Wind
@@ -168,9 +168,6 @@ def detect_technology(asset_raw: "pd.DataFrame", hourly: "pd.DataFrame",
         "mae_wind"    : float
         "explanation" : str
     """
-    import pandas as pd
-    import numpy as np
-
     if asset_raw is None or len(asset_raw) < 24:
         return {"techno": None, "confidence": 0, "mae_solar": None,
                 "mae_wind": None, "explanation": "Not enough data"}
