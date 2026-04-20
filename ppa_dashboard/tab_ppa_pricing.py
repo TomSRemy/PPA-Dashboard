@@ -5,22 +5,14 @@ Tab 2 — PPA Pricing: forward curve, waterfall, premiums.
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 
-from theme import (
-    C1, C2, C3, C4, C5, C2L, C3L, WHT,
-    ACCENT_PRIMARY, ACCENT_WARN, ACCENT_NEG, TEXT_DARK, TEXT_MUTED,
-    CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL,
-)
+from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT
 from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-
-from config import DEFAULT_FWD
-from compute import compute_ppa
 from charts import chart_forward, chart_waterfall
-
+from config import DEFAULT_FWD
 
 def render_tab_ppa_pricing(ctx):
-    # Unpack context dict
+    # Unpack context
     nat_ref          = ctx.get("nat_ref")
     nat_ref_complete = ctx.get("nat_ref_complete")
     hourly           = ctx.get("hourly")
@@ -37,7 +29,6 @@ def render_tab_ppa_pricing(ctx):
     r2_u             = ctx.get("r2_u")
     reg_basis        = ctx.get("reg_basis")
     ppa              = ctx.get("ppa")
-    pricing          = ctx.get("pricing")
     ref_fwd          = ctx.get("ref_fwd")
     sd_ch            = ctx.get("sd_ch")
     imb_eur          = ctx.get("imb_eur")
@@ -74,7 +65,6 @@ def render_tab_ppa_pricing(ctx):
     vol_mwh          = ctx.get("vol_mwh")
     be               = ctx.get("be")
     prod_col_roll    = ctx.get("prod_col_roll")
-    plotly_base      = ctx.get("plotly_base")
     yr_range         = ctx.get("yr_range", (2020, 2026))
     ex22             = ctx.get("ex22", False)
     get_nat_sd       = ctx.get("_get_nat_sd")

@@ -5,20 +5,22 @@ Tab 6 — Market Overview: FR spot, commodities, imbalance, ancillary.
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 
-from theme import (
-    C1, C2, C3, C4, C5, C2L, C3L, WHT,
-    ACCENT_PRIMARY, ACCENT_WARN, ACCENT_NEG, TEXT_DARK, TEXT_MUTED,
-    CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL,
-)
+from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT
 from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-
-from charts import (mk_kpis, mk_chart_spot, mk_table_spot, mk_chart_spread, mk_table_spread, mk_chart_neg_bars, mk_chart_neg_calendar, mk_chart_distribution, mk_chart_eua, mk_chart_ttf, mk_chart_brent, mk_table_commodity, mk_chart_renewables_lines, mk_chart_renewables_mix, mk_chart_renewables_hourly, mk_chart_imb_pos_neg, mk_chart_imb_spread, mk_chart_imb_vs_da, mk_table_imbalance, mk_chart_fcr, mk_chart_afrr, mk_chart_europe_map, mk_chart_country_history, _mk_stub, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN)
-
+from charts import (
+    mk_kpis, mk_chart_spot, mk_table_spot, mk_chart_spread, mk_table_spread,
+    mk_chart_neg_bars, mk_chart_neg_calendar, mk_chart_distribution,
+    mk_chart_eua, mk_chart_ttf, mk_chart_brent, mk_table_commodity,
+    mk_chart_renewables_lines, mk_chart_renewables_mix, mk_chart_renewables_hourly,
+    mk_chart_imb_pos_neg, mk_chart_imb_spread, mk_chart_imb_vs_da, mk_table_imbalance,
+    mk_chart_fcr, mk_chart_afrr, mk_chart_europe_map, mk_chart_country_history,
+    _mk_stub, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN,
+)
+from data import load_balancing, load_market_prices, load_xborder_da, load_fcr, load_hourly
 
 def render_tab_market_overview(ctx):
-    # Unpack context dict
+    # Unpack context
     nat_ref          = ctx.get("nat_ref")
     nat_ref_complete = ctx.get("nat_ref_complete")
     hourly           = ctx.get("hourly")
@@ -35,7 +37,6 @@ def render_tab_market_overview(ctx):
     r2_u             = ctx.get("r2_u")
     reg_basis        = ctx.get("reg_basis")
     ppa              = ctx.get("ppa")
-    pricing          = ctx.get("pricing")
     ref_fwd          = ctx.get("ref_fwd")
     sd_ch            = ctx.get("sd_ch")
     imb_eur          = ctx.get("imb_eur")
@@ -72,7 +73,6 @@ def render_tab_market_overview(ctx):
     vol_mwh          = ctx.get("vol_mwh")
     be               = ctx.get("be")
     prod_col_roll    = ctx.get("prod_col_roll")
-    plotly_base      = ctx.get("plotly_base")
     yr_range         = ctx.get("yr_range", (2020, 2026))
     ex22             = ctx.get("ex22", False)
     get_nat_sd       = ctx.get("_get_nat_sd")
