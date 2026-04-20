@@ -10,13 +10,19 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from config import (C1, C2, C3, C4, C5, WHT, C2L, C3L, MONTH_NAMES)
-from ui import plotly_base, rgba
+from theme import (
+    TEXT_DARK, TEXT_MUTED, TEXT_FAINT, ACCENT_PRIMARY, ACCENT_WARN, ACCENT_NEG,
+    BG_WHITE, BG_PAGE, GRID_LINE, BORDER_MED, BORDER_FAINT,
+    REF_LINE, REF_LINE_L, REF_LINE_LL,
+    COL_AFRR, COL_MFRR, CHART_PALETTE,
+    CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL, CHART_H_TBL,
+    rgba, with_alpha, transparent, band_colors, pos_neg_colors,
+)
+from ui import plotly_base
 
-COL_DA      = C1
-COL_IMB_POS = C2
-COL_IMB_NEG = C5
-COL_AFRR    = "#9B59B6"
-COL_MFRR    = "#E67E22"
+COL_DA      = TEXT_DARK
+COL_IMB_POS = ACCENT_PRIMARY
+COL_IMB_NEG = ACCENT_NEG
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — Overview
@@ -30,7 +36,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     ny   = nat_ref["year"].tolist()
     ns   = nat_ref["spot"].tolist()
     is_p = nat_ref["partial"].tolist() if "partial" in nat_ref.columns else [False]*len(ny)
-    bar_colors   = ["rgba(255,215,0,0.55)" if p else rgba(tech_clr, 0.5) for p in is_p]
+    bar_colors   = [rgba(ACCENT_WARN, 0.55) if p else rgba(tech_clr, 0.5) for p in is_p]
     bar_outlines = [C3 if p else tech_clr for p in is_p]
     bar_texts    = [f"<b>{v*100:.0f}%</b>" + (" YTD" if p else "") for v, p in zip(nat_cp_list, is_p)]
     fig.add_trace(go.Bar(x=ny, y=nat_cp_list, name=f"M0 National {tech_lbl}",
@@ -51,21 +57,21 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                              line=dict(color=tech_clr, width=2.5, dash="dash"), mode="lines+markers",
                              marker=dict(size=7, color=tech_clr, symbol="square",
                                          line=dict(width=1.5, color=WHT)), showlegend=False), row=1, col=1)
-    fig.add_hline(y=1.0, line=dict(color="#AAAAAA", width=1, dash="dot"), row=1, col=1)
+    fig.add_hline(y=1.0, line=dict(color=REF_LINE, width=1, dash="dot"), row=1, col=1)
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=1, col=1)
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=2, col=1)
     fig.add_annotation(x=2022, y=0.32, text="2022", showarrow=False,
                        font=dict(color=C3, size=13, family="Calibri"), row=1, col=1)
     fig.add_trace(go.Scatter(x=ny, y=ns, name="National Spot",
-                             line=dict(color="#555555", width=2, dash="dash"), mode="lines+markers",
-                             marker=dict(size=6, color="#555555")), row=2, col=1)
+                             line=dict(color=TEXT_MUTED, width=2, dash="dash"), mode="lines+markers",
+                             marker=dict(size=6, color=TEXT_MUTED)), row=2, col=1)
     fig.add_trace(go.Scatter(x=ny, y=nat_eur_list, name=f"M0 {tech_lbl} EUR",
                              line=dict(color=tech_clr, width=2.5), mode="lines+markers",
                              marker=dict(size=7, color=tech_clr, symbol="square",
                                          line=dict(width=1.5, color=WHT))), row=2, col=1)
     fig.update_yaxes(tickformat=".0%", row=1, col=1)
     fig.update_layout(barmode="group")
-    plotly_base(fig, h=640)
+    plotly_base(fig, h=CHART_H_XL)
     return fig
 
 
@@ -90,17 +96,17 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                                          line=dict(width=1.5, color=WHT))))
     tx = list(range(2014, last_yr_proj + proj_n + 1))
     fig.add_trace(go.Scatter(x=tx, y=[1-(ic_u+sl_u*yr) for yr in tx],
-                             name="Trend", line=dict(color="#AAAAAA", width=2, dash="dot"),
+                             name="Trend", line=dict(color=REF_LINE, width=2, dash="dot"),
                              mode="lines", opacity=0.8))
     py_ = proj["year"].tolist()
     fig.add_trace(go.Scatter(x=py_+py_[::-1],
                              y=proj["p90"].tolist()+proj["p10"].tolist()[::-1],
-                             fill="toself", fillcolor="rgba(255,215,0,0.20)",
-                             line=dict(color="rgba(0,0,0,0)"), name="P10-P90"))
+                             fill="toself", fillcolor=rgba(ACCENT_WARN, 0.20),
+                             line=dict(color=transparent()), name="P10-P90"))
     fig.add_trace(go.Scatter(x=py_+py_[::-1],
                              y=proj["p75"].tolist()+proj["p25"].tolist()[::-1],
-                             fill="toself", fillcolor="rgba(247,220,111,0.35)",
-                             line=dict(color="rgba(0,0,0,0)"), name="P25-P75"))
+                             fill="toself", fillcolor=rgba(ACCENT_WARN, 0.35),
+                             line=dict(color=transparent()), name="P25-P75"))
     if anchor_val is not None:
         hl = anchor_val
     elif has_asset:
@@ -128,10 +134,10 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                                      textposition="top center",
                                      textfont=dict(size=11, color="black", family="Calibri"),
                                      name=f"{t['year']} capacity-based"))
-    fig.add_vline(x=last_yr_proj+0.5, line=dict(color="#BBBBBB", width=1.5, dash="dot"))
+    fig.add_vline(x=last_yr_proj+0.5, line=dict(color=REF_LINE_L, width=1.5, dash="dot"))
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.15, line_width=0)
     fig.update_yaxes(tickformat=".0%")
-    plotly_base(fig, h=640)
+    plotly_base(fig, h=CHART_H_XL)
     fig.update_layout(
         title=dict(text=(f"Slope: {-sl_u*100:.2f}%/yr  R\u00b2: {r2_u:.3f} "
                          f"({'excl.2022 ' if ex22 else ''}| {reg_basis} regression) | excl. YTD"),
@@ -155,7 +161,7 @@ def chart_forward(fwd_df: pd.DataFrame) -> go.Figure:
                          name="EEX Forward"))
     fig.update_yaxes(title_text="EUR/MWh")
     fig.update_xaxes(tickmode="array", tickvals=fwd_df["year"].tolist())
-    plotly_base(fig, h=280, show_legend=False)
+    plotly_base(fig, h=CHART_H_XS, show_legend=False)
     fig.update_layout(title=dict(text="<b>Forward Price Curve</b>"))
     return fig
 
@@ -190,7 +196,7 @@ def chart_neg_hours(hourly: pd.DataFrame, partial_years: list, tech_clr: str) ->
     fig.add_hline(y=15, line=dict(color=C2, width=1.5, dash="dot"),
                   annotation_text="CRE Threshold (15h)",
                   annotation_font=dict(color=C2, size=12, family="Calibri"))
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text="<b>Negative Price Hours by Year</b>"))
     return fig
 
@@ -208,14 +214,14 @@ def chart_monthly_profile(hourly: pd.DataFrame, prod_col: str, tech_clr: str, te
     fig = go.Figure()
     fig.add_trace(go.Bar(x=MONTH_NAMES, y=month_avg["mean"],
                          error_y=dict(type="data", array=month_avg["std"].tolist(),
-                                      visible=True, color="#AAAAAA", thickness=2, width=5),
+                                      visible=True, color=REF_LINE, thickness=2, width=5),
                          marker_color=bar_c_m, marker_line_color=WHT, marker_line_width=1,
                          text=[f"<b>{v*100:.1f}%</b>" for v in month_avg["mean"]],
                          textposition="outside",
                          textfont=dict(size=11, color=C1, family="Calibri")))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1))
     fig.update_yaxes(tickformat=".0%", title_text="Average Shape Discount")
-    plotly_base(fig, h=380, show_legend=False)
+    plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>Monthly Cannibalization Profile — {tech_lbl}</b>"))
     return fig, monthly_agg
 
@@ -305,7 +311,7 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
 
     fig.update_yaxes(tickformat=".0%", title_text="Captured Price (% of spot)")
     fig.update_xaxes(title_text=x_label)
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(
         text=f"<b>CP% vs {tech_lbl} ({'Installed Capacity (GW)' if use_gw else 'Avg MW'})</b>"))
     return fig, proj_targets
@@ -324,9 +330,9 @@ def chart_shape_disc_delta(nat_ref: pd.DataFrame, nat_sd_col: str,
                          text=[f"<b>{v*100:+.1f}pp</b>" for v in sd["delta"]],
                          textposition="outside",
                          textfont=dict(size=12, color=C1, family="Calibri")))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1.5))
     fig.update_yaxes(tickformat=".1%", title_text="Delta Shape Discount (pp)")
-    plotly_base(fig, h=340, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>Annual Shape Discount Change — {tech_lbl}</b>"))
     return fig
 
@@ -342,7 +348,7 @@ def chart_heatmap(monthly_agg: pd.DataFrame, tech_clr: str, tech_lbl: str) -> go
         colorbar=dict(title=dict(text="Shape Disc (%)", font=dict(size=12, color=C1)),
                       tickfont=dict(size=11, color=C1), thickness=14)))
     fig.update_xaxes(title_text="Month"); fig.update_yaxes(title_text="Year")
-    plotly_base(fig, h=400, show_legend=False)
+    plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>Monthly Shape Discount Heatmap — {tech_lbl}</b>"))
     return fig
 
@@ -375,7 +381,7 @@ def chart_market_value_vs_penetration(hourly: pd.DataFrame, prod_col: str,
                                  name=f"Trend (R\u00b2={r**2:.2f})"))
     fig.update_xaxes(title_text=f"{tech_lbl} Generation (MW)")
     fig.update_yaxes(title_text="Average Spot Price (EUR/MWh)")
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text=f"<b>Market Value vs {tech_lbl} Generation Output</b>"))
     return fig
 
@@ -395,9 +401,9 @@ def chart_duck_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str, duck_mo
                                  line=dict(color=col, width=3.0 if yr==years[-1] else 1.2),
                                  name=str(yr), legendgroup=str(yr), showlegend=True,
                                  hovertemplate=f"<b>{yr}</b> — Hour %{{x}}h: %{{y:.2f}}x avg<extra></extra>"))
-    fig.add_hline(y=1.0, line=dict(color="#BBBBBB", width=1.5, dash="dot"),
+    fig.add_hline(y=1.0, line=dict(color=REF_LINE_L, width=1.5, dash="dot"),
                   annotation_text="Monthly avg = 1.0",
-                  annotation_font=dict(color="#999999", size=11, family="Calibri"),
+                  annotation_font=dict(color=TEXT_FAINT, size=11, family="Calibri"),
                   annotation_position="top left")
     if 4 in duck_months or 5 in duck_months:
         fig.add_vrect(x0=9.5, x1=15.5, fillcolor=rgba(tech_clr,0.07), line_width=0,
@@ -407,7 +413,7 @@ def chart_duck_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str, duck_mo
     fig.update_xaxes(title_text="Hour of Day", tickmode="array",
                      tickvals=list(range(0,24,2)), ticktext=[f"{h}h" for h in range(0,24,2)])
     fig.update_yaxes(title_text="Normalised Price (monthly avg = 1)")
-    plotly_base(fig, h=460)
+    plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(title=dict(text=f"<b>Duck/Canyon Curve — Normalised Day-Ahead Prices ({tech_lbl}, {season_lbl})</b>"))
     return fig
 
@@ -421,7 +427,7 @@ def chart_canyon_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str,
     all_complete = sorted(h[~h["Year"].isin([pd.Timestamp.now().year])]["Year"].unique())
     sel = all_complete[-recent_years:] if len(all_complete)>=recent_years else all_complete
     hourly_avg = h[h["Year"].isin(sel)].groupby(["Year","Hour"])["norm_spot"].mean().reset_index()
-    n = max(len(sel),1); year_colors = ["#AAAAAA"]*(n-1)+[tech_clr]
+    n = max(len(sel),1); year_colors = [REF_LINE]*(n-1)+[tech_clr]
     fig = go.Figure()
     for yr, col in zip(sel, year_colors):
         d = hourly_avg[hourly_avg["Year"]==yr].sort_values("Hour")
@@ -429,15 +435,15 @@ def chart_canyon_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str,
                                  line=dict(color=col, width=3.0 if yr==sel[-1] else 1.5),
                                  name=str(yr),
                                  hovertemplate=f"<b>{yr}</b> — Hour %{{x}}h: %{{y:.2f}}x avg<extra></extra>"))
-    fig.add_hline(y=1.0, line=dict(color="#BBBBBB", width=1.5, dash="dot"),
+    fig.add_hline(y=1.0, line=dict(color=REF_LINE_L, width=1.5, dash="dot"),
                   annotation_text="Monthly avg = 1.0",
-                  annotation_font=dict(color="#999999", size=11, family="Calibri"),
+                  annotation_font=dict(color=TEXT_FAINT, size=11, family="Calibri"),
                   annotation_position="top left")
     season_lbl = "Apr-Sep" if duck_months==list(range(4,10)) else "All months"
     fig.update_xaxes(title_text="Hour of Day", tickmode="array",
                      tickvals=list(range(0,24,2)), ticktext=[f"{h}h" for h in range(0,24,2)])
     fig.update_yaxes(title_text="Normalised Price (monthly avg = 1)")
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text=f"<b>Canyon Curve — Last {recent_years} Years ({tech_lbl}, {season_lbl})</b>"))
     return fig
 
@@ -452,11 +458,11 @@ def chart_pnl_percentile(pcts, pnl_v, cp_vals, ppa, vol_mwh,
     px_ = [p for p,v in zip(pcts,pnl_v) if v>=0]; py_ = [v for v in pnl_v if v>=0]
     nx_ = [p for p,v in zip(pcts,pnl_v) if v<0];  ny_ = [v for v in pnl_v if v<0]
     if px_: fig.add_trace(go.Scatter(x=px_, y=py_, fill="tozeroy",
-                                      fillcolor="rgba(42,157,143,0.15)",
-                                      line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+                                      fillcolor=rgba(ACCENT_PRIMARY, 0.15),
+                                      line=dict(color=transparent()), showlegend=False))
     if nx_: fig.add_trace(go.Scatter(x=nx_, y=ny_, fill="tozeroy",
-                                      fillcolor="rgba(231,111,81,0.15)",
-                                      line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+                                      fillcolor=rgba(ACCENT_NEG, 0.15),
+                                      line=dict(color=transparent()), showlegend=False))
     fig.add_trace(go.Scatter(x=pcts, y=pnl_v, name="P&L (k EUR/yr)",
                              mode="lines", line=dict(color=C1, width=3)))
     pc_ = pnl_v[chosen_pct-1]
@@ -469,15 +475,15 @@ def chart_pnl_percentile(pcts, pnl_v, cp_vals, ppa, vol_mwh,
     pu  = [vol_mwh*(1+vol_stress/100)*(c-ppa)/1000 for c in cp_vals]
     pd_ = [vol_mwh*(1-vol_stress/100)*(c-ppa)/1000 for c in cp_vals]
     fig.add_trace(go.Scatter(x=pcts+pcts[::-1], y=pu+pd_[::-1],
-                             fill="toself", fillcolor="rgba(255,215,0,0.25)",
-                             line=dict(color="rgba(0,0,0,0)"), name=f"+/-{vol_stress}% Volume"))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=2))
+                             fill="toself", fillcolor=rgba(ACCENT_WARN, 0.25),
+                             line=dict(color=transparent()), name=f"+/-{vol_stress}% Volume"))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=2))
     if be:
         fig.add_vline(x=be, line=dict(color=C5, width=2, dash="dot"),
                       annotation_text=f"<b>Break-even P{be}</b>",
                       annotation_font=dict(color=C5, size=12, family="Calibri"))
     fig.update_layout(xaxis_title="Shape Discount Percentile", yaxis_title="Annual P&L (k EUR)")
-    plotly_base(fig, h=450)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text=f"<b>P&L Distribution by Cannibalization Percentile — {tech_lbl}</b>"))
     return fig
 
@@ -487,7 +493,7 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
     sv10=[s["p10"] for s in scenarios];   sv90=[s["p90"] for s in scenarios]
     fig = go.Figure()
     fig.add_trace(go.Bar(name="P50", x=sn, y=sv50,
-                         marker_color=["rgba(42,157,143,0.80)" if v>=0 else "rgba(231,111,81,0.80)" for v in sv50],
+                         marker_color=[rgba(ACCENT_PRIMARY, 0.80) if v>=0 else rgba(ACCENT_NEG, 0.80) for v in sv50],
                          marker_line_color=WHT, marker_line_width=1,
                          text=[f"<b>{v:+.0f}k</b>" for v in sv50], textposition="outside",
                          textfont=dict(size=12, color=C1, family="Calibri")))
@@ -495,9 +501,9 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
                              marker=dict(symbol="triangle-down", size=14, color=C5, line=dict(width=2, color=WHT))))
     fig.add_trace(go.Scatter(name="P90", x=sn, y=sv90, mode="markers",
                              marker=dict(symbol="triangle-up", size=14, color=C2, line=dict(width=2, color=WHT))))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=2))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=2))
     fig.update_layout(xaxis_title="Scenario", yaxis_title=f"Cumulative P&L {proj_n}yr (k EUR)", bargap=0.35)
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text=f"<b>Stress Scenarios — {proj_n} Year P&L — {tech_lbl}</b>"))
     return fig
 
@@ -534,13 +540,13 @@ def chart_waterfall(ref_fwd: float, sd_ch: float, imb_eur: float, tech_lbl: str,
               else f"{d[1]:.2f}" if d[2]=="absolute"
               else f"<b>{ppa_final:.2f}</b>" for d in wf],
         textposition="outside", textfont=dict(size=13, color=C1, family="Calibri"),
-        connector=dict(line=dict(color="#AAAAAA", width=1.5)),
+        connector=dict(line=dict(color=REF_LINE, width=1.5)),
         decreasing=dict(marker=dict(color=C5, line=dict(color=WHT, width=1))),
         increasing=dict(marker=dict(color=C2, line=dict(color=WHT, width=1))),
         totals=dict(marker=dict(color=C3, line=dict(color=WHT, width=2))),
     ))
     fig.update_xaxes(tickangle=-30)
-    plotly_base(fig, h=520, show_legend=False)
+    plotly_base(fig, h=CHART_H_LG, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>PPA Price Waterfall — {tech_lbl} — {ppa_final:.2f} EUR/MWh</b>"),
                       yaxis_title="EUR/MWh")
     return fig
@@ -557,9 +563,9 @@ def chart_rolling_cp(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
     W_WIDTH={30:1.5,90:2.0,365:2.5}
     ann_x = [pd.Timestamp(f"{int(y)}-07-01") for y in nat_ref_complete["year"]]
     fig = go.Figure()
-    fig.add_hline(y=1.0, line=dict(color="#CCCCCC", width=1.5, dash="dot"),
+    fig.add_hline(y=1.0, line=dict(color=REF_LINE_LL, width=1.5, dash="dot"),
                   annotation_text="100% — no cannibalization",
-                  annotation_font=dict(color="#999999", size=11, family="Calibri"),
+                  annotation_font=dict(color=TEXT_FAINT, size=11, family="Calibri"),
                   annotation_position="top left")
     for w in [365,90,30]:
         col = f"cp_{w}d"; d = roll.dropna(subset=[col])
@@ -580,7 +586,7 @@ def chart_rolling_cp(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
                                  textfont=dict(size=11, color=C1, family="Calibri")))
     fig.update_yaxes(tickformat=".0%", title_text="Capture Rate M0 / Baseload")
     fig.update_xaxes(title_text="Date")
-    plotly_base(fig, h=500)
+    plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(title=dict(text=f"<b>Rolling Capture Rate — WAP / Baseload (%) — {tech_lbl}</b>"))
     return fig
 
@@ -594,7 +600,7 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
     bl = roll.dropna(subset=["bl_365d"])
     if len(bl)>0:
         fig.add_trace(go.Scatter(x=bl["Date"], y=bl["bl_365d"], name="Baseload 365d (ref)",
-                                 mode="lines", line=dict(color="#AAAAAA", width=2, dash="dash")))
+                                 mode="lines", line=dict(color=REF_LINE, width=2, dash="dash")))
     for w in [365,90,30]:
         col=f"m0_{w}d"; d=roll.dropna(subset=[col])
         if len(d)==0: continue
@@ -604,7 +610,7 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
                              mode="markers",
                              marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT))))
     fig.update_yaxes(title_text="EUR/MWh"); fig.update_xaxes(title_text="Date")
-    plotly_base(fig, h=500)
+    plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(title=dict(text=f"<b>Rolling Captured Price M0 (EUR/MWh) — {tech_lbl}</b>"))
     return fig
 
@@ -620,8 +626,8 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     month_avg   = h.groupby(["Month", "Hour"])[prod_col].mean().reset_index()
     overall_avg = h.groupby("Hour")[prod_col].mean().reset_index()
  
-    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", "#5B8DEF",
-              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#6A994E"]
+    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", COL_WIND,
+              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", CHART_PALETTE[5]]
     fig = go.Figure()
  
     # Monthly traces — slightly thinner and semi-transparent
@@ -662,7 +668,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     )
     
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=520)
+    plotly_base(fig, h=CHART_H_LG)
     return fig
  
 def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
@@ -675,8 +681,8 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     month_avg   = a.groupby(["Month", "Hour"])["Prod_MWh"].mean().reset_index()
     overall_avg = a.groupby("Hour")["Prod_MWh"].mean().reset_index()
  
-    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", "#5B8DEF",
-              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", "#6A994E"]
+    colors = ["#1D3A4A", "#2A9D8F", "#E9C46A", "#F4A261", "#E76F51", COL_WIND,
+              "#8ECAE6", "#219EBC", "#023047", "#FFB703", "#FB8500", CHART_PALETTE[5]]
     fig = go.Figure()
  
     # Monthly traces — dotted, slightly thinner and semi-transparent
@@ -718,7 +724,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     )
     
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=520)
+    plotly_base(fig, h=CHART_H_LG)
     return fig  
 
 def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, has_asset):
@@ -744,7 +750,7 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
                       yaxis2=dict(title="National avg MW",side="right",overlaying="y",showgrid=False),
                       barmode="group")
     fig.update_xaxes(title_text="Month")
-    plotly_base(fig,h=420)
+    plotly_base(fig,h=CHART_H_MD)
     fig.update_layout(title=dict(text="<b>Monthly Production Profile</b>"))
     return fig
 
@@ -759,7 +765,7 @@ def chart_annual_production(hourly, asset_ann, prod_col, tech_clr, asset_name, h
                              textposition="outside",
                              textfont=dict(size=11,color=C1,family="Calibri")))
     fig.update_xaxes(title_text="Year"); fig.update_yaxes(title_text="GWh")
-    plotly_base(fig,h=420)
+    plotly_base(fig,h=CHART_H_MD)
     fig.update_layout(title=dict(text="<b>Annual Production</b>"))
     return fig
 
@@ -794,9 +800,9 @@ def chart_last_week(bal: pd.DataFrame) -> go.Figure:
     if "Imb_Neg" in d.columns and d["Imb_Neg"].notna().any():
         fig.add_trace(go.Scatter(x=d["Date"], y=d["Imb_Neg"], mode="lines", name="Imbalance Negative",
                                  line=dict(color=COL_IMB_NEG, width=1.5, dash="dash")))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1))
     fig.update_yaxes(title_text="EUR/MWh"); fig.update_xaxes(title_text="Date")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(title=dict(text="<b>Last 7 Days — DA & Imbalance Prices (hourly)</b>"))
     return fig
 
@@ -810,7 +816,7 @@ def chart_da_monthly(bal: pd.DataFrame) -> go.Figure:
                              line=dict(color=COL_DA, width=2),
                              fill="tozeroy", fillcolor=rgba(COL_DA, 0.08)))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=340, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text="<b>Day-Ahead Price — Monthly Average (France)</b>"))
     return fig
 
@@ -829,7 +835,7 @@ def chart_da_heatmap(bal: pd.DataFrame) -> go.Figure:
         colorbar=dict(title=dict(text="EUR/MWh", font=dict(size=12, color=C1)),
                       tickfont=dict(size=11, color=C1), thickness=14)))
     fig.update_xaxes(title_text="Hour of Day"); fig.update_yaxes(title_text="Month")
-    plotly_base(fig, h=420, show_legend=False)
+    plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text="<b>DA Price Heatmap — Average by Hour and Month</b>"))
     return fig
 
@@ -852,7 +858,7 @@ def chart_intraday_spread(bal: pd.DataFrame) -> go.Figure:
                          textfont=dict(size=10, color=C1, family="Calibri"),
                          name="Intraday spread"))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=340, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text="<b>DA Intraday Spread — Monthly Avg (Max-Min, EUR/MWh)</b>"))
     return fig
 
@@ -869,9 +875,9 @@ def chart_imbalance_vs_da(bal: pd.DataFrame) -> go.Figure:
                          textposition="outside",
                          textfont=dict(size=10, color=C1, family="Calibri"),
                          name="Imb_Neg - DA"))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1.5))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=340, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(
         text="<b>Imbalance Negative vs DA — Monthly Avg — Cost of Negative Imbalance</b>"))
     return fig
@@ -890,7 +896,7 @@ def chart_balancing_services(bal: pd.DataFrame) -> go.Figure:
         fig.add_trace(go.Scatter(x=mm["YM"], y=mm["mFRR"], mode="lines", name="mFRR activated",
                                  line=dict(color=COL_MFRR, width=2)))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=360)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(title=dict(
         text="<b>Balancing Services — aFRR & mFRR Activated Prices (France)</b>"))
     return fig
@@ -1019,7 +1025,7 @@ def mo_chart_spot_main(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
             x=h["Date"], y=h["Spot"],
             mode="lines", name="FR DA Spot",
             line=dict(color=C1, width=1.0),
-            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            fill="tozeroy", fillcolor=rgba(TEXT_DARK, 0.06),
             hovertemplate="<b>%{x|%d %b %H:%M}</b>: %{y:.1f} EUR/MWh<extra></extra>",
         ))
     else:
@@ -1028,7 +1034,7 @@ def mo_chart_spot_main(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
             x=daily["Date"], y=daily["Spot"],
             mode="lines", name="Daily avg",
             line=dict(color=C1, width=1.2),
-            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            fill="tozeroy", fillcolor=rgba(TEXT_DARK, 0.06),
             hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} EUR/MWh<extra></extra>",
         ))
         if zoom in ("1M", "3M") and len(daily) >= 7:
@@ -1046,9 +1052,9 @@ def mo_chart_spot_main(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
                 hovertemplate="<b>30d avg</b>: %{y:.1f}<extra></extra>",
             ))
 
-    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=400)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>FR Day-Ahead Spot Price — {mode} — {zoom}</b>"),
         hovermode="x unified",
@@ -1097,8 +1103,8 @@ def mo_chart_hourly_overlay(hourly: pd.DataFrame) -> go.Figure:
     hrs = avg_by_hour["Hour"].tolist()
     fig.add_trace(go.Scatter(
         x=hrs + hrs[::-1], y=mx.tolist() + mn.tolist()[::-1],
-        fill="toself", fillcolor="rgba(42,157,143,0.08)",
-        line=dict(color="rgba(0,0,0,0)"), name="Min-Max range",
+        fill="toself", fillcolor=rgba(ACCENT_PRIMARY, 0.08),
+        line=dict(color=transparent()), name="Min-Max range",
         hoverinfo="skip",
     ))
 
@@ -1106,7 +1112,7 @@ def mo_chart_hourly_overlay(hourly: pd.DataFrame) -> go.Figure:
                      tickvals=list(range(0, 24, 2)),
                      ticktext=[f"{x}h" for x in range(0, 24, 2)])
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text="<b>Hourly DA Profile — Last 7 Days (one line per day)</b>"),
         hovermode="x unified",
@@ -1145,7 +1151,7 @@ def mo_chart_da_spread(hourly: pd.DataFrame, zoom: str) -> go.Figure:
         hovertemplate="<b>%{x|%b %Y}</b>: %{y:.1f} EUR/MWh<extra></extra>",
     ))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=320, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text="<b>FR DA Daily Spread — Monthly Avg (Max-Min, EUR/MWh)</b>"))
     return fig
 
@@ -1181,7 +1187,7 @@ def mo_chart_neg_hours(hourly: pd.DataFrame, zoom: str) -> go.Figure:
         hovertemplate="<b>%{x|%b %Y}</b>: %{y} hours<extra></extra>",
     ))
     fig.update_yaxes(title_text="Hours")
-    plotly_base(fig, h=320, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text="<b>Negative DA Price Hours — Monthly Count</b>"))
     return fig
 
@@ -1215,10 +1221,10 @@ def mo_chart_distribution(hourly: pd.DataFrame, zoom: str) -> go.Figure:
                       annotation_position="top right")
     fig.add_vrect(x0=q5, x1=q95, fillcolor=rgba(C3, 0.12), line_width=0,
                   annotation_text="P5-P95", annotation_position="top left",
-                  annotation_font=dict(color="#888", size=10, family="Calibri"))
+                  annotation_font=dict(color=TEXT_FAINT, size=10, family="Calibri"))
 
     fig.update_xaxes(title_text="EUR/MWh"); fig.update_yaxes(title_text="Hours")
-    plotly_base(fig, h=340, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>DA Spot Price Distribution — {zoom}</b>"))
     return fig
 
@@ -1243,7 +1249,7 @@ def mo_chart_renewables_7d(hourly: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(barmode="stack")
     fig.update_xaxes(title_text="Date"); fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(title=dict(text="<b>Renewable Generation — Last 7 Days (daily avg MW)</b>"))
     return fig
 
@@ -1275,7 +1281,7 @@ def mo_chart_renewables_profile(hourly: pd.DataFrame, zoom: str) -> go.Figure:
                      tickvals=list(range(0, 24, 2)),
                      ticktext=[f"{x}h" for x in range(0, 24, 2)])
     fig.update_yaxes(title_text="Avg MW")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>Renewable Hourly Profile — {zoom}</b>"),
         hovermode="x unified")
@@ -1297,9 +1303,9 @@ def mo_chart_imbalance_lines(bal: pd.DataFrame) -> go.Figure:
         fig.add_trace(go.Scatter(x=m["YM"], y=m[col], mode="lines", name=label,
                                  line=dict(color=col_clr, width=2)))
 
-    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=340)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(title=dict(
         text="<b>Imbalance Prices — Positive vs Negative (monthly avg)</b>"))
     return fig
@@ -1323,9 +1329,9 @@ def mo_chart_imbalance_spread(bal: pd.DataFrame) -> go.Figure:
         textfont=dict(size=10, color=C1, family="Calibri"),
         name="Imb Spread",
     ))
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5))
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1.5))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=320, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(title=dict(
         text="<b>Imbalance Spread (Imb_Pos - Imb_Neg) — Monthly Avg</b>"))
     return fig
@@ -1348,9 +1354,9 @@ def mo_chart_imbalance_vs_da_new(bal: pd.DataFrame) -> go.Figure:
         fig.add_trace(go.Scatter(x=mg["YM"], y=mg["delta"], mode="lines",
                                  name=label, line=dict(color=col_clr, width=2)))
 
-    fig.add_hline(y=0, line=dict(color="#CCCCCC", width=1.5))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1.5))
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(title=dict(
         text="<b>Imbalance vs Day-Ahead — Monthly Avg Spread</b>"))
     return fig
@@ -1372,7 +1378,7 @@ def mo_chart_afrr(bal) -> go.Figure:
         return _mo_stub("aFRR / mFRR", "aFRR/mFRR columns not found in balancing_prices.csv")
 
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=340)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(title=dict(
         text="<b>Ancillary Services — aFRR & mFRR Monthly Avg (France)</b>"))
     return fig
@@ -1400,18 +1406,18 @@ def mo_chart_eua(mkt: pd.DataFrame, zoom: str) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=h["Date"], y=h["EUA_EUR_tCO2"],
         mode="lines", name="EUA (€/tCO2)",
-        line=dict(color="#5B8DEF", width=2),
-        fill="tozeroy", fillcolor="rgba(91,141,239,0.08)",
+        line=dict(color=COL_WIND, width=2),
+        fill="tozeroy", fillcolor=rgba(COL_WIND, 0.08),
         hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.2f} €/tCO2<extra></extra>",
     ))
     if len(h) >= 30:
         roll30 = h["EUA_EUR_tCO2"].rolling(30, min_periods=10).mean()
         fig.add_trace(go.Scatter(
             x=h["Date"], y=roll30, mode="lines", name="30d avg",
-            line=dict(color="#264653", width=1.5, dash="dash"),
+            line=dict(color=CHART_PALETTE[2], width=1.5, dash="dash"),
         ))
     fig.update_yaxes(title_text="€/tCO2")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>Carbon Price — EUA (€/tCO2) — {zoom}</b>"),
         hovermode="x unified")
@@ -1447,7 +1453,7 @@ def mo_chart_ttf(mkt: pd.DataFrame, zoom: str) -> go.Figure:
             line=dict(color=C5, width=1.5, dash="dash"),
         ))
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>TTF Gas Price (€/MWh) — {zoom}</b>"),
         hovermode="x unified")
@@ -1472,8 +1478,8 @@ def mo_chart_brent(mkt: pd.DataFrame, zoom: str) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=h["Date"], y=h["Brent_USD_bbl"],
         mode="lines", name="Brent ($/bbl)",
-        line=dict(color="#6A994E", width=2),
-        fill="tozeroy", fillcolor="rgba(106,153,78,0.08)",
+        line=dict(color=CHART_PALETTE[5], width=2),
+        fill="tozeroy", fillcolor=rgba(CHART_PALETTE[5], 0.08),
         hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.2f} $/bbl<extra></extra>",
     ))
     if len(h) >= 30:
@@ -1483,7 +1489,7 @@ def mo_chart_brent(mkt: pd.DataFrame, zoom: str) -> go.Figure:
             line=dict(color="#386641", width=1.5, dash="dash"),
         ))
     fig.update_yaxes(title_text="$/bbl")
-    plotly_base(fig, h=320)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>Brent Crude Oil ($/bbl) — {zoom}</b>"),
         hovermode="x unified")
@@ -1513,7 +1519,7 @@ def mo_chart_commodity_kpis(mkt: pd.DataFrame) -> dict:
 
 # Country display config
 _XBORDER_COUNTRIES = {
-    "DE": {"label": "Germany",     "color": "#264653"},
+    "DE": {"label": "Germany",     "color": CHART_PALETTE[2]},
     "BE": {"label": "Belgium",     "color": "#2A9D8F"},
     "ES": {"label": "Spain",       "color": "#E9C46A"},
     "IT": {"label": "Italy",       "color": "#F4A261"},
@@ -1582,7 +1588,7 @@ def mo_chart_country_ranking(xb: pd.DataFrame, fr_hourly: pd.DataFrame) -> go.Fi
         hovertemplate="<b>%{y}</b>: %{x:.1f} EUR/MWh<extra></extra>",
     ))
     fig.update_xaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=320, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(
         title=dict(text="<b>DA Spot Price by Country — Avg Last 7 Days (EUR/MWh)</b>"),
         margin=dict(l=100, r=60, t=40, b=40),
@@ -1653,12 +1659,12 @@ def mo_chart_spread_vs_fr(xb: pd.DataFrame, fr_hourly: pd.DataFrame,
     if not has_data:
         return _mo_stub("Spread vs France", "no xborder data yet — run full refresh")
 
-    fig.add_hline(y=0, line=dict(color="#AAAAAA", width=1.5, dash="dot"),
+    fig.add_hline(y=0, line=dict(color=REF_LINE, width=1.5, dash="dot"),
                   annotation_text="= France price",
-                  annotation_font=dict(color="#999", size=11, family="Calibri"),
+                  annotation_font=dict(color=TEXT_FAINT, size=11, family="Calibri"),
                   annotation_position="top left")
     fig.update_yaxes(title_text="EUR/MWh (vs FR)")
-    plotly_base(fig, h=360)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>DA Spread vs France — Monthly Avg — {zoom}</b>"),
         hovermode="x unified",
@@ -1713,7 +1719,7 @@ def mo_chart_country_da_history(xb: pd.DataFrame, fr_hourly: pd.DataFrame,
         return _mo_stub("Country DA History", "no data yet")
 
     fig.update_yaxes(title_text="EUR/MWh")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>DA Spot Price — France vs Neighbours — {zoom}</b>"),
         hovermode="x unified",
@@ -1742,18 +1748,18 @@ def mo_chart_fcr(fcr: pd.DataFrame, zoom: str) -> go.Figure:
         x=h["Date"], y=h["FCR_EUR_MW_day"],
         mode="lines", name="FCR FR (€/MW/day)",
         line=dict(color=COL_AFRR, width=2),
-        fill="tozeroy", fillcolor="rgba(155,89,182,0.08)",
+        fill="tozeroy", fillcolor=rgba(COL_AFRR, 0.08),
         hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} €/MW/day<extra></extra>",
     ))
     if len(h) >= 30:
         roll30 = h["FCR_EUR_MW_day"].rolling(30, min_periods=10).mean()
         fig.add_trace(go.Scatter(
             x=h["Date"], y=roll30, mode="lines", name="30d avg",
-            line=dict(color="#6C3483", width=1.5, dash="dash"),
+            line=dict(color=rgba(COL_AFRR, 1.0), width=1.5, dash="dash"),
         ))
 
     fig.update_yaxes(title_text="€/MW/day")
-    plotly_base(fig, h=340)
+    plotly_base(fig, h=CHART_H_SM)
     fig.update_layout(
         title=dict(text=f"<b>FCR Contracted Reserve Price — France (€/MW/day) — {zoom}</b>"),
         hovermode="x unified",
@@ -1769,8 +1775,8 @@ def mo_chart_fcr(fcr: pd.DataFrame, zoom: str) -> go.Figure:
 # ── Constants ─────────────────────────────────────────────────────────────────
 MK_ZOOM_OPTS  = ["7D", "1M", "3M", "1Y", "2Y", "5Y", "All"]
 MK_ZOOM_DAYS  = {"7D": 7, "1M": 30, "3M": 90, "1Y": 365, "2Y": 730, "5Y": 1825, "All": None}
-MK_BLUE       = "#5B8DEF"
-MK_GREEN      = "#6A994E"
+MK_BLUE       = COL_WIND
+MK_GREEN      = CHART_PALETTE[5]
 MK_PURPLE     = "#9B59B6"
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
@@ -1820,7 +1826,7 @@ def _mk_table(rows: list, headers: list) -> go.Figure:
         ),
         cells=dict(
             values=list(cols),
-            fill_color=[[WHT if i % 2 == 0 else "#F0F4F8" for i in range(len(rows))]
+            fill_color=[[WHT if i % 2 == 0 else BG_PAGE for i in range(len(rows))]
                         for _ in headers],
             font=dict(color=C1, size=12, family="Calibri"),
             align="left", height=26,
@@ -1899,7 +1905,7 @@ def mk_chart_spot(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=h["Date"], y=h["Spot"], mode="lines", name="Hourly DA",
             line=dict(color=C1, width=0.8),
-            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            fill="tozeroy", fillcolor=rgba(TEXT_DARK, 0.06),
             hovertemplate="<b>%{x|%d %b %H:%M}</b>: %{y:.1f} €/MWh<extra></extra>",
         ))
     else:
@@ -1907,7 +1913,7 @@ def mk_chart_spot(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=d["Date"], y=d["Spot"], mode="lines", name="Daily avg",
             line=dict(color=C1, width=1.2),
-            fill="tozeroy", fillcolor="rgba(29,58,74,0.06)",
+            fill="tozeroy", fillcolor=rgba(TEXT_DARK, 0.06),
             hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} €/MWh<extra></extra>",
         ))
         if len(d) >= 7:
@@ -1920,9 +1926,9 @@ def mk_chart_spot(hourly: pd.DataFrame, zoom: str, mode: str) -> go.Figure:
                 x=d["Date"], y=d["Spot"].rolling(30, min_periods=10).mean(),
                 mode="lines", name="30D avg", line=dict(color=C4, width=2),
                 hovertemplate="30D avg: %{y:.1f}<extra></extra>"))
-    fig.add_hline(y=0, line=dict(color="#CCC", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1))
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=480)
+    plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(
         title=dict(text=f"<b>FR Day-Ahead Spot Price — {mode} — {zoom}</b>"),
         hovermode="x unified")
@@ -1974,7 +1980,7 @@ def mk_chart_spread(hourly: pd.DataFrame, zoom: str) -> go.Figure:
         hovertemplate="30D avg: %{y:.1f}<extra></extra>",
     ))
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>DA Daily Spread (Max−Min) + 30D Rolling Avg — {zoom}</b>"),
         hovermode="x unified")
@@ -2019,7 +2025,7 @@ def mk_chart_neg_bars(hourly: pd.DataFrame, zoom: str) -> go.Figure:
         hovertemplate="<b>%{x|%d %b %Y}</b>: %{y}h negative<extra></extra>",
     ))
     fig.update_yaxes(title_text="Hours")
-    plotly_base(fig, h=380, show_legend=False)
+    plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>Daily Negative DA Price Hours — {zoom}</b>"))
     return fig
 
@@ -2068,7 +2074,7 @@ def mk_chart_neg_calendar(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     fig.update_xaxes(tickvals=tick_vals, ticktext=tick_txt,
                      tickfont=dict(size=11, color=C1, family="Calibri"))
     fig.update_yaxes(tickfont=dict(size=11, color=C1, family="Calibri"))
-    plotly_base(fig, h=300, show_legend=False)
+    plotly_base(fig, h=CHART_H_XS, show_legend=False)
     fig.update_layout(
         title=dict(text=f"<b>Negative Price Hours — Calendar Heatmap — {zoom}</b>"),
         margin=dict(l=50, r=80, t=40, b=40))
@@ -2095,7 +2101,7 @@ def mk_chart_distribution(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     ))
     fig.add_vrect(x0=q5, x1=q95, fillcolor=rgba(C3, 0.10), line_width=0,
                   annotation_text="P5–P95", annotation_position="top left",
-                  annotation_font=dict(color="#888", size=10, family="Calibri"))
+                  annotation_font=dict(color=TEXT_FAINT, size=10, family="Calibri"))
     # Median and mean on separate y positions to avoid overlap
     ymax = float(np.histogram(s, bins=60)[0].max())
     for val, label, col, ypos in [
@@ -2109,7 +2115,7 @@ def mk_chart_distribution(hourly: pd.DataFrame, zoom: str) -> go.Figure:
                            bgcolor="rgba(255,255,255,0.85)", bordercolor=col, borderwidth=1)
     fig.update_xaxes(title_text="€/MWh")
     fig.update_yaxes(title_text="Hours")
-    plotly_base(fig, h=420, show_legend=False)
+    plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>DA Spot Price Distribution — {zoom}</b>"))
     return fig
 
@@ -2140,7 +2146,7 @@ def _mk_commodity_chart(mkt, col, label, unit, color, zoom, title) -> go.Figure:
             mode="lines", name="7D avg", line=dict(color=color, width=2, dash="dash"),
             hovertemplate=f"7D avg: %{{y:.2f}} {unit}<extra></extra>"))
     fig.update_yaxes(title_text=unit)
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>{title} — {zoom}</b>"),
         hovermode="x unified")
@@ -2211,7 +2217,7 @@ def mk_chart_renewables_lines(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     if not fig.data:
         return _mk_stub("Renewables", "NatMW / WindMW not in hourly_spot.csv")
     fig.update_yaxes(title_text="MW")
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>Wind & Solar Generation (Daily Avg + 7D Rolling) — {zoom}</b>"),
         hovermode="x unified")
@@ -2241,7 +2247,7 @@ def mk_chart_renewables_mix(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     if not fig.data:
         return _mk_stub("Renewable Mix", "no generation data")
     fig.update_yaxes(title_text="MW")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>Renewable Generation Mix — Stacked Area — {zoom}</b>"),
         hovermode="x unified")
@@ -2266,7 +2272,7 @@ def mk_chart_renewables_hourly(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     if not fig.data:
         return _mk_stub("Hourly Generation", "no generation data")
     fig.update_yaxes(title_text="MW")
-    plotly_base(fig, h=400)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>Renewable Generation — Raw Hourly — {zoom}</b>"),
         hovermode="x unified")
@@ -2292,9 +2298,9 @@ def _mk_imb_chart(bal, col_a, col_b, label_a, label_b, color_a, color_b,
         ))
     if not fig.data:
         return _mk_stub(title, "no data")
-    fig.add_hline(y=0, line=dict(color="#CCC", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1))
     fig.update_yaxes(title_text=ytitle)
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>{title} — {zoom}</b>"),
         hovermode="x unified")
@@ -2323,9 +2329,9 @@ def mk_chart_imb_spread(bal, zoom) -> go.Figure:
         fill="tozeroy", fillcolor=rgba(C4, 0.07),
         hovertemplate="<b>Spread</b> %{x|%d %b}: %{y:.1f} €/MWh<extra></extra>",
     ))
-    fig.add_hline(y=0, line=dict(color="#CCC", width=1))
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1))
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>Imbalance Spread (Pos − Neg) — {zoom}</b>"),
         hovermode="x unified")
@@ -2348,11 +2354,11 @@ def mk_chart_imb_vs_da(bal, zoom) -> go.Figure:
             line=dict(color=color, width=1.5),
             hovertemplate=f"<b>{label}</b> %{{x|%d %b}}: %{{y:+.1f}} €/MWh<extra></extra>",
         ))
-    fig.add_hline(y=0, line=dict(color="#CCC", width=1.5, dash="dot"),
+    fig.add_hline(y=0, line=dict(color=REF_LINE_LL, width=1.5, dash="dot"),
                   annotation_text="= DA price",
-                  annotation_font=dict(color="#999", size=10, family="Calibri"))
+                  annotation_font=dict(color=TEXT_FAINT, size=10, family="Calibri"))
     fig.update_yaxes(title_text="€/MWh vs DA")
-    plotly_base(fig, h=380)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>Imbalance vs Day-Ahead — {zoom}</b>"),
         hovermode="x unified")
@@ -2385,7 +2391,7 @@ def mk_chart_fcr(fcr, zoom) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=h["Date"], y=h["FCR_EUR_MW_day"], mode="lines", name="FCR FR",
         line=dict(color=MK_PURPLE, width=1.5),
-        fill="tozeroy", fillcolor="rgba(155,89,182,0.07)",
+        fill="tozeroy", fillcolor=rgba(COL_AFRR, 0.07),
         hovertemplate="<b>%{x|%d %b %Y}</b>: %{y:.1f} €/MW/day<extra></extra>",
     ))
     if len(h) >= 30:
@@ -2394,7 +2400,7 @@ def mk_chart_fcr(fcr, zoom) -> go.Figure:
             mode="lines", name="30D avg", line=dict(color=C1, width=2),
             hovertemplate="30D avg: %{y:.1f}<extra></extra>"))
     fig.update_yaxes(title_text="€/MW/day")
-    plotly_base(fig, h=420)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>FCR Contracted Reserve Price — France — {zoom}</b>"),
         hovermode="x unified")
@@ -2418,7 +2424,7 @@ def mk_chart_afrr(bal, zoom) -> go.Figure:
     if not fig.data:
         return _mk_stub("aFRR / mFRR", "columns not found")
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=400)
+    plotly_base(fig, h=CHART_H_MD)
     fig.update_layout(
         title=dict(text=f"<b>aFRR & mFRR Activated Prices — France — {zoom}</b>"),
         hovermode="x unified")
@@ -2464,7 +2470,7 @@ def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
         hovertemplate="<b>%{y}</b>: %{x:.1f} €/MWh<extra></extra>",
     ))
     fig.update_xaxes(title_text="€/MWh")
-    plotly_base(fig, h=360, show_legend=False)
+    plotly_base(fig, h=CHART_H_SM, show_legend=False)
     fig.update_layout(
         title=dict(text=f"<b>DA Spot Price by Country — Avg {zoom} (Green=Low / Red=High)</b>"),
         margin=dict(l=110, r=80, t=40, b=40),
@@ -2474,7 +2480,7 @@ def mk_chart_europe_map(xb, hourly, zoom) -> go.Figure:
 # ── Multi-country historical ──────────────────────────────────────────────────
 
 def mk_chart_country_history(xb, hourly, zoom) -> go.Figure:
-    COLORS = {"FR": C1, "DE": "#264653", "BE": C2, "ES": C3, "NL": C5, "IT": C4}
+    COLORS = {"FR": C1, "DE": CHART_PALETTE[2], "BE": C2, "ES": C3, "NL": C5, "IT": C4}
     if xb is None and hourly is None:
         return _mk_stub("Country DA History", "no data")
     fig = go.Figure()
@@ -2498,13 +2504,13 @@ def mk_chart_country_history(xb, hourly, zoom) -> go.Figure:
             d = _mk_daily(x, code)
             fig.add_trace(go.Scatter(
                 x=d["Date"], y=d[code], mode="lines", name=label,
-                line=dict(color=COLORS.get(code, "#888"), width=1.5),
+                line=dict(color=COLORS.get(code, TEXT_FAINT), width=1.5),
                 hovertemplate=f"<b>{label}</b> %{{x|%d %b}}: %{{y:.1f}} €/MWh<extra></extra>",
             ))
     if not fig.data:
         return _mk_stub("Country DA History", "no data")
     fig.update_yaxes(title_text="€/MWh")
-    plotly_base(fig, h=460)
+    plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(
         title=dict(text=f"<b>DA Spot Price — France vs Neighbours — {zoom}</b>"),
         hovermode="x unified")

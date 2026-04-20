@@ -1,8 +1,8 @@
 """
-PPA Pricing Dashboard v2.6
-Changes v2.6:
-- Tab 9 "Market Overview" added: KPIs + FR Spot historical + Generation mix + Nuclear + AI commentary
-- update_entsoe.py / update_entsoe_full.py now fetch NuclearMW, GasMW, HydroMW, OtherMW
+app.py — KAL-EL PPA Dashboard v2.7
+Thin orchestrator: config, sidebar, data loading, compute, tab dispatch.
+All tab UI logic is in tab_*.py files.
+All colors and sizes are in theme.py.
 """
 
 import streamlit as st
@@ -16,76 +16,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-from config  import get_css, TECH_CONFIG, DEFAULT_FWD, C1, C2, C3, C4, C5, C2L, C3L, WHT, EXAMPLE_CSV
-from data    import load_nat, load_hourly, load_log, wind_available, compute_rolling_m0, nat_series, get_nat_sd, load_balancing, load_market_prices, load_xborder_da, load_fcr
-from compute import compute_asset_annual, fit_reg, project_cp, compute_ppa, compute_pnl_curve, compute_scenarios
-from charts  import (
-    chart_historical_cp,
-    chart_projection,
-    chart_forward,
-    chart_neg_hours,
-    chart_monthly_profile,
-    chart_scatter_cp_vs_capacity,
-    chart_shape_disc_delta,
-    chart_heatmap,
-    chart_market_value_vs_penetration,
-    chart_duck_curve,
-    chart_canyon_curve,
-    chart_pnl_percentile,
-    chart_scenarios,
-    chart_waterfall,
-    chart_rolling_cp,
-    chart_rolling_eur,
-    chart_daily_profile_national,
-    chart_daily_profile_asset,
-    chart_monthly_production,
-    chart_annual_production,
-    chart_last_week,
-    chart_da_monthly,
-    chart_da_heatmap,
-    chart_intraday_spread,
-    chart_imbalance_vs_da,
-    chart_balancing_services,
-    summary_stats,
-    mo_kpis,
-    mo_chart_spot_main,
-    mo_chart_hourly_overlay,
-    mo_chart_da_spread,
-    mo_chart_neg_hours,
-    mo_chart_distribution,
-    mo_chart_renewables_7d,
-    mo_chart_renewables_profile,
-    mo_chart_imbalance_lines,
-    mo_chart_imbalance_spread,
-    mo_chart_imbalance_vs_da_new,
-    mo_chart_afrr,
-    _mo_stub,
-    mo_chart_eua,
-    mo_chart_ttf,
-    mo_chart_brent,
-    mo_chart_commodity_kpis,
-    mo_chart_fcr,
-    mo_chart_country_ranking,
-    mo_chart_spread_vs_fr,
-    mo_chart_country_da_history,
-    mk_kpis,
-    mk_chart_spot, mk_table_spot,
-    mk_chart_spread, mk_table_spread,
-    mk_chart_neg_bars, mk_chart_neg_calendar,
-    mk_chart_distribution,
-    mk_chart_eua, mk_chart_ttf, mk_chart_brent, mk_table_commodity,
-    mk_chart_renewables_lines, mk_chart_renewables_mix, mk_chart_renewables_hourly,
-    mk_chart_imb_pos_neg, mk_chart_imb_spread, mk_chart_imb_vs_da, mk_table_imbalance,
-    mk_chart_fcr, mk_chart_afrr,
-    mk_chart_europe_map, mk_chart_country_history,
-    _mk_stub, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN,
-)
-from ui    import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-from excel import build_excel
-from tab_pricer import render_pricer_tab
-from tab_fpc    import render_fpc_tab
+from config  import get_css, TECH_CONFIG, DEFAULT_FWD, EXAMPLE_CSV
+from theme   import C1, C2, C3, C4, C5, C2L, C3L, WHT
+from data    import (load_nat, load_hourly, load_log, wind_available,
+                     compute_rolling_m0, nat_series, get_nat_sd,
+                     load_balancing, load_market_prices, load_xborder_da, load_fcr)
+from compute import (compute_asset_annual, fit_reg, project_cp,
+                     compute_ppa, compute_pnl_curve, compute_scenarios)
+from charts  import chart_scatter_cp_vs_capacity, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN
+from ui      import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
+from excel   import build_excel
 
-import plotly.graph_objects as go
+from tab_pricer          import render_pricer_tab
+from tab_fpc             import render_fpc_tab
+from tab_overview        import render_tab_overview
+from tab_ppa_pricing     import render_tab_ppa_pricing
+from tab_market_dynamics import render_tab_market_dynamics
+from tab_market_evolution import render_tab_market_evolution
+from tab_market_overview import render_tab_market_overview
+from tab_export          import render_tab_export
 
 st.markdown(get_css(), unsafe_allow_html=True)
 
@@ -164,14 +113,13 @@ with st.sidebar:
         st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PPA PREMIUMS — session_state
+# SESSION STATE — PPA premiums
 # ══════════════════════════════════════════════════════════════════════════════
-if "imb_eur"        not in st.session_state: st.session_state.imb_eur        = 1.9
-if "add_disc"       not in st.session_state: st.session_state.add_disc       = 0.0
-if "vol_risk_pct"   not in st.session_state: st.session_state.vol_risk_pct   = 0.0
-if "price_risk_pct" not in st.session_state: st.session_state.price_risk_pct = 0.0
-if "goo_value"      not in st.session_state: st.session_state.goo_value      = 1.0
-if "margin"         not in st.session_state: st.session_state.margin         = 1.0
+defaults = {"imb_eur": 1.9, "add_disc": 0.0, "vol_risk_pct": 0.0,
+            "price_risk_pct": 0.0, "goo_value": 1.0, "margin": 1.0}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 imb_eur        = float(st.session_state.imb_eur)
 add_disc       = float(st.session_state.add_disc) / 100
@@ -225,9 +173,8 @@ sl_nat,  ic_nat,  r2_nat  = fit_reg(work_nat, n_reg, False)
 sl_nat2, ic_nat2, r2_nat2 = fit_reg(work_nat, n_reg, True)
 sl_nat_u = sl_nat2 if ex22 else sl_nat
 ic_nat_u = ic_nat2 if ex22 else ic_nat
-r2_nat_u = r2_nat2 if ex22 else r2_nat
 
-sl_ast = sl_nat_u; ic_ast = ic_nat_u; r2_ast = r2_nat_u
+sl_ast = sl_nat_u; ic_ast = ic_nat_u; r2_ast = r2_nat_u if not ex22 else r2_nat2
 if has_asset:
     sl_ast,  ic_ast,  r2_ast  = fit_reg(asset_ann, n_reg, False)
     sl_ast2, ic_ast2, r2_ast2 = fit_reg(asset_ann, n_reg, True)
@@ -235,57 +182,98 @@ if has_asset:
     ic_ast = ic_ast2 if ex22 else ic_ast
     r2_ast = r2_ast2 if ex22 else r2_ast
 
-if reg_basis == "Asset" and has_asset:
-    sl_u, ic_u, r2_u = sl_ast, ic_ast, r2_ast
-else:
-    sl_u, ic_u, r2_u = sl_nat_u, ic_nat_u, r2_nat_u
+sl_u, ic_u, r2_u = (sl_ast, ic_ast, r2_ast) if (reg_basis == "Asset" and has_asset) \
+                   else (sl_nat_u, ic_nat_u, r2_nat2 if ex22 else r2_nat)
 
-last_yr_complete = int(nat_ref_complete["year"].max()) if len(nat_ref_complete)>0 else int(nat_ref["year"].max())
+last_yr_complete = int(nat_ref_complete["year"].max()) if len(nat_ref_complete) > 0 else int(nat_ref["year"].max())
 last_yr_proj     = int(asset_ann["Year"].max()) if has_asset else last_yr_complete
 anchor_val       = asset_ann["cp_pct"].iloc[-1] if has_asset else None
 
-if has_asset:
-    hist_sd   = asset_ann["shape_disc"].dropna()
-    hist_sd_f = asset_ann[asset_ann["Year"]!=2022]["shape_disc"].dropna() if ex22 else hist_sd
-else:
-    hist_sd   = get_nat_sd(nat_ref_complete, cfg["nat_sd"])
-    nc_ex22   = nat_ref_complete[nat_ref_complete["year"]!=2022] if ex22 else nat_ref_complete
-    hist_sd_f = get_nat_sd(nc_ex22, cfg["nat_sd"])
-
+hist_sd   = (asset_ann["shape_disc"].dropna() if has_asset
+             else get_nat_sd(nat_ref_complete, cfg["nat_sd"]))
+nc_ex22   = nat_ref_complete[nat_ref_complete["year"] != 2022] if ex22 else nat_ref_complete
+hist_sd_f = (asset_ann[asset_ann["Year"] != 2022]["shape_disc"].dropna() if (has_asset and ex22)
+             else asset_ann["shape_disc"].dropna() if has_asset
+             else get_nat_sd(nc_ex22, cfg["nat_sd"]))
 if len(hist_sd_f) == 0:
     hist_sd_f = nat_ref_complete["shape_disc"].dropna()
 
-sd_ch   = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f)>0 else 0.15
+sd_ch   = float(np.percentile(hist_sd_f, chosen_pct)) if len(hist_sd_f) > 0 else 0.15
 vol_mwh = asset_ann["prod_mwh"].mean() if has_asset else 52000.0
 proj    = project_cp(sl_u, ic_u, last_yr_proj, proj_n, anchor_val=anchor_val)
 
-fwd_df    = pd.DataFrame([{"year":yr,"forward":float(DEFAULT_FWD.get(yr,52.0))}
-                          for yr in range(tenor_start, tenor_end+1)])
+fwd_df    = pd.DataFrame([{"year": yr, "forward": float(DEFAULT_FWD.get(yr, 52.0))}
+                          for yr in range(tenor_start, tenor_end + 1)])
 fwd_curve = dict(zip(fwd_df["year"], fwd_df["forward"]))
-ref_fwd   = fwd_df["forward"].mean() if len(fwd_df)>0 else 55.0
+ref_fwd   = fwd_df["forward"].mean() if len(fwd_df) > 0 else 55.0
 
 pricing = compute_ppa(ref_fwd, sd_ch, imb_eur, add_disc)
 ppa     = pricing["ppa"]
 
-pcts    = list(range(1,101))
-sd_vals = [float(np.percentile(hist_sd_f,p)) if len(hist_sd_f)>0 else 0.15 for p in pcts]
-cp_vals = [ref_fwd*(1-s) for s in sd_vals]
+pcts    = list(range(1, 101))
+sd_vals = [float(np.percentile(hist_sd_f, p)) if len(hist_sd_f) > 0 else 0.15 for p in pcts]
 pnl_v   = compute_pnl_curve(ref_fwd, ppa, vol_mwh, sd_vals)
-be      = next((p for p,v in zip(pcts,pnl_v) if v<0), None)
+be      = next((p for p, v in zip(pcts, pnl_v) if v < 0), None)
 
 scenarios = compute_scenarios(ref_fwd, ppa, vol_mwh, hist_sd_f, proj_n, vol_stress, spot_stress)
 
 nat_cp_list      = nat_series(nat_ref,          cfg["nat_cp"],  "cp_nat_pct")
-nat_eur_list     = nat_series(nat_ref,          cfg["nat_eur"],  "cp_nat")
+nat_eur_list     = nat_series(nat_ref,          cfg["nat_eur"], "cp_nat")
 nat_cp_complete  = nat_series(nat_ref_complete, cfg["nat_cp"],  "cp_nat_pct")
 nat_eur_complete = nat_series(nat_ref_complete, cfg["nat_eur"], "cp_nat")
 
-wind_ready    = techno=="Wind" and has_wind
-prod_col_roll = cfg["prod_col"] if (techno=="Solar" or wind_ready) else "NatMW"
+wind_ready    = techno == "Wind" and has_wind
+prod_col_roll = cfg["prod_col"] if (techno == "Solar" or wind_ready) else "NatMW"
 
 fig_cap_link, proj_targets = chart_scatter_cp_vs_capacity(
     nat_ref, hourly, cfg["prod_col"], cfg["nat_cp"],
-    cfg["color"], cfg["label"], partial_years, techno=="Solar", ex22=ex22)
+    cfg["color"], cfg["label"], partial_years, techno == "Solar", ex22=ex22)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHARED CONTEXT — passed to all tab render functions
+# ══════════════════════════════════════════════════════════════════════════════
+ctx = dict(
+    # data
+    nat_ref=nat_ref, nat_ref_complete=nat_ref_complete,
+    hourly=hourly, asset_ann=asset_ann, asset_raw=asset_raw,
+    # flags
+    has_asset=has_asset, has_wind=has_wind, wind_ready=wind_ready,
+    # tech
+    techno=techno, cfg=cfg, asset_name=asset_name,
+    # regression
+    sl_u=sl_u, ic_u=ic_u, r2_u=r2_u, reg_basis=reg_basis,
+    sl_nat_u=sl_nat_u, ic_nat_u=ic_nat_u,
+    # pricing
+    ppa=ppa, pricing=pricing, ref_fwd=ref_fwd, sd_ch=sd_ch,
+    imb_eur=imb_eur, add_disc=add_disc, vol_risk_pct=vol_risk_pct,
+    price_risk_pct=price_risk_pct, goo_value=goo_value, margin=margin,
+    # series
+    nat_cp_list=nat_cp_list, nat_eur_list=nat_eur_list,
+    nat_cp_complete=nat_cp_complete, nat_eur_complete=nat_eur_complete,
+    hist_sd_f=hist_sd_f, sd_vals=sd_vals, pnl_v=pnl_v, scenarios=scenarios,
+    # projections
+    proj=proj, proj_n=proj_n, last_yr_proj=last_yr_proj, anchor_val=anchor_val,
+    # params
+    chosen_pct=chosen_pct, vol_stress=vol_stress, spot_stress=spot_stress,
+    partial_years=partial_years, current_year=current_year,
+    data_start=data_start, data_end=data_end,
+    tenor_start=tenor_start, tenor_end=tenor_end,
+    fwd_df=fwd_df, fwd_curve=fwd_curve,
+    # pre-computed charts
+    fig_cap_link=fig_cap_link, proj_targets=proj_targets,
+    vol_mwh=vol_mwh, be=be, prod_col_roll=prod_col_roll,
+    # UI helpers
+    plotly_base=plotly_base,
+    # market data loaders (lazy — only used in tab 6)
+    _load_balancing=load_balancing,
+    _load_market_prices=load_market_prices,
+    _load_xborder_da=load_xborder_da,
+    _load_fcr=load_fcr,
+    _load_hourly=load_hourly,
+    # export helpers
+    _get_nat_sd=get_nat_sd,
+    _build_excel=build_excel,
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TABS
@@ -296,773 +284,32 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "FPC Monte Carlo",
 ])
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Overview
-# ══════════════════════════════════════════════════════════════════════════════
-with tab1:
-    st.markdown(
-        f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])} '
-        f'<span style="font-size:13px;color:#888;font-weight:400">'
-        f'{yr_range[0]}–{yr_range[1]}</span>',
-        unsafe_allow_html=True)
-
-    ca, cb = st.columns([3,1])
-    with ca:
-        ytd_note = (f" — <span class='ytd-badge'>2026 YTD included</span>"
-                    if current_year in partial_years else "")
-        st.markdown(
-            f'<span style="font-size:14px;color:#555;">Aggregator View — '
-            f'Fixed PPA / Spot Capture — ENTSO-E {data_start.year}–'
-            f'{data_end.strftime("%Y-%m-%d")}{ytd_note}</span>',
-            unsafe_allow_html=True)
-    with cb:
-        st.markdown(f'<div class="update-pill" style="float:right">'
-                    f'Data as of {data_end.strftime("%d/%m/%Y")}</div>',
-                    unsafe_allow_html=True)
-
-    if techno=="Wind" and not has_wind:
-        status_msg("Wind data (WindMW) not yet in hourly_spot.csv — "
-                   "run the updated ENTSO-E script (B18+B19). Solar shown as fallback.", kind="wind")
-    else:
-        status_msg("Automatic daily updates via GitHub Actions — ENTSO-E France data.")
-
-    st.markdown("---")
-
-    k1, k2, k3, k4, k5 = st.columns(5)
-    with k1:
-        ppa_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}")
-    with k2:
-        proj_tenor  = proj[proj["year"].between(tenor_start, tenor_end)]
-        cp_proj_avg = proj_tenor["p50"].mean()*100 if len(proj_tenor)>0 else 0.0
-        c_kpi = C2 if cp_proj_avg>80 else (C4 if cp_proj_avg>65 else C5)
-        kpi_card(f"Capture Rate {tenor_start}-{tenor_end}", f"{cp_proj_avg:.0f}%", color=c_kpi)
-    with k3:
-        sd_proj_avg = (1-proj_tenor["p50"].mean())*100 if len(proj_tenor)>0 else sd_ch*100
-        c_sd = C5 if sd_proj_avg>25 else (C3 if sd_proj_avg>15 else C2)
-        kpi_card("Shape Discount", f"{sd_proj_avg:.1f}%", color=c_sd, extra_cls="kpi-gold")
-    with k4:
-        p50_pnl = (vol_mwh*(ref_fwd*(1-float(np.percentile(hist_sd_f,50)))-ppa)/1000
-                   if len(hist_sd_f)>0 else 0)
-        c_p = C2 if p50_pnl>0 else C5
-        kpi_card("P&L P50 (k EUR/yr)", f"{p50_pnl:+.0f}k", color=c_p)
-    with k5:
-        be_txt = f"P{be}" if be else ">P100"
-        c_be   = C2 if be and be>70 else C5
-        kpi_card("Break-even Cannib.", be_txt, color=c_be, extra_cls="kpi-red")
-
-    st.markdown("---")
-    c1a, c1b = st.columns(2)
-    with c1a:
-        section(f"Historical Captured Price — {cfg['label']} — {yr_range[0]} onwards")
-        desc("Bars: CP% by year. Gold = YTD (excluded from regression).")
-        st.plotly_chart(
-            chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
-                                cfg["color"], cfg["label"], nat_cp_list, nat_eur_list,
-                                partial_years),
-            use_container_width=True)
-    with c1b:
-        section(f"Projection — {cfg['label']} CP% with Uncertainty Bands")
-        desc(f"Anchored on last asset point. {reg_basis} regression slope. Shaded = P10-P90.")
-        st.plotly_chart(
-            chart_projection(nat_ref, asset_ann, has_asset, proj,
-                             nat_cp_list, nat_ref_complete, cfg["nat_cp"],
-                             cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
-                             last_yr_proj, proj_n, ex22,
-                             reg_basis=reg_basis, anchor_val=anchor_val,
-                             proj_targets=proj_targets),
-            use_container_width=True)
-
-    st.markdown("---")
-    section(f"Reference Table — {cfg['label']} Shape Discount and P&L by Percentile")
-    desc("Complete years only — YTD excluded. P74 = WPD tender reference.")
-    nat_sd_tbl = get_nat_sd(nat_ref_complete, cfg["nat_sd"])
-    kp = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,74,75,80,85,90,95,100]
-    trows = []
-    for p in kp:
-        sdn  = float(np.percentile(nat_sd_tbl,p)) if len(nat_sd_tbl)>0 else 0.15
-        sda  = float(np.percentile(asset_ann["shape_disc"].dropna(),p)) if has_asset else None
-        cpa  = ref_fwd*(1-sda) if sda is not None else None
-        pnla = vol_mwh*(cpa-ppa)/1000 if cpa is not None else None
-        row  = {"Pct":f"P{p}", "Shape Disc Nat.":f"{sdn*100:.1f}%", "CP Nat.":f"{(1-sdn)*100:.0f}%"}
-        if has_asset:
-            row["Shape Disc Asset"] = f"{sda*100:.1f}%"
-            row["CP Asset"]         = f"{(1-sda)*100:.0f}%"
-            row["P&L k EUR/yr"]     = f"{pnla:+.0f}k"
-        trows.append(row)
-    tdf = pd.DataFrame(trows)
-    def _hi(row):
-        p = int(row["Pct"][1:])
-        if p==chosen_pct: return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
-        if p in [10,50,90]: return [f"background-color:{C2L}"]*len(row)
-        if p==74: return [f"background-color:{C3L}"]*len(row)
-        return [""]*len(row)
-    st.dataframe(tdf.style.apply(_hi,axis=1), use_container_width=True, height=440)
-
-    st.markdown("---")
-    section("Production Profile — National vs Asset")
-    d1, d2 = st.columns(2)
-    with d1:
-        section(f"Daily Profile — National {cfg['label']}")
-        desc("Average MW by hour of day, one line per month. National ENTSO-E data.")
-        st.plotly_chart(
-            chart_daily_profile_national(hourly, cfg["prod_col"], cfg["color"], cfg["label"]),
-            use_container_width=True)
-    with d2:
-        section(f"Daily Profile — {asset_name}")
-        desc("Same chart for the uploaded asset.")
-        if has_asset and asset_raw is not None:
-            st.plotly_chart(
-                chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
-                use_container_width=True)
-        else:
-            st.info("Upload an asset load curve in the sidebar to see its daily profile.")
-
-    m1, m2 = st.columns(2)
-    with m1:
-        section("Monthly Production")
-        desc("Bars = asset avg GWh/month. Points = national avg MW.")
-        st.plotly_chart(
-            chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
-                                      cfg["color"], asset_name, has_asset),
-            use_container_width=True)
-    with m2:
-        section("Annual Production")
-        desc("Bars = asset GWh/year.")
-        st.plotly_chart(
-            chart_annual_production(hourly, asset_ann, cfg["prod_col"],
-                                     cfg["color"], asset_name, has_asset, partial_years),
-            use_container_width=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — PPA Pricing (Forward Curve + Waterfall)
-# ══════════════════════════════════════════════════════════════════════════════
-with tab2:
-    section("EEX Forward Curve — by Calendar Year")
-    desc(f"PPA = Forward x (1 - {cfg['label']} Shape Disc - Imbalance%) - Imbalance EUR.")
-    col_i, col_r = st.columns([1,1.6])
-    with col_i:
-        fwd_rows_live = []
-        for yr in range(tenor_start, tenor_end+1):
-            px = st.number_input(f"CAL {yr} (EUR/MWh)", 10.0, 200.0,
-                                 float(DEFAULT_FWD.get(yr,52.0)), 0.5, key=f"fwd_{yr}")
-            fwd_rows_live.append({"year":yr,"forward":px})
-        fwd_df_live = pd.DataFrame(fwd_rows_live)
-        st.info("API connector coming soon.")
-    with col_r:
-        rows_ppa = []
-        for _, row in fwd_df_live.iterrows():
-            fsd    = ic_u + sl_u*row["year"]
-            cp     = row["forward"]*(1-fsd)
-            ppa_yr = row["forward"]*(1-fsd-imb_eur/row["forward"])-imb_eur
-            rows_ppa.append({"Year":int(row["year"]), "Forward":f"{row['forward']:.2f}",
-                             f"{cfg['label']} Proj. SD":f"{fsd*100:.1f}%",
-                             "Captured (EUR/MWh)":f"{cp:.2f}",
-                             "PPA Price (EUR/MWh)":f"{ppa_yr:.2f}",
-                             "P&L/MWh":f"{cp-ppa_yr:+.2f}"})
-        st.dataframe(pd.DataFrame(rows_ppa), use_container_width=True, hide_index=True)
-    st.plotly_chart(chart_forward(fwd_df_live), use_container_width=True)
-
-
-    st.markdown("---")
-    section(f"PPA Price Waterfall — {cfg['label']} Component Breakdown")
-    desc("All values feed into the PPA price used across all tabs. Adjust premiums here.")
-
-    w1, w2 = st.columns(2)
-    with w1:
-        st.number_input("Imbalance Cost (EUR/MWh)", 0.0, 10.0, step=0.1,
-                        key="imb_eur", help="Suggested: 1.9 EUR/MWh")
-        st.number_input("Volume Risk (%)", 0.0, 10.0, step=0.1,
-                        key="vol_risk_pct", help="Suggested: 0-2.5%")
-        st.number_input("Price Risk (%)", 0.0, 10.0, step=0.1,
-                        key="price_risk_pct", help="Suggested: 0-3.0%")
-    with w2:
-        st.slider("Additional Discount (%)", 0.0, 10.0, step=0.25, key="add_disc")
-        st.number_input("GoO Value (EUR/MWh)", 0.0, 10.0, step=0.1,
-                        key="goo_value", help="Suggested: 1.0 EUR/MWh")
-        st.number_input("Margin (EUR/MWh)", 0.0, 10.0, step=0.1,
-                        key="margin", help="Suggested: 1.0 EUR/MWh")
-
-    imb_eur        = float(st.session_state.imb_eur)
-    add_disc       = float(st.session_state.add_disc) / 100
-    vol_risk_pct   = float(st.session_state.vol_risk_pct) / 100
-    price_risk_pct = float(st.session_state.price_risk_pct) / 100
-    goo_value      = float(st.session_state.goo_value)
-    margin         = float(st.session_state.margin)
-
-    st.markdown("---")
-    ppa_wf = (ref_fwd - ref_fwd*sd_ch - ref_fwd*add_disc
-              - ref_fwd*vol_risk_pct - ref_fwd*price_risk_pct
-              - imb_eur + goo_value + margin)
-
-    params_df = pd.DataFrame([
-        {"Component":"Baseload Forward",  "Value (EUR/MWh)":f"{ref_fwd:.2f}",           "Type":"Base"},
-        {"Component":"Shape Discount",    "Value (EUR/MWh)":f"-{ref_fwd*sd_ch:.2f}",     "Type":"Deduction"},
-        {"Component":"Add. Discount",     "Value (EUR/MWh)":f"-{ref_fwd*add_disc:.2f}",  "Type":"Deduction"},
-        {"Component":"Volume Risk",       "Value (EUR/MWh)":f"-{ref_fwd*vol_risk_pct:.2f}", "Type":"Deduction"},
-        {"Component":"Price Risk",        "Value (EUR/MWh)":f"-{ref_fwd*price_risk_pct:.2f}", "Type":"Deduction"},
-        {"Component":"Balancing Cost",    "Value (EUR/MWh)":f"-{imb_eur:.2f}",           "Type":"Deduction"},
-        {"Component":"GoO Value",         "Value (EUR/MWh)":f"+{goo_value:.2f}",         "Type":"Addition"},
-        {"Component":"Margin",            "Value (EUR/MWh)":f"+{margin:.2f}",            "Type":"Addition"},
-        {"Component":"PPA Price",         "Value (EUR/MWh)":f"{ppa_wf:.2f}",             "Type":"Total"},
-    ])
-    def _style_params(row):
-        if row["Type"]=="Base":      return [f"background-color:{C2};color:white;font-weight:bold"]*len(row)
-        if row["Type"]=="Addition":  return [f"background-color:{C2L}"]*len(row)
-        if row["Type"]=="Total":     return [f"background-color:{C1};color:white;font-weight:bold"]*len(row)
-        return [""]*len(row)
-    st.dataframe(params_df.style.apply(_style_params,axis=1),
-                 use_container_width=True, hide_index=True,
-                 column_order=["Component","Value (EUR/MWh)"])
-
-    st.plotly_chart(
-        chart_waterfall(ref_fwd, sd_ch, imb_eur, cfg["label"],
-                        vol_risk_pct=vol_risk_pct, price_risk_pct=price_risk_pct,
-                        cannib_risk_pct=0.0, goo_value=goo_value,
-                        add_disc=add_disc, margin=margin),
-        use_container_width=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — Market Dynamics
-# ══════════════════════════════════════════════════════════════════════════════
-with tab3:
-    section("Negative Price Hours — by Year")
-    desc("Hours with day-ahead price < 0. Trend line excludes YTD. CRE threshold: 15h/yr.")
-    st.plotly_chart(chart_neg_hours(hourly, partial_years, cfg["color"]), use_container_width=True)
-
-    st.markdown("---")
-    c3a, c3b = st.columns(2)
-    with c3a:
-        section(f"Monthly Cannibalization Profile — {cfg['label']}")
-        desc("Average shape discount by calendar month. Error bars = year-to-year std dev.")
-        fig_mo, monthly_agg = chart_monthly_profile(hourly, cfg["prod_col"], cfg["color"], cfg["label"])
-        st.plotly_chart(fig_mo, use_container_width=True)
-    with c3b:
-        section(f"CP% vs National {cfg['label']} Capacity")
-        desc("Each point = one year. X-axis = average national installed capacity (MW).")
-        st.plotly_chart(fig_cap_link, use_container_width=True)
-
-    st.markdown("---")
-    section(f"Annual Shape Discount Change — {cfg['label']}")
-    desc("Year-on-year delta in shape discount (pp). Positive = more cannibalization.")
-    st.plotly_chart(chart_shape_disc_delta(nat_ref, cfg["nat_sd"], cfg["color"], cfg["label"]),
-                    use_container_width=True)
-
-    st.markdown("---")
-    section(f"Heatmap — Monthly Shape Discount by Year — {cfg['label']}")
-    desc("Shape discount by month and year. Darker = higher cannibalization.")
-    st.plotly_chart(chart_heatmap(monthly_agg, cfg["color"], cfg["label"]), use_container_width=True)
-
-    st.markdown("---")
-    st.markdown('<div class="section-title">Market Value Analysis — Jomaux / GEM Energy Analytics</div>',
-                unsafe_allow_html=True)
-    section(f"Market Value vs {cfg['label']} Generation Output")
-    desc("Average day-ahead price per MW bin. Method: GEM Energy Analytics (Oct 2024).")
-    st.plotly_chart(
-        chart_market_value_vs_penetration(hourly, cfg["prod_col"], cfg["color"], cfg["label"], partial_years),
-        use_container_width=True)
-
-    st.markdown("---")
-    j1, j2 = st.columns(2)
-    with j1:
-        season_lbl = "Apr-Sep" if cfg["duck_months"]==list(range(4,10)) else "All months"
-        section(f"Duck / Canyon Curve — {cfg['label']} ({season_lbl})")
-        desc("Normalised day-ahead prices by hour. Method: GEM Energy Analytics (Mar 2025).")
-        st.plotly_chart(chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"]),
-                        use_container_width=True)
-    with j2:
-        section(f"Canyon Curve — Last 4 Years ({cfg['label']})")
-        desc("Same normalisation, last 4 complete years. Grey = older, colour = most recent.")
-        st.plotly_chart(chart_canyon_curve(hourly, cfg["color"], cfg["label"],
-                                           cfg["duck_months"], recent_years=4),
-                        use_container_width=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — Market Evolution
-# ══════════════════════════════════════════════════════════════════════════════
-with tab4:
-    st.markdown(f"## Market Evolution — Rolling Capture Rate ({cfg['label']})")
-    if techno=="Wind" and not has_wind:
-        status_msg("Wind data not yet available — run the ENTSO-E update script. "
-                   "Solar rolling M0 shown as fallback.", kind="wind")
-    desc(f"Rolling M0 on RAW hourly data. M0(t) = sum({prod_col_roll} x Spot) / sum({prod_col_roll}) over last N days.")
-
-    if st.button("Compute rolling M0", key="compute_roll"):
-        roll = compute_rolling_m0(hourly[["Date","Spot",prod_col_roll]].copy(),
-                                  prod_col=prod_col_roll, windows=(30,90,365))
-    else:
-        roll = None
-
-    if roll is None or len(roll) < 10:
-        if roll is not None:
-            st.warning("Not enough data to compute rolling windows.")
-    else:
-        section(f"Rolling Capture Rate — M0 / Baseload (%) — {cfg['label']}")
-        desc("100% = no cannibalization. 30d dotted = short-term. 365d solid = structural trend.")
-        st.plotly_chart(
-            chart_rolling_cp(roll, nat_ref_complete, nat_ref, cfg["nat_cp"],
-                              nat_cp_complete, cfg["color"], cfg["label"], partial_years),
-            use_container_width=True)
-
-        st.markdown("---")
-        section(f"Rolling Captured Price — M0 (EUR/MWh) — {cfg['label']}")
-        desc("Gap between grey baseload and M0 = shape discount in EUR/MWh.")
-        st.plotly_chart(
-            chart_rolling_eur(roll, nat_ref_complete, nat_eur_complete, cfg["color"], cfg["label"]),
-            use_container_width=True)
-
-        st.markdown("---")
-        section("Recent Period Summary")
-        latest   = pd.to_datetime(hourly["Date"]).max().normalize()
-        sum_rows = []
-        for w in [30,90,365]:
-            cutoff  = latest - pd.Timedelta(days=w)
-            h_slice = hourly[pd.to_datetime(hourly["Date"]).dt.normalize()>cutoff]
-            if len(h_slice)<w*12: continue
-            sum_rev  = (h_slice[prod_col_roll]*h_slice["Spot"]).sum()
-            sum_prod = h_slice[prod_col_roll].sum()
-            bl_val   = h_slice["Spot"].sum()/len(h_slice)
-            m0_val   = sum_rev/sum_prod if sum_prod>0 else np.nan
-            cp_val   = m0_val/bl_val if bl_val else np.nan
-            sum_rows.append({"Window":f"Last {w} days",
-                             "From":cutoff.strftime("%d/%m/%Y"),"To":latest.strftime("%d/%m/%Y"),
-                             "Baseload (EUR/MWh)":f"{bl_val:.2f}",
-                             "M0 Captured (EUR/MWh)":f"{m0_val:.2f}",
-                             "Capture Rate":f"{cp_val*100:.1f}%",
-                             "Shape Discount":f"{(1-cp_val)*100:.1f}%"})
-        if sum_rows:
-            def _hi_sum(row):
-                if "365" in row["Window"]: return [f"background-color:{C2L}"]*len(row)
-                if "90"  in row["Window"]: return [f"background-color:{C3L}"]*len(row)
-                return [""]*len(row)
-            st.dataframe(pd.DataFrame(sum_rows).style.apply(_hi_sum,axis=1),
-                         use_container_width=True, hide_index=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — Pricing & Risk (Asset Pricer)
-# ══════════════════════════════════════════════════════════════════════════════
+with tab1: render_tab_overview(**ctx)
+with tab2: render_tab_ppa_pricing(**ctx)
+with tab3: render_tab_market_dynamics(**ctx)
+with tab4: render_tab_market_evolution(**ctx)
 with tab5:
     render_pricer_tab(
-        hourly=hourly,
-        nat_ref_complete=nat_ref_complete,
-        asset_ann=asset_ann,
-        asset_name=asset_name,
-        has_asset=has_asset,
-        cfg=cfg,
-        sl_u=sl_u, ic_u=ic_u,
-        hist_sd_f=hist_sd_f,
-        plotly_base=plotly_base,
-        asset_raw=asset_raw,
+        hourly=hourly, nat_ref_complete=nat_ref_complete,
+        asset_ann=asset_ann, asset_name=asset_name, has_asset=has_asset,
+        cfg=cfg, sl_u=sl_u, ic_u=ic_u, hist_sd_f=hist_sd_f,
+        plotly_base=plotly_base, asset_raw=asset_raw,
     )
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 6 — Market Overview v2
-# COMPLETE replacement for the "with tab6:" block in app.py
-# Replace from "with tab6:" down to (not including) "with tab7:"
-# ══════════════════════════════════════════════════════════════════════════════
-with tab6:
-    st.markdown("## Market Overview — France Power Market")
-
-    # ── Data loading ─────────────────────────────────────────────────────────
-    hourly_full = load_hourly()
-    bal         = load_balancing()
-    xb          = load_xborder_da()
-    fcr         = load_fcr()
-    mkt         = load_market_prices()
-
-    has_bal = bal is not None and len(bal) > 0
-    has_xb  = xb  is not None and len(xb)  > 0
-    has_fcr = fcr is not None and len(fcr)  > 0
-    has_mkt = mkt is not None and len(mkt)  > 0
-
-    # ── Global time filter ───────────────────────────────────────────────────
-    st.markdown("#### Global time window")
-    g_zoom = st.radio("", MK_ZOOM_OPTS, index=3, horizontal=True, key="mk_global_zoom")
-    st.caption("Each chart also has its own local filter — override the global window per chart.")
-    st.markdown("---")
-
-    # ── Helper: local zoom selector ───────────────────────────────────────────
-    def local_zoom(key: str, default: str = None) -> str:
-        idx = MK_ZOOM_OPTS.index(default or g_zoom)
-        return st.radio("", MK_ZOOM_OPTS, index=idx, horizontal=True, key=key)
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 1 — KPIs
-    # ════════════════════════════════════════════════════════════════════════
-    section("Key Market Indicators")
-    kpis = mk_kpis(hourly_full, bal if has_bal else None, mkt if has_mkt else None)
-
-    def _kpi_delta(val, prev, unit="", pct=True):
-        if val != val or prev != prev or prev == 0:
-            return ""
-        d   = val - prev
-        dp  = d / abs(prev) * 100
-        col = C2 if d >= 0 else C5
-        arr = "▲" if d >= 0 else "▼"
-        txt = f"{arr} {dp:+.1f}%" if pct else f"{arr} {d:+.1f}{unit}"
-        return f'<span style="font-size:11px;color:{col};font-weight:700">{txt} vs prev 7D</span>'
-
-    k1, k2, k3, k4, k5 = st.columns(5)
-    with k1:
-        v = kpis.get("da_7d", float("nan"))
-        kpi_card("DA Spot — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=C1)
-        st.markdown(_kpi_delta(v, kpis.get("da_7d_prev", float("nan")), " €/MWh", pct=False),
-                    unsafe_allow_html=True)
-    with k2:
-        v = kpis.get("da_30d", float("nan"))
-        kpi_card("DA Spot — 30D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=C1)
-    with k3:
-        v = kpis.get("spread_7d", float("nan"))
-        kpi_card("DA Spread — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A",
-                 color=C5 if v==v and v>100 else C2)
-        st.markdown('<span style="font-size:10px;color:#888">max−min daily</span>',
-                    unsafe_allow_html=True)
-    with k4:
-        v = kpis.get("afrr_7d", float("nan"))
-        kpi_card("aFRR — 7D avg", f"{v:.1f} €/MWh" if v==v else "N/A", color=MK_PURPLE)
-    with k5:
-        v = kpis.get("eua_last", float("nan"))
-        kpi_card("EUA Carbon", f"{v:.1f} €/tCO2" if v==v else "N/A", color=MK_BLUE)
-        st.markdown(_kpi_delta(v, kpis.get("eua_7d_prev", float("nan")), " €/tCO2", pct=True),
-                    unsafe_allow_html=True)
-
-    k6, k7, k8, k9, k10 = st.columns(5)
-    with k6:
-        v = kpis.get("solar_7d", float("nan"))
-        kpi_card("Solar — 7D avg", f"{v:.0f} MW" if v==v else "N/A", color=C3, extra_cls="kpi-gold")
-        st.markdown(_kpi_delta(v, kpis.get("solar_7d_prev", float("nan")), " MW", pct=True),
-                    unsafe_allow_html=True)
-    with k7:
-        v = kpis.get("wind_7d", float("nan"))
-        kpi_card("Wind — 7D avg", f"{v:.0f} MW" if v==v else "N/A", color=C2)
-        st.markdown(_kpi_delta(v, kpis.get("wind_7d_prev", float("nan")), " MW", pct=True),
-                    unsafe_allow_html=True)
-    with k8:
-        v = kpis.get("ttf_last", float("nan"))
-        kpi_card("TTF Gas", f"{v:.1f} €/MWh" if v==v else "N/A", color=C4)
-        st.markdown(_kpi_delta(v, kpis.get("ttf_7d_prev", float("nan")), " €/MWh", pct=True),
-                    unsafe_allow_html=True)
-    with k9:
-        v = kpis.get("brent_last", float("nan"))
-        kpi_card("Brent Oil", f"{v:.1f} $/bbl" if v==v else "N/A", color=MK_GREEN)
-        st.markdown(_kpi_delta(v, kpis.get("brent_7d_prev", float("nan")), " $/bbl", pct=True),
-                    unsafe_allow_html=True)
-    with k10:
-        v = kpis.get("da_7d", float("nan"))
-        neg_h = int((hourly_full["Spot"] < 0).sum()) if hourly_full is not None and "Spot" in hourly_full.columns else 0
-        kpi_card("Neg hours — YTD", f"{neg_h:,} h", color=C5 if neg_h > 200 else C4)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 2 — FR DA Spot (main chart)
-    # ════════════════════════════════════════════════════════════════════════
-    section("FR Day-Ahead Spot Price")
-    desc("Hourly or daily average. Daily mode adds 7D and 30D rolling averages.")
-    mode = st.radio("Display mode", ["Hourly", "Daily average"], index=1,
-                    horizontal=True, key="mk_spot_mode")
-    z = local_zoom("mk_spot_zoom")
-    sc, tc = st.columns([3, 1])
-    with sc:
-        st.plotly_chart(mk_chart_spot(hourly_full, z, mode), use_container_width=True)
-    with tc:
-        st.markdown("##### Statistics")
-        st.plotly_chart(mk_table_spot(hourly_full, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 3 — DA Spread
-    # ════════════════════════════════════════════════════════════════════════
-    section("DA Daily Spread")
-    desc("Daily max−min + 30D rolling average. Measures intraday arbitrage potential.")
-    z = local_zoom("mk_spread_zoom")
-    sc, tc = st.columns([3, 1])
-    with sc:
-        st.plotly_chart(mk_chart_spread(hourly_full, z), use_container_width=True)
-    with tc:
-        st.markdown("##### Statistics")
-        st.plotly_chart(mk_table_spread(hourly_full, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 4 — Negative price hours
-    # ════════════════════════════════════════════════════════════════════════
-    section("Negative DA Price Hours")
-    desc("Daily bars + calendar heatmap. Red = high negative hour count.")
-    z = local_zoom("mk_neg_zoom")
-    st.plotly_chart(mk_chart_neg_bars(hourly_full, z), use_container_width=True)
-    st.plotly_chart(mk_chart_neg_calendar(hourly_full, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 5 — Distribution
-    # ════════════════════════════════════════════════════════════════════════
-    section("DA Spot Price Distribution")
-    desc("Histogram of hourly prices. Mean and median shown at different heights to avoid overlap.")
-    z = local_zoom("mk_dist_zoom")
-    st.plotly_chart(mk_chart_distribution(hourly_full, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 6 — Market drivers (one per row)
-    # ════════════════════════════════════════════════════════════════════════
-    section("Market Drivers")
-
-    st.markdown("#### Carbon Price (EUA)")
-    desc("EUA daily futures (€/tCO2). Source: Ember Climate. Includes 7D and 30D rolling avg.")
-    z = local_zoom("mk_eua_zoom")
-    sc, tc = st.columns([3, 1])
-    with sc:
-        st.plotly_chart(mk_chart_eua(mkt if has_mkt else None, z), use_container_width=True)
-    with tc:
-        st.markdown("##### Statistics")
-        st.plotly_chart(mk_table_commodity(mkt, "EUA_EUR_tCO2", "€/tCO2")
-                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
-
-    st.markdown("#### TTF Gas Price")
-    desc("TTF front-month (€/MWh). Source: Yahoo Finance. Primary marginal cost driver for FR power.")
-    z = local_zoom("mk_ttf_zoom")
-    sc, tc = st.columns([3, 1])
-    with sc:
-        st.plotly_chart(mk_chart_ttf(mkt if has_mkt else None, z), use_container_width=True)
-    with tc:
-        st.markdown("##### Statistics")
-        st.plotly_chart(mk_table_commodity(mkt, "TTF_EUR_MWh", "€/MWh")
-                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
-
-    st.markdown("#### Brent Crude Oil")
-    desc("Brent front-month ($/bbl). Source: Yahoo Finance.")
-    z = local_zoom("mk_brent_zoom")
-    sc, tc = st.columns([3, 1])
-    with sc:
-        st.plotly_chart(mk_chart_brent(mkt if has_mkt else None, z), use_container_width=True)
-    with tc:
-        st.markdown("##### Statistics")
-        st.plotly_chart(mk_table_commodity(mkt, "Brent_USD_bbl", "$/bbl")
-                        if has_mkt else _mk_stub("","no data"), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 7 — Renewable generation
-    # ════════════════════════════════════════════════════════════════════════
-    section("Renewable Generation")
-
-    st.markdown("#### Wind & Solar — Daily Trend")
-    desc("Daily average + 7D rolling. Separate lines for Wind and Solar.")
-    z = local_zoom("mk_ren_lines_zoom")
-    st.plotly_chart(mk_chart_renewables_lines(hourly_full, z), use_container_width=True)
-
-    st.markdown("#### Generation Mix — Stacked Area")
-    desc("Wind + Solar stacked. Resampled to 6h when zoomed out.")
-    z = local_zoom("mk_ren_mix_zoom")
-    st.plotly_chart(mk_chart_renewables_mix(hourly_full, z), use_container_width=True)
-
-    st.markdown("#### Raw Hourly Generation")
-    desc("Actual hourly MW — no averaging. Best used on 7D or 1M window.")
-    z = local_zoom("mk_ren_hourly_zoom", default="7D")
-    st.plotly_chart(mk_chart_renewables_hourly(hourly_full, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 8 — Imbalance (one per row)
-    # ════════════════════════════════════════════════════════════════════════
-    section("Flexibility & Imbalance Markets")
-    if not has_bal:
-        st.warning("balancing_prices.csv not found — run the ENTSO-E balancing script.")
-    else:
-        st.markdown("#### Imbalance Prices — Positive vs Negative")
-        desc("Daily average. Gap between lines = system asymmetry and imbalance risk.")
-        z = local_zoom("mk_imb_pn_zoom")
-        sc, tc = st.columns([3, 1])
-        with sc:
-            st.plotly_chart(mk_chart_imb_pos_neg(bal, z), use_container_width=True)
-        with tc:
-            st.markdown("##### Statistics")
-            st.plotly_chart(mk_table_imbalance(bal, z), use_container_width=True)
-
-        st.markdown("#### Imbalance Spread (Positive − Negative)")
-        desc("Measures imbalance market depth. Higher = more volatile system.")
-        z = local_zoom("mk_imb_spread_zoom")
-        st.plotly_chart(mk_chart_imb_spread(bal, z), use_container_width=True)
-
-        st.markdown("#### Imbalance vs Day-Ahead")
-        desc("Imb Pos − DA and Imb Neg − DA. Negative leg below DA = double penalty for short producers.")
-        z = local_zoom("mk_imb_da_zoom")
-        st.plotly_chart(mk_chart_imb_vs_da(bal, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 9 — Ancillary services
-    # ════════════════════════════════════════════════════════════════════════
-    section("Ancillary Services")
-
-    st.markdown("#### FCR — Frequency Containment Reserve (France)")
-    desc("Contracted capacity price (€/MW/day). Source: ENTSO-E.")
-    z = local_zoom("mk_fcr_zoom", default="1Y")
-    st.plotly_chart(mk_chart_fcr(fcr if has_fcr else None, z), use_container_width=True)
-
-    st.markdown("#### aFRR & mFRR — Activated Prices")
-    desc("Daily average activated energy prices. Source: ENTSO-E balancing_prices.csv.")
-    z = local_zoom("mk_afrr_zoom")
-    st.plotly_chart(mk_chart_afrr(bal if has_bal else None, z), use_container_width=True)
-
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ROW 10 — Regional view
-    # ════════════════════════════════════════════════════════════════════════
-    section("Regional View — Europe")
-
-    st.markdown("#### DA Spot Map — Europe")
-    desc("Average DA price by country for selected window. Green = low, Red = high. "
-         "Data: FR from hourly_spot.csv, DE/BE/ES/NL from xborder_da_prices.csv.")
-    z = local_zoom("mk_map_zoom", default="7D")
-    st.plotly_chart(mk_chart_europe_map(xb if has_xb else None, hourly_full, z),
-                    use_container_width=True)
-
-    st.markdown("#### Historical DA Prices — France vs Neighbours")
-    desc("Daily average. France in navy. Same controls as main spot chart.")
-    z = local_zoom("mk_xb_hist_zoom")
-    st.plotly_chart(mk_chart_country_history(xb if has_xb else None, hourly_full, z),
-                    use_container_width=True)
-    
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 7 — Export & SPOT Extractor
-# ══════════════════════════════════════════════════════════════════════════════
-with tab7:
-    col_e1, col_e2 = st.columns(2)
-    with col_e1:
-        section("Excel Export — All Dashboard Data")
-        if st.button("Generate Excel File"):
-            with st.spinner("Generating..."):
-                hist_sd_export = get_nat_sd(nat_ref_complete, cfg["nat_sd"]).values
-                buf = build_excel(nat_ref, hourly, asset_ann, has_asset, asset_name,
-                                  proj, pnl_v, ppa, scenarios, fwd_curve, hist_sd_export)
-            st.download_button(label="Download ppa_dashboard_export.xlsx", data=buf,
-                               file_name="ppa_dashboard_export.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            st.success("File ready.")
-    with col_e2:
-        section("Expected Load Curve Format")
-        st.code("Date,Prod_MWh\n2024-01-01 00:00:00,0.0\n2024-01-01 10:00:00,4.2", language="text")
-
-    st.markdown("---")
-    section("Load Curve Converter")
-    desc("Upload any Excel or CSV, map your columns to Date and Prod_MWh, download the converted file.")
-    uploaded_conv = st.file_uploader("Upload file to convert", type=["xlsx","csv","xls"], key="converter")
-    if uploaded_conv:
-        try:
-            df_conv = (pd.read_csv(uploaded_conv) if uploaded_conv.name.endswith(".csv")
-                       else pd.read_excel(uploaded_conv))
-            st.markdown(f"**{len(df_conv):,} rows — {len(df_conv.columns)} columns detected**")
-            st.dataframe(df_conv.head(5), use_container_width=True)
-            cols = df_conv.columns.tolist()
-            c1, c2 = st.columns(2)
-            with c1: date_col     = st.selectbox("Date column", cols, key="conv_date")
-            with c2: prod_col_conv = st.selectbox("Production column (MWh or kWh)", cols, key="conv_prod")
-            unit = st.radio("Unit of production column", ["MWh","kWh"], horizontal=True, key="conv_unit")
-            if st.button("Convert", key="conv_btn"):
-                out = df_conv[[date_col, prod_col_conv]].copy()
-                out.columns = ["Date","Prod_MWh"]
-                out["Date"]     = pd.to_datetime(out["Date"], errors="coerce")
-                out["Prod_MWh"] = pd.to_numeric(out["Prod_MWh"], errors="coerce")
-                if unit=="kWh": out["Prod_MWh"] = out["Prod_MWh"]/1000
-                out = out.dropna(subset=["Date","Prod_MWh"]).sort_values("Date").reset_index(drop=True)
-                st.success(f"{len(out):,} rows converted — {out['Prod_MWh'].sum():,.0f} MWh total")
-                st.dataframe(out.head(10), use_container_width=True)
-                st.download_button("Download converted file",
-                                   data=out.to_csv(index=False).encode("utf-8"),
-                                   file_name="load_curve_converted.csv", mime="text/csv")
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-    st.markdown("---")
-    section("SPOT Data Extractor — ENTSO-E")
-    col_ex1, col_ex2 = st.columns(2)
-    with col_ex1:
-        api_key_in = st.text_input("ENTSO-E API Key", type="password")
-        country_c  = st.selectbox("Country", ["FR","DE","ES","BE","NL","IT","GB"], index=0)
-        d_start    = st.date_input("Start Date", value=pd.Timestamp("2024-01-01"))
-        d_end      = st.date_input("End Date",   value=pd.Timestamp("2024-12-31"))
-        incl_solar = st.checkbox("Include Solar Production (NatMW)", value=True)
-        incl_wind  = st.checkbox("Include Wind Production (WindMW)", value=True)
-    with col_ex2:
-        st.code("Date,Year,Month,Hour,Spot,NatMW,WindMW", language="text")
-        if api_key_in and st.button("Extract Data", key="extract_btn"):
-            with st.spinner("Connecting to ENTSO-E..."):
-                try:
-                    from entsoe import EntsoePandasClient
-                    import time
-                    client = EntsoePandasClient(api_key=api_key_in)
-                    start  = pd.Timestamp(d_start, tz="Europe/Paris")
-                    end    = pd.Timestamp(d_end,   tz="Europe/Paris") + pd.Timedelta(days=1)
-                    prices = client.query_day_ahead_prices(country_c, start=start, end=end)
-                    prices = prices.resample("1h").mean()
-                    df_out = pd.DataFrame({"Spot":prices}).reset_index()
-                    df_out.columns = ["Date","Spot"]
-                    df_out["Date"]  = df_out["Date"].dt.tz_localize(None)
-                    df_out["Year"]  = df_out["Date"].dt.year
-                    df_out["Month"] = df_out["Date"].dt.month
-                    df_out["Hour"]  = df_out["Date"].dt.hour
-                    df_out["NatMW"] = 0.0; df_out["WindMW"] = 0.0
-                    def _fetch_gen(psr):
-                        time.sleep(1)
-                        g = client.query_generation(country_c, start=start, end=end, psr_type=psr)
-                        if isinstance(g, pd.DataFrame): g = g.sum(axis=1)
-                        return g.resample("1h").mean()
-                    if incl_solar:
-                        try:
-                            s = _fetch_gen("B16"); s.index = s.index.tz_localize(None)
-                            df_out = df_out.set_index("Date").join(s.rename("_s"), how="left")
-                            df_out["NatMW"] = df_out["_s"].fillna(0)
-                            df_out = df_out.drop(columns=["_s"]).reset_index()
-                        except Exception as e2: st.warning(f"Solar unavailable: {e2}")
-                    if incl_wind:
-                        try:
-                            on  = _fetch_gen("B19"); on.index  = on.index.tz_localize(None)
-                            off = _fetch_gen("B18"); off.index = off.index.tz_localize(None)
-                            wtot = on.add(off, fill_value=0)
-                            df_out = df_out.set_index("Date").join(wtot.rename("_w"), how="left")
-                            df_out["WindMW"] = df_out["_w"].fillna(0)
-                            df_out = df_out.drop(columns=["_w"]).reset_index()
-                        except Exception as e3: st.warning(f"Wind unavailable: {e3}")
-                    df_out = df_out[["Date","Year","Month","Hour","Spot","NatMW","WindMW"]].dropna(subset=["Spot"])
-                    st.success(f"{len(df_out):,} hours extracted")
-                    st.dataframe(df_out.head(24), use_container_width=True)
-                    st.download_button("Download CSV", data=df_out.to_csv(index=False).encode("utf-8"),
-                                       file_name=f"spot_{country_c}_{d_start}_{d_end}.csv", mime="text/csv")
-                except ImportError: st.error("entsoe-py not installed.")
-                except Exception as e: st.error(f"ENTSO-E Error: {e}")
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 8 — FPC Monte Carlo
-# ══════════════════════════════════════════════════════════════════════════════
+with tab6: render_tab_market_overview(**ctx)
+with tab7: render_tab_export(**ctx)
 with tab8:
     render_fpc_tab(
-        hourly=hourly,
-        nat_ref_complete=nat_ref_complete,
-        asset_ann=asset_ann,
-        asset_raw=asset_raw,
-        has_asset=has_asset,
-        asset_name=asset_name,
-        cfg=cfg,
-        sl_u=sl_u, ic_u=ic_u,
-        hist_sd_f=hist_sd_f,
-        plotly_base=plotly_base,
+        hourly=hourly, nat_ref_complete=nat_ref_complete,
+        asset_ann=asset_ann, asset_raw=asset_raw, has_asset=has_asset,
+        asset_name=asset_name, cfg=cfg, sl_u=sl_u, ic_u=ic_u,
+        hist_sd_f=hist_sd_f, plotly_base=plotly_base,
     )
-
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
 st.markdown(
-    f'<span style="font-size:12px;color:#888;font-family:Calibri,Arial,sans-serif;">'
+    f'<span style="font-size:12px;color:#888888;font-family:Calibri,Arial,sans-serif;">'
     f'v2.7 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — Technology: {cfg["label"]} — '
     f'Regression: {reg_basis} — Tenor: {tenor_start}–{tenor_end}'
