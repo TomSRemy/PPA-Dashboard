@@ -122,12 +122,12 @@ st.markdown(get_css(_p), unsafe_allow_html=True)
 
 # Convenience aliases used throughout app.py
 C1  = _p["TEXT_DARK"]
-C2  = _p["TEAL"]
-C3  = _p["GOLD_RAW"]
-C4  = _p["GOLD_LM"]
-C5  = _p["BRICK"]
-C2L = _p["TEAL_L"]
-C3L = _p["GOLD_LL"]
+C2  = _p["SOLAR_ACC"]
+C3  = _p["WARN_ACC"]
+C4  = _p["WARN_FILL"]
+C5  = _p["NEG_ACC"]
+C2L = _p["SOLAR_FILL"]
+C3L = _p["WARN_FILL"]
 WHT = _p["BG_WHITE"]
 
 # ══════════════════════════════════════════════════════════════════════════════
