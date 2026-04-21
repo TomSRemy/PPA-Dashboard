@@ -15,6 +15,7 @@ from theme import (
     REF_LINE, REF_LINE_L, REF_LINE_LL, COL_SOLAR, COL_SOLAR_L, COL_WIND, COL_WIND_L,
     SECTION_BG, SECTION_TEXT, SECTION_BORDER,
     CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL, CHART_H_TBL,
+    CARD_BORDER_OUTER, CARD_BORDER_ACCENT, CARD_RADIUS, CARD_PADDING, CARD_SHADOW,
     rgba, with_alpha, transparent, band_colors, pos_neg_colors, set_mode, get_palette,
 )
 
@@ -97,14 +98,15 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 }}
 .ppa-card {{
     background: {p["SECTION_BG"]}; color: {p["SECTION_TEXT"]};
-    padding: 20px 22px; border-radius: 10px; text-align: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: {CARD_PADDING}; border-radius: {CARD_RADIUS}; text-align: center;
+    border: {CARD_BORDER_OUTER} solid {p["BORDER"]};
+    box-shadow: {CARD_SHADOW};
 }}
 .ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["SECTION_TEXT"]} !important; font-family: Calibri, Arial, sans-serif; }}
 .ppa-card .lbl {{ font-size: 11px; color: {p["SECTION_TEXT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
-    background: {p["SURFACE"]}; border-left: 7px solid {p["SOLAR_ACC"]}; padding: 16px 18px; border-radius: 8px;
-    border: 2px solid {p["BORDER"]}; box-shadow: none;
+    background: {p["SURFACE"]}; border-left: {CARD_BORDER_ACCENT} solid {p["SOLAR_ACC"]}; padding: {CARD_PADDING}; border-radius: {CARD_RADIUS};
+    border: {CARD_BORDER_OUTER} solid {p["BORDER"]}; box-shadow: {CARD_SHADOW};
     display: flex; flex-direction: column; gap: 2px;
 }}
 .kpi-val {{ font-size: 28px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; line-height: 1.1; }}
@@ -114,12 +116,12 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .kpi-gold {{ border-left-color: {p["WARN_ACC"]} !important; }}
 .tech-badge-solar {{
     display: inline-block; background: {p["SOLAR_ACC"]}; color: {p["SURFACE"]};
-    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: {CARD_RADIUS};
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .tech-badge-wind {{
     display: inline-block; background: {p["WIND_ACC"]}; color: {p["SURFACE"]};
-    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: {CARD_RADIUS};
     letter-spacing: 0.05em; margin-left: 8px; font-family: Calibri, Arial, sans-serif;
 }}
 .update-pill {{

@@ -35,7 +35,7 @@ TO RESIZE ALL CHARTS: edit CHART SIZES section.
 # LIGHT PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _LIGHT = dict(
-    PAGE_BG        = "#FAFAF8",   
+    PAGE_BG        = "#E9D8A6",   # Wheat — warm parchment background
     SURFACE        = "#FFFFFF",   # White — cards, chart bg
     SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
     TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
@@ -61,7 +61,7 @@ _LIGHT = dict(
 # DARK PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _DARK = dict(
-    PAGE_BG        = "#FAFAF8",   
+    PAGE_BG        = "#001219",   # Ink Black — deep dark background
     SURFACE        = "#005F73",   # Dark Teal — elevated surface
     SIDEBAR_BG     = "#001219",   # Ink Black — same as page in dark
     TEXT_PRIMARY   = "#E9D8A6",   # Wheat — warm readable on dark
@@ -129,6 +129,15 @@ def get_palette(dark: bool = False) -> dict:
     base = _DARK.copy() if dark else _LIGHT.copy()
     return _add_compat(base, dark)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CARD SIZES — edit to resize ALL cards at once
+# ══════════════════════════════════════════════════════════════════════════════
+CARD_BORDER_OUTER  = "2px"       # outline border thickness
+CARD_BORDER_ACCENT = "7px"       # left accent border thickness
+CARD_RADIUS        = "8px"       # corner radius
+CARD_PADDING       = "16px 18px" # internal padding
+CARD_SHADOW        = "none"      # box shadow — set to e.g. "0 2px 8px rgba(0,0,0,0.08)" to re-enable
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHART SIZES — edit to resize ALL charts at once
