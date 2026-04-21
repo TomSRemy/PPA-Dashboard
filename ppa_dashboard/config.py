@@ -105,13 +105,14 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["SECTION_TEXT"]} !important; font-family: Calibri, Arial, sans-serif; }}
 .ppa-card .lbl {{ font-size: 11px; color: {p["SECTION_TEXT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
-    background: {p["SURFACE"]}; border-left: {CARD_BORDER_ACCENT} solid {p["SOLAR_ACC"]}; padding: {CARD_PADDING}; border-radius: {CARD_RADIUS};
+    background: {p["SURFACE"]}; border-left: {CARD_BORDER_ACCENT} solid {p["SOLAR_ACC"]};
+    padding: {CARD_PADDING}; border-radius: {CARD_RADIUS};
     border: {CARD_BORDER_OUTER} solid {p["BORDER"]}; box-shadow: {CARD_SHADOW};
     display: flex; flex-direction: column; gap: 2px;
 }}
-.kpi-val {{ font-size: 28px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; line-height: 1.1; }}
-.kpi-lbl {{ font-size: 12px; font-weight: 600; color: {p["TEXT_SECONDARY"]}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }}
-.kpi-delta {{ font-size: 12px; font-weight: 500; margin-top: 4px; }}
+.kpi-val {{ font-size: 32px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; line-height: 1.1; }}
+.kpi-lbl {{ font-size: 11px; font-weight: 400; color: {p["TEXT_SECONDARY"]}; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }}
+.kpi-delta {{ font-size: 12px; font-weight: 400; color: {p["TEXT_SECONDARY"]}; margin-top: 3px; }}
 .kpi-red  {{ border-left-color: {p["NEG_ACC"]} !important; }}
 .kpi-gold {{ border-left-color: {p["WARN_ACC"]} !important; }}
 .tech-badge-solar {{
