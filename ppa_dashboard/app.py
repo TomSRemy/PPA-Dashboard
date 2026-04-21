@@ -11,7 +11,7 @@ import numpy as np
 import io
 
 st.set_page_config(
-    page_title="PPA Pricing Dashboard",
+    page_title="Klock",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -41,7 +41,7 @@ from tab_export          import render_tab_export
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("### KAL-EL Dashboard")
+    st.markdown("### Klock")
     st.markdown(f'<div class="update-pill">{load_log().split(chr(10))[0]}</div>',
                 unsafe_allow_html=True)
     st.markdown("---")
@@ -175,19 +175,19 @@ if uploaded and sb_date_col and sb_prod_col:
         asset_ann  = compute_asset_annual(hourly, asset_raw.copy(), prod_col=cfg["prod_col"])
         asset_name = uploaded.name.rsplit(".",1)[0]
 
-        # Auto-detect technology from production profile
+        # Auto-detect technology from daily production profile (hour-of-day shape)
         _det = detect_technology(asset_raw, hourly)
         if _det["techno"] and _det["techno"] != techno:
             _conf_pct = int(_det["confidence"] * 100)
             st.sidebar.warning(
-                f"⚡ Profile looks like **{_det['techno']}** ({_conf_pct}% confidence)\n"
-                f"{_det['explanation']}"
+                f"Profile shape matches **{_det['techno']}** better ({_conf_pct}% confidence). "
+                f"Consider switching technology above."
             )
         elif _det["techno"] == techno:
             _conf_pct = int(_det["confidence"] * 100)
-            st.sidebar.success(f"✓ {_det['techno']} confirmed ({_conf_pct}% match)")
-        else:
-            st.sidebar.info(f"Profile ambiguous — {_det['explanation']}")
+            st.sidebar.success(f"Profile confirmed as {_det['techno']} ({_conf_pct}% match)")
+        elif _det["techno"] is None and _det["explanation"]:
+            st.sidebar.info(f"Profile: {_det['explanation']}")
 
         st.sidebar.success(f"Loaded: {asset_name}")
     except Exception as e:
@@ -345,7 +345,7 @@ st.markdown("---")
 ytd_note = " — 2026 YTD included (excl. regression)" if partial_years else ""
 st.markdown(
     f'<span style="font-size:12px;color:#888888;font-family:Calibri,Arial,sans-serif;">'
-    f'v2.7 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
+    f'Klock v2.7 — ENTSO-E France {data_start.year}–{data_end.strftime("%Y-%m-%d")} '
     f'— {len(hourly):,} hours{ytd_note} — Technology: {cfg["label"]} — '
     f'Regression: {reg_basis} — Tenor: {tenor_start}–{tenor_end}'
     f'</span>', unsafe_allow_html=True)

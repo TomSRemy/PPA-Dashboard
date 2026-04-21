@@ -34,12 +34,16 @@ def ppa_card(label: str, value: str, unit: str = "EUR / MWh"):
     )
 
 
-def kpi_card(label: str, value: str, color: str = None, extra_cls: str = ""):
-    c = color or _DEFAULT["TEAL"]
+def kpi_card(label: str, value: str, color: str = None, extra_cls: str = "",
+             delta: str = None, delta_color: str = None):
+    c = color or _DEFAULT["SOLAR_ACC"]
+    d_color = delta_color or c
+    delta_html = f'<div class="kpi-delta" style="color:{d_color}">{delta}</div>' if delta else ""
     st.markdown(
         f'<div class="kpi-card {extra_cls}" style="border-left-color:{c}">'
-        f'<div class="kpi-lbl">{label}</div>'
-        f'<div class="kpi-val" style="color:{c}">{value}</div>'
+        f'<div class="kpi-lbl" style="color:{c}">{label}</div>'
+        f'<div class="kpi-val">{value}</div>'
+        f'{delta_html}'
         f'</div>',
         unsafe_allow_html=True
     )

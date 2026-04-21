@@ -11,7 +11,7 @@ from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly
 from charts import (
     chart_neg_hours, chart_monthly_profile, chart_shape_disc_delta,
     chart_heatmap, chart_market_value_vs_penetration,
-    chart_duck_curve, chart_canyon_curve,
+    chart_duck_curve,
 )
 
 def render_tab_market_dynamics(ctx):
@@ -116,16 +116,13 @@ def render_tab_market_dynamics(ctx):
         use_container_width=True)
 
     st.markdown("---")
-    j1, j2 = st.columns(2)
-    with j1:
-        season_lbl = "Apr-Sep" if cfg["duck_months"]==list(range(4,10)) else "All months"
-        section(f"Duck / Canyon Curve — {cfg['label']} ({season_lbl})")
-        desc("Normalised day-ahead prices by hour. Method: GEM Energy Analytics (Mar 2025).")
-        st.plotly_chart(chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"]),
-                        use_container_width=True)
-    with j2:
-        section(f"Canyon Curve — Last 4 Years ({cfg['label']})")
-        desc("Same normalisation, last 4 complete years. Grey = older, colour = most recent.")
-        st.plotly_chart(chart_canyon_curve(hourly, cfg["color"], cfg["label"],
-                                           cfg["duck_months"], recent_years=4),
-                        use_container_width=True)
+    season_lbl = "Apr-Sep" if cfg["duck_months"]==list(range(4,10)) else "All months"
+    section(f"Canyon Curve — {cfg['label']} ({season_lbl})")
+    desc("Normalised day-ahead prices by hour of day. Each line = one year. Most recent year highlighted. Method: GEM Energy Analytics.")
+    _all_years = sorted(hourly["Year"].unique())
+    _yr_opts = [f"Last {n} years" for n in [3,5,7,10]] + ["All years"]
+    _yr_sel = st.radio("", _yr_opts, index=1, horizontal=True, key="canyon_filter")
+    _n_years = {"Last 3 years":3,"Last 5 years":5,"Last 7 years":7,"Last 10 years":10}.get(_yr_sel, None)
+    st.plotly_chart(chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"],
+                                     recent_years=_n_years),
+                    use_container_width=True)

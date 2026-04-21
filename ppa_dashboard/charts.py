@@ -42,7 +42,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     fig.add_trace(go.Bar(x=ny, y=nat_cp_list, name=f"M0 National {tech_lbl}",
                          marker_color=bar_colors, marker_line_color=bar_outlines, marker_line_width=2,
                          text=bar_texts, textposition="outside",
-                         textfont=dict(size=11, color=C1, family="Calibri")), row=1, col=1)
+                         textfont=dict(size=13, color=C1, family="Calibri")), row=1, col=1)
     if has_asset:
         ay = asset_ann["Year"].tolist(); acp = asset_ann["cp_pct"].tolist(); ae = asset_ann["cp_eur"].tolist()
         fig.add_trace(go.Bar(x=ay, y=acp, name=asset_name,
@@ -70,7 +70,11 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                              marker=dict(size=7, color=tech_clr, symbol="square",
                                          line=dict(width=1.5, color=WHT))), row=2, col=1)
     fig.update_yaxes(tickformat=".0%", row=1, col=1)
-    fig.update_layout(barmode="group")
+    fig.update_layout(
+        barmode="group",
+        title=dict(text=f"<b>Historical Captured Price — {tech_lbl}</b>"))
+    # Always show all years on x-axis
+    fig.update_xaxes(tickmode="array", tickvals=nat_ref["year"].tolist() if hasattr(nat_ref,"__len__") else [], row=1, col=1)
     plotly_base(fig, h=CHART_H_XL)
     return fig
 
@@ -247,8 +251,7 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
         sc = sc[sc["TechX"] > 0].copy()
         sc["cp_plot"] = sc[nat_cp_col].fillna(sc["cp_nat_pct"])
 
-    pt_col = [C3 if r.get("partial", False) else
-              (C5 if r["year"] >= 2024 else (C3 if r["year"] == 2022 else tech_clr))
+    pt_col = [rgba(ACCENT_WARN, 0.8) if r.get("partial", False) else tech_clr
               for _, r in sc.iterrows()]
 
     fig = go.Figure()
@@ -340,13 +343,21 @@ def chart_shape_disc_delta(nat_ref: pd.DataFrame, nat_sd_col: str,
 def chart_heatmap(monthly_agg: pd.DataFrame, tech_clr: str, tech_lbl: str) -> go.Figure:
     pivot = monthly_agg.pivot(index="Year", columns="Month", values="sd_m")
     pivot.columns = [MONTH_NAMES[c-1] for c in pivot.columns]
+    z_vals = pivot.values * 100
+    # White text on dark cells, dark text on light cells
+    text_colors = [["#FFFFFF" if v > 20 else "#000000" for v in row] for row in z_vals]
     fig = go.Figure(data=go.Heatmap(
-        z=pivot.values*100, x=pivot.columns.tolist(), y=pivot.index.tolist(),
-        colorscale=[[0,tech_clr],[0.5,C3],[1,C5]],
-        text=[[f"<b>{v:.1f}%</b>" for v in row] for row in pivot.values*100],
-        texttemplate="%{text}", textfont=dict(size=11, color=C1, family="Calibri"),
-        colorbar=dict(title=dict(text="Shape Disc (%)", font=dict(size=12, color=C1)),
-                      tickfont=dict(size=11, color=C1), thickness=14)))
+        z=z_vals, x=pivot.columns.tolist(), y=pivot.index.tolist(),
+        colorscale=[[0,"#FFFFFF"],[0.3,tech_clr],[0.65,C3],[1,C5]],
+        zmid=15,
+        text=[[f"{v:.1f}%" for v in row] for row in z_vals],
+        texttemplate="%{text}",
+        textfont=dict(size=12, family="Calibri"),
+        colorbar=dict(
+            title=dict(text="Shape Disc (%)", font=dict(size=12, color=C1)),
+            tickfont=dict(size=11, color=C1), thickness=14,
+            ticksuffix="%"
+        )))
     fig.update_xaxes(title_text="Month"); fig.update_yaxes(title_text="Year")
     plotly_base(fig, h=CHART_H_MD, show_legend=False)
     fig.update_layout(title=dict(text=f"<b>Monthly Shape Discount Heatmap — {tech_lbl}</b>"))
@@ -386,13 +397,17 @@ def chart_market_value_vs_penetration(hourly: pd.DataFrame, prod_col: str,
     return fig
 
 
-def chart_duck_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str, duck_months: list) -> go.Figure:
+def chart_duck_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str, duck_months: list,
+                      recent_years: int = None) -> go.Figure:
     h = hourly[hourly["Month"].isin(duck_months)].copy()
     h["Date"] = pd.to_datetime(h["Date"]); h["Hour"] = h["Date"].dt.hour
     monthly_avg = h.groupby(["Year","Month"])["Spot"].transform("mean")
     h["norm_spot"] = h["Spot"] / monthly_avg.replace(0, np.nan)
     hourly_avg = h.groupby(["Year","Hour"])["norm_spot"].mean().reset_index()
-    years = sorted(hourly_avg["Year"].unique()); n = max(len(years),1)
+    all_years = sorted(hourly_avg["Year"].unique())
+    years = all_years[-recent_years:] if recent_years and len(all_years) >= recent_years else all_years
+    hourly_avg = hourly_avg[hourly_avg["Year"].isin(years)]
+    n = max(len(years),1)
     year_colors = [rgba(tech_clr, 0.25+0.75*i/(n-1)) if n>1 else tech_clr for i,_ in enumerate(years)]
     fig = go.Figure()
     for yr, col in zip(years, year_colors):
@@ -732,9 +747,9 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
     nat=hourly[hourly[prod_col]>0].copy()
     nat_avg=nat.groupby("Month")[prod_col].mean().reset_index()
     fig.add_trace(go.Scatter(x=[MONTH_NAMES[m-1] for m in nat_avg["Month"]],y=nat_avg[prod_col],
-                             mode="markers",name="National avg MW",
-                             marker=dict(size=12,color=C1,symbol="circle",line=dict(width=2,color=WHT)),
-                             yaxis="y2"))
+                             mode="markers+lines",name="National avg MW",
+                             line=dict(color=C1, width=1.5, dash="dot"),
+                             marker=dict(size=10,color=C1,symbol="circle",line=dict(width=1.5,color=WHT))))
     if has_asset and asset_raw is not None:
         a=asset_raw.copy(); a["Date"]=pd.to_datetime(a["Date"]); a["Month"]=a["Date"].dt.month
         asset_mo=a.groupby("Month")["Prod_MWh"].sum().reset_index()
@@ -743,12 +758,10 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
         fig.add_trace(go.Bar(x=[MONTH_NAMES[m-1] for m in asset_mo["Month"]],y=asset_mo["GWh"],
                              name=f"{asset_name} (GWh)", marker_color=rgba(tech_clr,0.7),
                              marker_line_color=tech_clr, marker_line_width=1.5,
-                             text=[f"<b>{v:.0f}</b>" for v in asset_mo["GWh"]],
+                             text=[f"<b>{v:,.2f}</b>" for v in asset_mo["GWh"]],
                              textposition="outside",
                              textfont=dict(size=11,color=C1,family="Calibri")))
-    fig.update_layout(yaxis=dict(title="Avg GWh/month",side="left"),
-                      yaxis2=dict(title="National avg MW",side="right",overlaying="y",showgrid=False),
-                      barmode="group")
+    fig.update_layout(yaxis=dict(title="GWh/month & National avg MW"), barmode="group")
     fig.update_xaxes(title_text="Month")
     plotly_base(fig,h=CHART_H_MD)
     fig.update_layout(title=dict(text="<b>Monthly Production Profile</b>"))
