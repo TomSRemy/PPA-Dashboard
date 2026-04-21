@@ -1,128 +1,101 @@
 """
 tab_market_dynamics.py — KAL-EL PPA Dashboard
 Tab 3 — Market Dynamics: neg hours, profiles, duck curve.
+Migrated to ECharts via streamlit-echarts.
 """
 import streamlit as st
-import pandas as pd
-import numpy as np
 
-from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT
-from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-from charts import (
+from theme import C1, C2, C3, C4, C5, WHT
+from ui import section, desc, status_msg
+from charts_overview_dynamics import (
     chart_neg_hours, chart_monthly_profile, chart_shape_disc_delta,
-    chart_heatmap, chart_market_value_vs_penetration,
-    chart_duck_curve,
+    chart_heatmap, chart_market_value_vs_penetration, chart_duck_curve,
 )
+from streamlit_echarts import st_echarts
+
+
+def _ec(opt, height="420px", key=None):
+    if opt is None:
+        st.info("Données non disponibles.")
+        return
+    if isinstance(opt, dict) and "graphic" in opt and "series" not in opt:
+        st.info(opt["graphic"][0]["style"]["text"])
+        return
+    st_echarts(options=opt, height=height, key=key)
+
 
 def render_tab_market_dynamics(ctx):
-    # Unpack context
-    nat_ref          = ctx.get("nat_ref")
-    nat_ref_complete = ctx.get("nat_ref_complete")
-    hourly           = ctx.get("hourly")
-    asset_ann        = ctx.get("asset_ann")
-    asset_raw        = ctx.get("asset_raw")
-    has_asset        = ctx.get("has_asset")
-    has_wind         = ctx.get("has_wind")
-    wind_ready       = ctx.get("wind_ready")
-    techno           = ctx.get("techno")
-    cfg              = ctx.get("cfg")
-    asset_name       = ctx.get("asset_name")
-    sl_u             = ctx.get("sl_u")
-    ic_u             = ctx.get("ic_u")
-    r2_u             = ctx.get("r2_u")
-    reg_basis        = ctx.get("reg_basis")
-    ppa              = ctx.get("ppa")
-    ref_fwd          = ctx.get("ref_fwd")
-    sd_ch            = ctx.get("sd_ch")
-    imb_eur          = ctx.get("imb_eur")
-    add_disc         = ctx.get("add_disc")
-    vol_risk_pct     = ctx.get("vol_risk_pct")
-    price_risk_pct   = ctx.get("price_risk_pct")
-    goo_value        = ctx.get("goo_value")
-    margin           = ctx.get("margin")
-    nat_cp_list      = ctx.get("nat_cp_list")
-    nat_eur_list     = ctx.get("nat_eur_list")
-    nat_cp_complete  = ctx.get("nat_cp_complete")
-    nat_eur_complete = ctx.get("nat_eur_complete")
-    hist_sd_f        = ctx.get("hist_sd_f")
-    sd_vals          = ctx.get("sd_vals")
-    pnl_v            = ctx.get("pnl_v")
-    scenarios        = ctx.get("scenarios")
-    proj             = ctx.get("proj")
-    proj_n           = ctx.get("proj_n")
-    last_yr_proj     = ctx.get("last_yr_proj")
-    anchor_val       = ctx.get("anchor_val")
-    chosen_pct       = ctx.get("chosen_pct")
-    vol_stress       = ctx.get("vol_stress")
-    spot_stress      = ctx.get("spot_stress")
-    partial_years    = ctx.get("partial_years")
-    current_year     = ctx.get("current_year")
-    data_start       = ctx.get("data_start")
-    data_end         = ctx.get("data_end")
-    tenor_start      = ctx.get("tenor_start")
-    tenor_end        = ctx.get("tenor_end")
-    fwd_df           = ctx.get("fwd_df")
-    fwd_curve        = ctx.get("fwd_curve")
-    fig_cap_link     = ctx.get("fig_cap_link")
-    proj_targets     = ctx.get("proj_targets")
-    vol_mwh          = ctx.get("vol_mwh")
-    be               = ctx.get("be")
-    prod_col_roll    = ctx.get("prod_col_roll")
-    yr_range         = ctx.get("yr_range", (2020, 2026))
-    ex22             = ctx.get("ex22", False)
-    get_nat_sd       = ctx.get("_get_nat_sd")
-    build_excel      = ctx.get("_build_excel")
-    load_balancing   = ctx.get("_load_balancing")
-    load_market_prices = ctx.get("_load_market_prices")
-    load_xborder_da  = ctx.get("_load_xborder_da")
-    load_fcr         = ctx.get("_load_fcr")
-    load_hourly      = ctx.get("_load_hourly")
-    _p               = ctx.get("_palette")
+    nat_ref       = ctx.get("nat_ref")
+    hourly        = ctx.get("hourly")
+    has_asset     = ctx.get("has_asset")
+    cfg           = ctx.get("cfg")
+    asset_name    = ctx.get("asset_name")
+    partial_years = ctx.get("partial_years")
+    fig_cap_link  = ctx.get("fig_cap_link")   # still a Plotly fig from compute — keep for now
 
+    # ── Negative hours ────────────────────────────────────────────────────────
     section("Negative Price Hours — by Year")
-    desc("Hours with day-ahead price < 0. Trend line excludes YTD. CRE threshold: 15h/yr.")
-    st.plotly_chart(chart_neg_hours(hourly, partial_years, cfg["color"]), use_container_width=True)
+    desc("Heures avec prix DA < 0. Tendance hors YTD. Seuil CRE : 15h/an.")
+    _ec(chart_neg_hours(hourly, partial_years, cfg["color"]),
+        height="380px", key="neg_hours")
 
     st.markdown("---")
+
+    # ── Monthly profile + scatter ─────────────────────────────────────────────
     c3a, c3b = st.columns(2)
     with c3a:
         section(f"Monthly Cannibalization Profile — {cfg['label']}")
-        desc("Average shape discount by calendar month. Error bars = year-to-year std dev.")
-        fig_mo, monthly_agg = chart_monthly_profile(hourly, cfg["prod_col"], cfg["color"], cfg["label"])
-        st.plotly_chart(fig_mo, use_container_width=True)
+        desc("Shape discount moyen par mois calendaire. Barres d'erreur = écart-type annuel.")
+        opt_mo, monthly_agg = chart_monthly_profile(hourly, cfg["prod_col"],
+                                                     cfg["color"], cfg["label"])
+        _ec(opt_mo, height="360px", key="monthly_profile")
     with c3b:
         section(f"CP% vs National {cfg['label']} Capacity")
-        desc("Each point = one year. X-axis = average national installed capacity (MW).")
-        st.plotly_chart(fig_cap_link, use_container_width=True)
+        desc("Chaque point = une année. Axe X = capacité nationale installée.")
+        # fig_cap_link is computed upstream — still Plotly for now
+        if fig_cap_link is not None:
+            st.plotly_chart(fig_cap_link, use_container_width=True)
+        else:
+            st.info("Graphique de capacité non disponible.")
 
     st.markdown("---")
+
+    # ── Shape disc delta ──────────────────────────────────────────────────────
     section(f"Annual Shape Discount Change — {cfg['label']}")
-    desc("Year-on-year delta in shape discount (pp). Positive = more cannibalization.")
-    st.plotly_chart(chart_shape_disc_delta(nat_ref, cfg["nat_sd"], cfg["color"], cfg["label"]),
-                    use_container_width=True)
+    desc("Delta annuel du shape discount (pp). Positif = cannibalization accrue.")
+    _ec(chart_shape_disc_delta(nat_ref, cfg["nat_sd"], cfg["color"], cfg["label"]),
+        height="340px", key="sd_delta")
 
     st.markdown("---")
+
+    # ── Heatmap ───────────────────────────────────────────────────────────────
     section(f"Heatmap — Monthly Shape Discount by Year — {cfg['label']}")
-    desc("Shape discount by month and year. Darker = higher cannibalization.")
-    st.plotly_chart(chart_heatmap(monthly_agg, cfg["color"], cfg["label"]), use_container_width=True)
+    desc("Shape discount par mois et année. Plus foncé = plus de cannibalization.")
+    _ec(chart_heatmap(monthly_agg, cfg["color"], cfg["label"]),
+        height="360px", key="heatmap")
 
     st.markdown("---")
+
+    # ── Market value ──────────────────────────────────────────────────────────
     st.markdown('<div class="section-title">Market Value Analysis — Jomaux / GEM Energy Analytics</div>',
                 unsafe_allow_html=True)
     section(f"Market Value vs {cfg['label']} Generation Output")
-    desc("Average day-ahead price per MW bin. Method: GEM Energy Analytics (Oct 2024).")
-    st.plotly_chart(
-        chart_market_value_vs_penetration(hourly, cfg["prod_col"], cfg["color"], cfg["label"], partial_years),
-        use_container_width=True)
+    desc("Prix spot moyen par bin de MW. Méthode : GEM Energy Analytics (Oct 2024).")
+    _ec(chart_market_value_vs_penetration(hourly, cfg["prod_col"], cfg["color"],
+                                           cfg["label"], partial_years),
+        height="380px", key="market_value")
 
     st.markdown("---")
+
+    # ── Duck / Canyon curve ───────────────────────────────────────────────────
     season_lbl = "Apr-Sep" if cfg["duck_months"]==list(range(4,10)) else "All months"
     section(f"Canyon Curve — {cfg['label']} ({season_lbl})")
-    desc("Normalised day-ahead prices by hour of day. Each line = one year. Most recent year highlighted. Method: GEM Energy Analytics.")
-    _all_years = sorted(hourly["Year"].unique())
+    desc("Prix DA normalisés par heure du jour. Une courbe par année. Année la plus récente en avant-plan.")
+
     _yr_opts = [f"Last {n} years" for n in [3,5,7,10]] + ["All years"]
-    _yr_sel = st.radio("", _yr_opts, index=1, horizontal=True, key="canyon_filter")
+    _yr_sel  = st.radio("", _yr_opts, index=1, horizontal=True, key="canyon_filter")
     _n_years = {"Last 3 years":3,"Last 5 years":5,"Last 7 years":7,"Last 10 years":10}.get(_yr_sel, None)
-    st.plotly_chart(chart_duck_curve(hourly, cfg["color"], cfg["label"], cfg["duck_months"],
-                                     recent_years=_n_years),
-                    use_container_width=True)
+
+    _ec(chart_duck_curve(hourly, cfg["color"], cfg["label"],
+                          cfg["duck_months"], recent_years=_n_years),
+        height="460px", key="duck_curve")
