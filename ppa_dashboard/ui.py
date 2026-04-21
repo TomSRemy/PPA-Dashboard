@@ -90,7 +90,7 @@ def plotly_base(fig: go.Figure, h: int = 480,
     axis_style = dict(
         showgrid=True, gridcolor=grid, gridwidth=1,
         linecolor=grid, linewidth=1,
-        showline=True, mirror=True,
+        showline=True, mirror="ticks",
         zeroline=False,
         ticks="outside", ticklen=4,
         automargin=True,
