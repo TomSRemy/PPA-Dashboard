@@ -1,22 +1,35 @@
 """
 tab_overview.py — KAL-EL PPA Dashboard
 Tab 1 — Overview: historical CP, projection, profiles.
+Migrated to ECharts via streamlit-echarts.
 """
 import streamlit as st
 import pandas as pd
 import numpy as np
 
 from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT, kpi_color
-from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge, plotly_base
-from charts import (
+from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge
+from charts_overview_dynamics import (
     chart_historical_cp, chart_projection,
     chart_daily_profile_national, chart_daily_profile_asset,
     chart_monthly_production, chart_annual_production,
 )
 from data import get_nat_sd
+from streamlit_echarts import st_echarts
+
+
+def _ec(opt, height="420px", key=None):
+    """Render ECharts dict. Handle stub and None gracefully."""
+    if opt is None:
+        st.info("Données non disponibles.")
+        return
+    if isinstance(opt, dict) and "graphic" in opt and "series" not in opt:
+        st.info(opt["graphic"][0]["style"]["text"])
+        return
+    st_echarts(options=opt, height=height, key=key)
+
 
 def render_tab_overview(ctx):
-    # Unpack context
     nat_ref          = ctx.get("nat_ref")
     nat_ref_complete = ctx.get("nat_ref_complete")
     hourly           = ctx.get("hourly")
@@ -71,15 +84,9 @@ def render_tab_overview(ctx):
     prod_col_roll    = ctx.get("prod_col_roll")
     yr_range         = ctx.get("yr_range", (2020, 2026))
     ex22             = ctx.get("ex22", False)
-    get_nat_sd       = ctx.get("_get_nat_sd")
-    build_excel      = ctx.get("_build_excel")
-    load_balancing   = ctx.get("_load_balancing")
-    load_market_prices = ctx.get("_load_market_prices")
-    load_xborder_da  = ctx.get("_load_xborder_da")
-    load_fcr         = ctx.get("_load_fcr")
-    load_hourly      = ctx.get("_load_hourly")
-    _p               = ctx.get("_palette")
+    get_nat_sd_fn    = ctx.get("_get_nat_sd", get_nat_sd)
 
+    # ── Header ────────────────────────────────────────────────────────────────
     st.markdown(
         f'## KAL-EL — France {cfg["label"]} {tech_badge(cfg["label"])} '
         f'<span style="font-size:13px;color:#888;font-weight:400">'
@@ -108,33 +115,27 @@ def render_tab_overview(ctx):
 
     st.markdown("---")
 
+    # ── KPIs ──────────────────────────────────────────────────────────────────
     k1, k2, k3, k4, k5 = st.columns(5)
 
-    # ── National reference values for colour logic ────────────────────────────
-    _nat_cp_last   = float(nat_cp_list[-1])  if nat_cp_list  else None
-    _nat_sd_med    = float(np.percentile(get_nat_sd(nat_ref_complete, cfg["nat_sd"]), 50))                      if len(get_nat_sd(nat_ref_complete, cfg["nat_sd"])) > 0 else None
-    _nat_be_ref    = 50  # P50 national as break-even reference
+    _nat_cp_last = float(nat_cp_list[-1]) if nat_cp_list else None
+    _nat_sd_vals = get_nat_sd_fn(nat_ref_complete, cfg["nat_sd"])
+    _nat_sd_med  = float(np.percentile(_nat_sd_vals, 50)) if len(_nat_sd_vals) > 0 else None
 
-    proj_tenor     = proj[proj["year"].between(tenor_start, tenor_end)]
-    cp_proj_avg    = proj_tenor["p50"].mean() if len(proj_tenor) > 0 else 0.0
-    sd_proj_avg    = (1 - proj_tenor["p50"].mean()) if len(proj_tenor) > 0 else sd_ch
-    p50_pnl        = (vol_mwh*(ref_fwd*(1-float(np.percentile(hist_sd_f,50)))-ppa)/1000
-                      if len(hist_sd_f) > 0 else 0)
-    be_num         = be if be else 101
+    proj_tenor  = proj[proj["year"].between(tenor_start, tenor_end)]
+    cp_proj_avg = proj_tenor["p50"].mean() if len(proj_tenor) > 0 else 0.0
+    sd_proj_avg = (1 - proj_tenor["p50"].mean()) if len(proj_tenor) > 0 else sd_ch
+    p50_pnl     = (vol_mwh*(ref_fwd*(1-float(np.percentile(hist_sd_f,50)))-ppa)/1000
+                   if len(hist_sd_f) > 0 else 0)
+    be_num      = be if be else 101
 
-    # Capture Rate color — asset vs national, higher is better
     c_cp  = kpi_color(cp_proj_avg, _nat_cp_last, margin=0.02, higher_is_better=True)
-    # Shape Discount color — lower is better (vs national median)
     c_sd  = kpi_color(sd_proj_avg, _nat_sd_med,  margin=0.02, higher_is_better=False)
-    # PPA Price — same colour as shape discount (linked)
-    c_ppa = c_sd
-    # P&L — positive vs zero
     c_pnl = kpi_color(p50_pnl, 0.0, margin=5.0, higher_is_better=True)
-    # Break-even — vs P50 national reference
-    c_be  = kpi_color(be_num, _nat_be_ref, margin=5.0, higher_is_better=True)
+    c_be  = kpi_color(be_num, 50, margin=5.0, higher_is_better=True)
 
     with k1:
-        kpi_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}", color=c_ppa,
+        kpi_card(f"PPA Price (P{chosen_pct})", f"{ppa:.2f}", color=c_sd,
                  delta=f"Shape disc {sd_proj_avg*100:.1f}%")
     with k2:
         kpi_card(f"Capture Rate {tenor_start}–{tenor_end}", f"{cp_proj_avg*100:.0f}%",
@@ -149,34 +150,39 @@ def render_tab_overview(ctx):
     with k5:
         be_txt = f"P{be}" if be else ">P100"
         kpi_card("Break-even Cannib.", be_txt, color=c_be,
-                 delta=f"vs P{_nat_be_ref} national")
+                 delta="vs P50 national")
 
     st.markdown("---")
+
+    # ── Historical CP — two sub-charts ───────────────────────────────────────
     c1a, c1b = st.columns(2)
     with c1a:
         section(f"Historical Captured Price — {cfg['label']} — {yr_range[0]} onwards")
-        desc("Bars: CP% by year. Gold = YTD (excluded from regression).")
-        st.plotly_chart(
-            chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
-                                cfg["color"], cfg["label"], nat_cp_list, nat_eur_list,
-                                partial_years),
-            use_container_width=True)
+        desc("Barres: CP% par année. Or = YTD (exclu de la régression).")
+        opt_top, opt_bot = chart_historical_cp(
+            nat_ref, asset_ann, has_asset, asset_name,
+            cfg["color"], cfg["label"], nat_cp_list, nat_eur_list, partial_years)
+        _ec(opt_top, height="300px", key="hist_cp_top")
+        _ec(opt_bot, height="220px", key="hist_cp_bot")
+
     with c1b:
-        section(f"Projection — {cfg['label']} CP% with Uncertainty Bands")
-        desc(f"Anchored on last asset point. {reg_basis} regression slope. Shaded = P10-P90.")
-        st.plotly_chart(
-            chart_projection(nat_ref, asset_ann, has_asset, proj,
-                             nat_cp_list, nat_ref_complete, cfg["nat_cp"],
-                             cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
-                             last_yr_proj, proj_n, ex22,
-                             reg_basis=reg_basis, anchor_val=anchor_val,
-                             proj_targets=proj_targets),
-            use_container_width=True)
+        section(f"Projection — {cfg['label']} CP% avec bandes d'incertitude")
+        desc(f"Ancrée sur le dernier point asset. Régression {reg_basis}. Zones = P10-P90.")
+        _ec(chart_projection(
+            nat_ref, asset_ann, has_asset, proj,
+            nat_cp_list, nat_ref_complete, cfg["nat_cp"],
+            cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
+            last_yr_proj, proj_n, ex22,
+            reg_basis=reg_basis, anchor_val=anchor_val,
+            proj_targets=proj_targets),
+            height="540px", key="proj_chart")
 
     st.markdown("---")
+
+    # ── Reference table ───────────────────────────────────────────────────────
     section(f"Reference Table — {cfg['label']} Shape Discount and P&L by Percentile")
-    desc("Complete years only — YTD excluded. P74 = WPD tender reference.")
-    nat_sd_tbl = get_nat_sd(nat_ref_complete, cfg["nat_sd"])
+    desc("Années complètes uniquement — YTD exclu. P74 = référence appels d'offres WPD.")
+    nat_sd_tbl = get_nat_sd_fn(nat_ref_complete, cfg["nat_sd"])
     kp = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,74,75,80,85,90,95,100]
     trows = []
     for p in kp:
@@ -200,36 +206,34 @@ def render_tab_overview(ctx):
     st.dataframe(tdf.style.apply(_hi,axis=1), use_container_width=True, height=440)
 
     st.markdown("---")
+
+    # ── Production profiles ───────────────────────────────────────────────────
     section("Production Profile — National vs Asset")
     d1, d2 = st.columns(2)
     with d1:
         section(f"Daily Profile — National {cfg['label']}")
-        desc("Average MW by hour of day, one line per month. National ENTSO-E data.")
-        st.plotly_chart(
-            chart_daily_profile_national(hourly, cfg["prod_col"], cfg["color"], cfg["label"]),
-            use_container_width=True)
+        desc("MW moyen par heure, une courbe par mois. Données ENTSO-E nationales.")
+        _ec(chart_daily_profile_national(hourly, cfg["prod_col"], cfg["color"], cfg["label"]),
+            height="420px", key="daily_nat")
     with d2:
         section(f"Daily Profile — {asset_name}")
-        desc("Same chart for the uploaded asset.")
+        desc("Même graphique pour l'asset uploadé.")
         if has_asset and asset_raw is not None:
-            st.plotly_chart(
-                chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
-                use_container_width=True)
+            _ec(chart_daily_profile_asset(asset_raw, cfg["color"], asset_name),
+                height="420px", key="daily_asset")
         else:
-            st.info("Upload an asset load curve in the sidebar to see its daily profile.")
+            st.info("Charger une courbe de charge asset dans la sidebar.")
 
     m1, m2 = st.columns(2)
     with m1:
         section("Monthly Production")
-        desc("Bars = asset avg GWh/month. Points = national avg MW.")
-        st.plotly_chart(
-            chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
-                                      cfg["color"], asset_name, has_asset),
-            use_container_width=True)
+        desc("Barres = GWh/mois asset. Points = MW national moyen.")
+        _ec(chart_monthly_production(hourly, asset_raw, cfg["prod_col"],
+                                     cfg["color"], asset_name, has_asset),
+            height="360px", key="monthly_prod")
     with m2:
         section("Annual Production")
-        desc("Bars = asset GWh/year.")
-        st.plotly_chart(
-            chart_annual_production(hourly, asset_ann, cfg["prod_col"],
-                                     cfg["color"], asset_name, has_asset, partial_years),
-            use_container_width=True)
+        desc("Barres = GWh/an asset.")
+        _ec(chart_annual_production(hourly, asset_ann, cfg["prod_col"],
+                                    cfg["color"], asset_name, has_asset, partial_years),
+            height="360px", key="annual_prod")
