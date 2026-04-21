@@ -93,10 +93,14 @@ def plotly_base(fig: go.Figure, h: int = 480,
         showline=True, mirror=False,
         zeroline=False,
         ticks="",
+        tickcolor=grid,
         automargin=True,
+        tickpadding=6,
+        title_standoff=12,
         tickfont=dict(family="Calibri, Arial", size=12, color=text),
         title_font=dict(family="Calibri, Arial", size=13, color=text),
+        minor=dict(showgrid=False, ticks=""),
     )
     fig.update_xaxes(**axis_style)
-    fig.update_yaxes(**axis_style)
+    fig.update_yaxes(**axis_style, rangemode="normal")
     return fig

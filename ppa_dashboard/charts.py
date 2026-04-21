@@ -58,6 +58,8 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                              marker=dict(size=7, color=tech_clr, symbol="square",
                                          line=dict(width=1, color=WHT)), showlegend=False), row=1, col=1)
     fig.add_hline(y=1.0, line=dict(color=REF_LINE, width=1, dash="dot"), row=1, col=1)
+    fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=rgba(ACCENT_WARN, 0.12), line_width=0, row=1, col=1)
+    fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=rgba(ACCENT_WARN, 0.12), line_width=0, row=2, col=1)
 
     fig.add_trace(go.Scatter(x=ny, y=ns, name="National Spot",
                              line=dict(color=TEXT_MUTED, width=1.5, dash="dash"), mode="lines+markers",
