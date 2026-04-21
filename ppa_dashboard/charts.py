@@ -40,7 +40,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     bar_outlines = [C3 if p else tech_clr for p in is_p]
     bar_texts    = [f"<b>{v*100:.0f}%</b>" + (" YTD" if p else "") for v, p in zip(nat_cp_list, is_p)]
     fig.add_trace(go.Bar(x=ny, y=nat_cp_list, name=f"M0 National {tech_lbl}",
-                         marker_color=bar_colors, marker_line_color=bar_outlines, marker_line_width=2,
+                         marker_color=bar_colors, marker_line_color=bar_outlines, marker_line_width=1,
                          text=bar_texts, textposition="outside",
                          textfont=dict(size=13, color=C1, family="Calibri")), row=1, col=1)
     if has_asset:
@@ -51,30 +51,32 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                              text=[f"<b>{v*100:.0f}%</b>" for v in acp], textposition="outside",
                              textfont=dict(size=11, color=C5, family="Calibri")), row=1, col=1)
         fig.add_trace(go.Scatter(x=ay, y=ae, name=asset_name+" EUR",
-                                 line=dict(color=C5, width=2.5), mode="lines+markers",
-                                 marker=dict(size=8, color=C5, line=dict(width=1.5, color=WHT))), row=2, col=1)
+                                 line=dict(color=C5, width=1.8), mode="lines+markers",
+                                 marker=dict(size=8, color=C5, line=dict(width=1, color=WHT))), row=2, col=1)
     fig.add_trace(go.Scatter(x=ny, y=nat_cp_list,
-                             line=dict(color=tech_clr, width=2.5, dash="dash"), mode="lines+markers",
+                             line=dict(color=tech_clr, width=1.8, dash="dash"), mode="lines+markers",
                              marker=dict(size=7, color=tech_clr, symbol="square",
-                                         line=dict(width=1.5, color=WHT)), showlegend=False), row=1, col=1)
+                                         line=dict(width=1, color=WHT)), showlegend=False), row=1, col=1)
     fig.add_hline(y=1.0, line=dict(color=REF_LINE, width=1, dash="dot"), row=1, col=1)
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=1, col=1)
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=2, col=1)
-    fig.add_annotation(x=2022, y=0.32, text="2022", showarrow=False,
-                       font=dict(color=C3, size=13, family="Calibri"), row=1, col=1)
+    fig.add_annotation(x=2022, y=1.08, text="2022", showarrow=False,
+                       font=dict(color=ACCENT_WARN, size=12, family="Calibri"), row=1, col=1)
     fig.add_trace(go.Scatter(x=ny, y=ns, name="National Spot",
                              line=dict(color=TEXT_MUTED, width=2, dash="dash"), mode="lines+markers",
                              marker=dict(size=6, color=TEXT_MUTED)), row=2, col=1)
     fig.add_trace(go.Scatter(x=ny, y=nat_eur_list, name=f"M0 {tech_lbl} EUR",
-                             line=dict(color=tech_clr, width=2.5), mode="lines+markers",
+                             line=dict(color=tech_clr, width=1.8), mode="lines+markers",
                              marker=dict(size=7, color=tech_clr, symbol="square",
-                                         line=dict(width=1.5, color=WHT))), row=2, col=1)
+                                         line=dict(width=1, color=WHT))), row=2, col=1)
     fig.update_yaxes(tickformat=".0%", row=1, col=1)
     fig.update_layout(
         barmode="group",
         title=dict(text=f"<b>Historical Captured Price — {tech_lbl}</b>"))
-    # Always show all years on x-axis
-    fig.update_xaxes(tickmode="array", tickvals=nat_ref["year"].tolist() if hasattr(nat_ref,"__len__") else [], row=1, col=1)
+    # Always show all years on x-axis — both subplots
+    _yvals = nat_ref["year"].tolist() if hasattr(nat_ref, "__len__") else []
+    fig.update_xaxes(tickmode="array", tickvals=_yvals, ticktext=[str(y) for y in _yvals])
+    fig.update_xaxes(showticklabels=True, row=2, col=1)
     plotly_base(fig, h=CHART_H_XL)
     return fig
 
@@ -88,16 +90,16 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     if has_asset:
         fig.add_trace(go.Scatter(x=asset_ann["Year"].tolist(), y=asset_ann["cp_pct"].tolist(),
                                  name="Asset (historical)", mode="lines+markers+text",
-                                 line=dict(color=C5, width=3),
-                                 marker=dict(size=10, color=C5, line=dict(width=2, color=WHT)),
+                                 line=dict(color=C5, width=2),
+                                 marker=dict(size=10, color=C5, line=dict(width=1, color=WHT)),
                                  text=[f"<b>{v*100:.0f}%</b>" for v in asset_ann["cp_pct"]],
                                  textposition="top center",
                                  textfont=dict(size=11, color=C5, family="Calibri")))
     fig.add_trace(go.Scatter(x=nat_ref["year"].tolist(), y=nat_cp_list,
                              name=f"M0 National {tech_lbl}", mode="lines+markers",
-                             line=dict(color=tech_clr, width=2.5, dash="dash"),
+                             line=dict(color=tech_clr, width=1.8, dash="dash"),
                              marker=dict(size=8, color=tech_clr, symbol="square",
-                                         line=dict(width=1.5, color=WHT))))
+                                         line=dict(width=1, color=WHT))))
     tx = list(range(2014, last_yr_proj + proj_n + 1))
     fig.add_trace(go.Scatter(x=tx, y=[1-(ic_u+sl_u*yr) for yr in tx],
                              name="Trend", line=dict(color=REF_LINE, width=2, dash="dot"),
@@ -121,8 +123,8 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
         hl = nat_ref_complete["cp_nat_pct"].iloc[-1]
     fig.add_trace(go.Scatter(x=[last_yr_proj]+py_, y=[hl]+proj["p50"].tolist(),
                              name="P50 (central scenario)", mode="lines+markers",
-                             line=dict(color=C1, width=3),
-                             marker=dict(size=8, color=C1, line=dict(width=2, color=WHT))))
+                             line=dict(color=C1, width=2),
+                             marker=dict(size=8, color=C1, line=dict(width=1, color=WHT))))
     for _, row in proj.iterrows():
         fig.add_annotation(x=row["year"], y=row["p50"],
                            text=f"<b>P50:{row['p50']*100:.0f}%</b><br>P10:{row['p10']*100:.0f}%",
@@ -133,7 +135,7 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     if proj_targets:
         for t in proj_targets:
             fig.add_trace(go.Scatter(x=[t["year"]], y=[t["cp"]], mode="markers+text",
-                                     marker=dict(size=10, color="black", line=dict(width=1.5, color=WHT)),
+                                     marker=dict(size=10, color="black", line=dict(width=1, color=WHT)),
                                      text=[f"<b>{t['year']}</b><br>{t['cp']*100:.0f}%"],
                                      textposition="top center",
                                      textfont=dict(size=11, color="black", family="Calibri"),
@@ -158,7 +160,7 @@ def chart_forward(fwd_df: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Bar(x=fwd_df["year"], y=fwd_df["forward"],
                          marker_color=[rgba(C2, 0.7)]*len(fwd_df),
-                         marker_line_color=C2, marker_line_width=2,
+                         marker_line_color=C2, marker_line_width=1,
                          text=[f"<b>{v:.1f}</b>" for v in fwd_df["forward"]],
                          textposition="outside",
                          textfont=dict(size=14, color=C1, family="Calibri"),
@@ -195,7 +197,7 @@ def chart_neg_hours(hourly: pd.DataFrame, partial_years: list, tech_clr: str) ->
         sln, icn, *_ = stats.linregress(xn, yn)
         fut = list(range(int(xn.min()), int(xn.max())+4))
         fig.add_trace(go.Scatter(x=fut, y=[max(0, icn+sln*yr) for yr in fut],
-                                 mode="lines", line=dict(color=C5, width=2.5, dash="dash"),
+                                 mode="lines", line=dict(color=C5, width=1.8, dash="dash"),
                                  name=f"Trend ({sln:+.0f}h/yr)"))
     fig.add_hline(y=15, line=dict(color=C2, width=1.5, dash="dot"),
                   annotation_text="CRE Threshold (15h)",
@@ -257,7 +259,7 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=sc["TechX"], y=sc["cp_plot"], mode="markers+text",
-        marker=dict(size=16, color=pt_col, line=dict(width=2, color=WHT)),
+        marker=dict(size=16, color=pt_col, line=dict(width=1, color=WHT)),
         text=[f"<b>{int(y)}</b>" for y in sc["year"]],
         textposition="top center",
         textfont=dict(size=11, color=C1, family="Calibri"),
@@ -306,7 +308,7 @@ def chart_scatter_cp_vs_capacity(nat_ref: pd.DataFrame, hourly: pd.DataFrame,
                 fig.add_vline(x=t["capacity"], line=dict(color="black", width=1, dash="dot"))
                 fig.add_trace(go.Scatter(
                     x=[t["capacity"]], y=[t["cp"]], mode="markers+text",
-                    marker=dict(size=12, color="black", line=dict(width=1.5, color=WHT)),
+                    marker=dict(size=12, color="black", line=dict(width=1, color=WHT)),
                     text=[f"<b>PPE3 {t['year']}<br>{t['capacity']:.0f}{unit} to {t['cp']*100:.0f}%</b>"],
                     textposition="top center",
                     textfont=dict(size=10, color=C1, family="Calibri"),
@@ -413,7 +415,7 @@ def chart_duck_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str, duck_mo
     for yr, col in zip(years, year_colors):
         d = hourly_avg[hourly_avg["Year"]==yr].sort_values("Hour")
         fig.add_trace(go.Scatter(x=d["Hour"], y=d["norm_spot"], mode="lines",
-                                 line=dict(color=col, width=3.0 if yr==years[-1] else 1.2),
+                                 line=dict(color=col, width=2.0 if yr==years[-1] else 1.2),
                                  name=str(yr), legendgroup=str(yr), showlegend=True,
                                  hovertemplate=f"<b>{yr}</b> — Hour %{{x}}h: %{{y:.2f}}x avg<extra></extra>"))
     fig.add_hline(y=1.0, line=dict(color=REF_LINE_L, width=1.5, dash="dot"),
@@ -447,7 +449,7 @@ def chart_canyon_curve(hourly: pd.DataFrame, tech_clr: str, tech_lbl: str,
     for yr, col in zip(sel, year_colors):
         d = hourly_avg[hourly_avg["Year"]==yr].sort_values("Hour")
         fig.add_trace(go.Scatter(x=d["Hour"], y=d["norm_spot"], mode="lines",
-                                 line=dict(color=col, width=3.0 if yr==sel[-1] else 1.5),
+                                 line=dict(color=col, width=2.0 if yr==sel[-1] else 1.5),
                                  name=str(yr),
                                  hovertemplate=f"<b>{yr}</b> — Hour %{{x}}h: %{{y:.2f}}x avg<extra></extra>"))
     fig.add_hline(y=1.0, line=dict(color=REF_LINE_L, width=1.5, dash="dot"),
@@ -479,11 +481,11 @@ def chart_pnl_percentile(pcts, pnl_v, cp_vals, ppa, vol_mwh,
                                       fillcolor=rgba(ACCENT_NEG, 0.15),
                                       line=dict(color=transparent()), showlegend=False))
     fig.add_trace(go.Scatter(x=pcts, y=pnl_v, name="P&L (k EUR/yr)",
-                             mode="lines", line=dict(color=C1, width=3)))
+                             mode="lines", line=dict(color=C1, width=2)))
     pc_ = pnl_v[chosen_pct-1]
     fig.add_trace(go.Scatter(x=[chosen_pct], y=[pc_], mode="markers+text",
                              marker=dict(size=16, color=C2 if pc_>=0 else C5,
-                                         line=dict(width=2.5, color=WHT)),
+                                         line=dict(width=1.8, color=WHT)),
                              text=[f"<b>P{chosen_pct}: {pc_:.0f}k</b>"],
                              textposition="top right", name=f"P{chosen_pct} Selected",
                              textfont=dict(size=12, color=C1, family="Calibri")))
@@ -513,9 +515,9 @@ def chart_scenarios(scenarios: list, proj_n: int, tech_lbl: str) -> go.Figure:
                          text=[f"<b>{v:+.0f}k</b>" for v in sv50], textposition="outside",
                          textfont=dict(size=12, color=C1, family="Calibri")))
     fig.add_trace(go.Scatter(name="P10", x=sn, y=sv10, mode="markers",
-                             marker=dict(symbol="triangle-down", size=14, color=C5, line=dict(width=2, color=WHT))))
+                             marker=dict(symbol="triangle-down", size=14, color=C5, line=dict(width=1, color=WHT))))
     fig.add_trace(go.Scatter(name="P90", x=sn, y=sv90, mode="markers",
-                             marker=dict(symbol="triangle-up", size=14, color=C2, line=dict(width=2, color=WHT))))
+                             marker=dict(symbol="triangle-up", size=14, color=C2, line=dict(width=1, color=WHT))))
     fig.add_hline(y=0, line=dict(color=REF_LINE, width=2))
     fig.update_layout(xaxis_title="Scenario", yaxis_title=f"Cumulative P&L {proj_n}yr (k EUR)", bargap=0.35)
     plotly_base(fig, h=CHART_H_MD)
@@ -589,7 +591,7 @@ def chart_rolling_cp(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
                                  line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
     fig.add_trace(go.Scatter(x=ann_x, y=nat_cp_list_complete,
                              name=f"Annual M0 {tech_lbl}", mode="markers",
-                             marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT))))
+                             marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=1, color=WHT))))
     for _, ytd_row in nat_ref[nat_ref["partial"]==True].iterrows():
         cp_ytd = (ytd_row[nat_cp_col] if nat_cp_col in ytd_row.index and not pd.isna(ytd_row[nat_cp_col])
                   else ytd_row["cp_nat_pct"])
@@ -623,7 +625,7 @@ def chart_rolling_eur(roll: pd.DataFrame, nat_ref_complete: pd.DataFrame,
                                  line=dict(color=W_COLOR[w], width=W_WIDTH[w], dash=W_DASH[w])))
     fig.add_trace(go.Scatter(x=ann_x, y=nat_eur_list_complete, name=f"Annual M0 {tech_lbl}",
                              mode="markers",
-                             marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=2, color=WHT))))
+                             marker=dict(size=11, color=C5, symbol="diamond", line=dict(width=1, color=WHT))))
     fig.update_yaxes(title_text="EUR/MWh"); fig.update_xaxes(title_text="Date")
     plotly_base(fig, h=CHART_H_LG)
     fig.update_layout(title=dict(text=f"<b>Rolling Captured Price M0 (EUR/MWh) — {tech_lbl}</b>"))
@@ -668,9 +670,9 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     fig.add_trace(go.Scatter(
         x=overall_avg["Hour"], y=overall_avg[prod_col],
         mode="lines+markers", name="Annual average",
-        line=dict(color=C1, width=3),
+        line=dict(color=C1, width=2),
         marker=dict(size=9, color=C1, symbol="circle",
-                    line=dict(width=2, color=WHT)),
+                    line=dict(width=1, color=WHT)),
         hovertemplate="<b>Hour %{x}h — Annual avg: %{y:.1f} MW</b><extra></extra>",
     ))
  
@@ -723,9 +725,9 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     fig.add_trace(go.Scatter(
         x=overall_avg["Hour"], y=overall_avg["Prod_MWh"],
         mode="lines+markers", name="Annual average",
-        line=dict(color=tech_clr, width=3),
+        line=dict(color=tech_clr, width=2),
         marker=dict(size=9, color=tech_clr, symbol="circle",
-                    line=dict(width=2, color=WHT)),
+                    line=dict(width=1, color=WHT)),
         hovertemplate="<b>Hour %{x}h — Annual avg: %{y:.1f} MW</b><extra></extra>",
     ))
  
@@ -806,7 +808,7 @@ def chart_last_week(bal: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     if "DA" in d.columns and d["DA"].notna().any():
         fig.add_trace(go.Scatter(x=d["Date"], y=d["DA"], mode="lines", name="Day-Ahead",
-                                 line=dict(color=COL_DA, width=2.5)))
+                                 line=dict(color=COL_DA, width=1.8)))
     if "Imb_Pos" in d.columns and d["Imb_Pos"].notna().any():
         fig.add_trace(go.Scatter(x=d["Date"], y=d["Imb_Pos"], mode="lines", name="Imbalance Positive",
                                  line=dict(color=COL_IMB_POS, width=1.5, dash="dash")))
@@ -1099,7 +1101,7 @@ def mo_chart_hourly_overlay(hourly: pd.DataFrame) -> go.Figure:
         fig.add_trace(go.Scatter(
             x=d["Hour"], y=d["Spot"],
             mode="lines", name=pd.Timestamp(day).strftime("%a %d %b"),
-            line=dict(color=rgba(C1, alpha), width=2.5 if is_last else 1.2),
+            line=dict(color=rgba(C1, alpha), width=1.8 if is_last else 1.2),
             hovertemplate=f"<b>{pd.Timestamp(day).strftime('%d %b')}</b> h%{{x}}: %{{y:.1f}}<extra></extra>",
         ))
 
@@ -1107,7 +1109,7 @@ def mo_chart_hourly_overlay(hourly: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Scatter(
         x=avg_by_hour["Hour"], y=avg_by_hour["Spot"],
         mode="lines", name="7-day avg",
-        line=dict(color=C2, width=3.0),
+        line=dict(color=C2, width=2.0),
         hovertemplate="<b>7d avg</b> h%{x}: %{y:.1f}<extra></extra>",
     ))
 
@@ -1282,12 +1284,12 @@ def mo_chart_renewables_profile(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     if "NatMW" in h.columns and h["NatMW"].sum() > 0:
         sol = h.groupby("Hour")["NatMW"].mean().reset_index()
         fig.add_trace(go.Scatter(x=sol["Hour"], y=sol["NatMW"], mode="lines",
-                                 name="Solar", line=dict(color=C3, width=2.5),
+                                 name="Solar", line=dict(color=C3, width=1.8),
                                  fill="tozeroy", fillcolor=rgba(C3, 0.12)))
     if "WindMW" in h.columns and h["WindMW"].sum() > 0:
         win = h.groupby("Hour")["WindMW"].mean().reset_index()
         fig.add_trace(go.Scatter(x=win["Hour"], y=win["WindMW"], mode="lines",
-                                 name="Wind", line=dict(color=C1, width=2.5),
+                                 name="Wind", line=dict(color=C1, width=1.8),
                                  fill="tozeroy", fillcolor=rgba(C1, 0.08)))
 
     fig.update_xaxes(title_text="Hour", tickmode="array",
@@ -1709,7 +1711,7 @@ def mo_chart_country_da_history(xb: pd.DataFrame, fr_hourly: pd.DataFrame,
         if len(fr_d) > 0:
             fig.add_trace(go.Scatter(
                 x=fr_d["Date"], y=fr_d["FR"], mode="lines",
-                name="France", line=dict(color=C1, width=2.5),
+                name="France", line=dict(color=C1, width=1.8),
                 hovertemplate="<b>France</b> %{x|%d %b}: %{y:.1f}<extra></extra>",
             ))
 
@@ -1989,7 +1991,7 @@ def mk_chart_spread(hourly: pd.DataFrame, zoom: str) -> go.Figure:
     ))
     fig.add_trace(go.Scatter(
         x=daily["Date"], y=roll30, mode="lines", name="30D rolling avg",
-        line=dict(color=C1, width=2.5),
+        line=dict(color=C1, width=1.8),
         hovertemplate="30D avg: %{y:.1f}<extra></extra>",
     ))
     fig.update_yaxes(title_text="€/MWh")
@@ -2224,7 +2226,7 @@ def mk_chart_renewables_lines(hourly: pd.DataFrame, zoom: str) -> go.Figure:
             fig.add_trace(go.Scatter(
                 x=dd["Date"], y=dd[col].rolling(7, min_periods=3).mean(),
                 mode="lines", name=f"{label} 7D avg",
-                line=dict(color=color, width=2.5, dash="dash"),
+                line=dict(color=color, width=1.8, dash="dash"),
                 hovertemplate=f"{label} 7D avg: %{{y:.0f}} MW<extra></extra>",
             ))
     if not fig.data:
@@ -2504,7 +2506,7 @@ def mk_chart_country_history(xb, hourly, zoom) -> go.Figure:
         if len(d) > 0:
             fig.add_trace(go.Scatter(
                 x=d["Date"], y=d["Spot"], mode="lines", name="France",
-                line=dict(color=COLORS["FR"], width=2.5),
+                line=dict(color=COLORS["FR"], width=1.8),
                 hovertemplate="<b>France</b> %{x|%d %b}: %{y:.1f} €/MWh<extra></extra>",
             ))
     # Others
