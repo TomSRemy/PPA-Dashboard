@@ -98,4 +98,6 @@ def plotly_base(fig: go.Figure, h: int = 480,
     )
     fig.update_xaxes(**axis_style)
     fig.update_yaxes(**axis_style)
+    # Vertical grid on x-axis
+    fig.update_xaxes(showgrid=True)
     return fig
