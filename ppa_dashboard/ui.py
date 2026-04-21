@@ -37,11 +37,10 @@ def ppa_card(label: str, value: str, unit: str = "EUR / MWh"):
 def kpi_card(label: str, value: str, color: str = None, extra_cls: str = "",
              delta: str = None, delta_color: str = None):
     c = color or _DEFAULT["SOLAR_ACC"]
-    d_color = delta_color or c
-    delta_html = f'<div class="kpi-delta" style="color:{d_color}">{delta}</div>' if delta else ""
+    delta_html = f'<div class="kpi-delta">{delta}</div>' if delta else ""
     st.markdown(
         f'<div class="kpi-card {extra_cls}" style="border-left-color:{c}">'
-        f'<div class="kpi-lbl" style="color:{c}">{label}</div>'
+        f'<div class="kpi-lbl">{label}</div>'
         f'<div class="kpi-val">{value}</div>'
         f'{delta_html}'
         f'</div>',
@@ -90,9 +89,12 @@ def plotly_base(fig: go.Figure, h: int = 480,
     )
     axis_style = dict(
         showgrid=True, gridcolor=grid, gridwidth=1,
-        linecolor=border, linewidth=1,
+        linecolor=grid, linewidth=1,
+        showline=True,
+        zeroline=True, zerolinecolor=grid, zerolinewidth=1,
+        ticks="outside", ticklen=4,
         tickfont=dict(family="Calibri, Arial", size=12, color=text),
-        title_font=dict(family="Calibri, Arial", size=13, color=text)
+        title_font=dict(family="Calibri, Arial", size=13, color=text),
     )
     fig.update_xaxes(**axis_style)
     fig.update_yaxes(**axis_style)
