@@ -136,7 +136,7 @@ def get_palette(dark: bool = False) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # CARD SIZES — edit to resize ALL cards at once
 # ══════════════════════════════════════════════════════════════════════════════
-CARD_BORDER_OUTER  = "2px"       # outline border thickness
+CARD_BORDER_OUTER  = "1px"       # outline border thickness
 CARD_BORDER_ACCENT = "7px"       # left accent border thickness
 CARD_RADIUS        = "8px"       # corner radius
 CARD_PADDING       = "16px 18px" # internal padding
