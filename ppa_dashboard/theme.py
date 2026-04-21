@@ -62,7 +62,7 @@ _LIGHT = dict(
 # DARK PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _DARK = dict(
-    PAGE_BG        = "#FAFAF8",   # Ink Black — deep dark background
+    PAGE_BG        = "#FFFFFF",   # Ink Black — deep dark background
     SURFACE        = "#005F73",   # Dark Teal — elevated surface
     SIDEBAR_BG     = "#001219",   # Ink Black — same as page in dark
     TEXT_PRIMARY   = "#E9D8A6",   # Wheat — warm readable on dark
