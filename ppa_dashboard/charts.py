@@ -58,12 +58,9 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                              marker=dict(size=7, color=tech_clr, symbol="square",
                                          line=dict(width=1, color=WHT)), showlegend=False), row=1, col=1)
     fig.add_hline(y=1.0, line=dict(color=REF_LINE, width=1, dash="dot"), row=1, col=1)
-    fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=1, col=1)
-    fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.25, line_width=0, row=2, col=1)
-    fig.add_annotation(x=2022, y=1.08, text="2022", showarrow=False,
-                       font=dict(color=ACCENT_WARN, size=12, family="Calibri"), row=1, col=1)
+
     fig.add_trace(go.Scatter(x=ny, y=ns, name="National Spot",
-                             line=dict(color=TEXT_MUTED, width=2, dash="dash"), mode="lines+markers",
+                             line=dict(color=TEXT_MUTED, width=1.5, dash="dash"), mode="lines+markers",
                              marker=dict(size=6, color=TEXT_MUTED)), row=2, col=1)
     fig.add_trace(go.Scatter(x=ny, y=nat_eur_list, name=f"M0 {tech_lbl} EUR",
                              line=dict(color=tech_clr, width=1.8), mode="lines+markers",
@@ -73,10 +70,13 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     fig.update_layout(
         barmode="group",
         title=dict(text=f"<b>Historical Captured Price — {tech_lbl}</b>"))
-    # Always show all years on x-axis — both subplots
+    # Force x-axis labels on BOTH subplots
     _yvals = nat_ref["year"].tolist() if hasattr(nat_ref, "__len__") else []
-    fig.update_xaxes(tickmode="array", tickvals=_yvals, ticktext=[str(y) for y in _yvals])
-    fig.update_xaxes(showticklabels=True, row=2, col=1)
+    _ytxt  = [str(y) for y in _yvals]
+    fig.update_xaxes(tickmode="array", tickvals=_yvals, ticktext=_ytxt,
+                     showticklabels=True, row=1, col=1)
+    fig.update_xaxes(tickmode="array", tickvals=_yvals, ticktext=_ytxt,
+                     showticklabels=True, row=2, col=1)
     plotly_base(fig, h=CHART_H_XL)
     return fig
 

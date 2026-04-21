@@ -88,11 +88,11 @@ def plotly_base(fig: go.Figure, h: int = 480,
         )
     )
     axis_style = dict(
-        showgrid=True, gridcolor=grid, gridwidth=1,
-        linecolor=grid, linewidth=1,
-        showline=True, mirror="ticks",
+        showgrid=True, gridcolor=grid, gridwidth=0.5,
+        linecolor=grid, linewidth=0.5,
+        showline=True, mirror=False,
         zeroline=False,
-        ticks="outside", ticklen=4,
+        ticks="",
         automargin=True,
         tickfont=dict(family="Calibri, Arial", size=12, color=text),
         title_font=dict(family="Calibri, Arial", size=13, color=text),
