@@ -35,9 +35,9 @@ TO RESIZE ALL CHARTS: edit CHART SIZES section.
 # LIGHT PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _LIGHT = dict(
-    PAGE_BG        = "#FAFAF8",   # 
+    PAGE_BG        = "#E9D8A6",   # Wheat — warm parchment background
     SURFACE        = "#FFFFFF",   # White — cards, chart bg
-    SIDEBAR_BG     = "#FDFBF7",   # 
+    SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
     TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
     TEXT_SECONDARY = "#005F73",   # Dark Teal — secondary labels
     TEXT_FAINT     = "#0A9396",   # Dark Cyan — hints, metadata
@@ -50,7 +50,7 @@ _LIGHT = dict(
     NEG_ACC        = "#BB3E03",   # Rusty Spice — losses, negative
     NEG_FILL       = "#AE2012",   # Oxidized Iron (dark fill variant)
     BORDER         = "#94D2BD",   # Pearl Aqua — subtle border
-    GRID           = "#C8C0B0",   # 
+    GRID           = "#E9D8A6",   # Wheat — soft gridlines
     REF            = "#CA6702",   # Burnt Caramel — reference lines
     SECTION_BG     = "#005F73",   # Dark Teal — section header bg
     SECTION_TEXT   = "#E9D8A6",   # Wheat — section header text
@@ -172,6 +172,30 @@ def __getattr__(name):
     if name in _p:
         return _p[name]
     raise AttributeError(f"module 'theme' has no attribute {name!r}")
+
+
+
+def kpi_color(asset_val, national_val=None, margin: float = 0.02,
+              higher_is_better: bool = True) -> str:
+    """
+    Returns border color for a KPI card based on asset vs national comparison.
+
+    - asset_val > national_val + margin  → SOLAR_ACC (green)
+    - within margin                       → WARN_ACC  (orange)
+    - asset_val < national_val - margin  → NEG_ACC   (red)
+
+    If national_val is None, falls back to zero comparison.
+    higher_is_better=False inverts the logic (e.g. shape discount: lower is better).
+    """
+    if asset_val is None:
+        return _p["SOLAR_ACC"]
+    ref = national_val if national_val is not None else 0.0
+    diff = (asset_val - ref) if higher_is_better else (ref - asset_val)
+    if diff > margin:
+        return _p["SOLAR_ACC"]
+    if diff > -margin:
+        return _p["WARN_ACC"]
+    return _p["NEG_ACC"]
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS

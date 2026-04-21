@@ -104,7 +104,7 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .ppa-card .lbl {{ font-size: 11px; color: {p["SECTION_TEXT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
     background: {p["SURFACE"]}; border-left: 7px solid {p["SOLAR_ACC"]}; padding: 16px 18px; border-radius: 8px;
-    border: 1.5px solid {p["BORDER"]}; box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border: 2px solid {p["BORDER"]}; box-shadow: none;
     display: flex; flex-direction: column; gap: 2px;
 }}
 .kpi-val {{ font-size: 28px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; line-height: 1.1; }}
