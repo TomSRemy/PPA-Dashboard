@@ -35,7 +35,7 @@ TO RESIZE ALL CHARTS: edit CHART SIZES section.
 # LIGHT PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _LIGHT = dict(
-    PAGE_BG        = "#FAFAF8",   # 
+    PAGE_BG        = "#E9D8A6",   # Wheat — warm parchment background
     SURFACE        = "#FFFFFF",   # White — cards, chart bg
     SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
     TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
@@ -50,6 +50,7 @@ _LIGHT = dict(
     NEG_ACC        = "#BB3E03",   # Rusty Spice — losses, negative
     NEG_FILL       = "#AE2012",   # Oxidized Iron (dark fill variant)
     BORDER         = "#94D2BD",   # Pearl Aqua — subtle border
+    CARD_BORDER_COLOR = "#D0D0D0",  # card outer border — neutral grey
     GRID           = "#E9D8A6",   # Wheat — soft gridlines
     REF            = "#CA6702",   # Burnt Caramel — reference lines
     SECTION_BG     = "#005F73",   # Dark Teal — section header bg
@@ -61,7 +62,7 @@ _LIGHT = dict(
 # DARK PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _DARK = dict(
-    PAGE_BG        = "#FAFAF8",   # 
+    PAGE_BG        = "#001219",   # Ink Black — deep dark background
     SURFACE        = "#005F73",   # Dark Teal — elevated surface
     SIDEBAR_BG     = "#001219",   # Ink Black — same as page in dark
     TEXT_PRIMARY   = "#E9D8A6",   # Wheat — warm readable on dark
@@ -76,6 +77,7 @@ _DARK = dict(
     NEG_ACC        = "#BB3E03",   # Rusty Spice — same on dark
     NEG_FILL       = "#001219",   # Ink Black fill variant
     BORDER         = "#0A9396",   # Dark Cyan — border on dark
+    CARD_BORDER_COLOR = "#2A4055",  # card outer border — dark mode
     GRID           = "#005F73",   # Dark Teal — gridlines on dark
     REF            = "#94D2BD",   # Pearl Aqua — ref lines on dark
     SECTION_BG     = "#005F73",   # Dark Teal — same section bg
@@ -98,6 +100,7 @@ def _add_compat(p: dict, dark: bool) -> dict:
     p["TEXT_DARK"]      = p["TEXT_PRIMARY"]
     p["TEXT_MUTED"]     = p["TEXT_SECONDARY"]
     p["BORDER_LIGHT"]   = p["BORDER"]
+    p["CARD_BORDER_COLOR"] = p["CARD_BORDER_COLOR"]
     p["BORDER_FAINT"]   = p["GRID"]
     p["BORDER_MED"]     = p["BORDER"]
     p["GRID_LINE"]      = p["GRID"]
@@ -133,7 +136,7 @@ def get_palette(dark: bool = False) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # CARD SIZES — edit to resize ALL cards at once
 # ══════════════════════════════════════════════════════════════════════════════
-CARD_BORDER_OUTER  = "1px"       # outline border thickness
+CARD_BORDER_OUTER  = "2px"       # outline border thickness
 CARD_BORDER_ACCENT = "7px"       # left accent border thickness
 CARD_RADIUS        = "8px"       # corner radius
 CARD_PADDING       = "16px 18px" # internal padding

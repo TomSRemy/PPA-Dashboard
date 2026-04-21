@@ -15,7 +15,7 @@ from theme import (
     REF_LINE, REF_LINE_L, REF_LINE_LL, COL_SOLAR, COL_SOLAR_L, COL_WIND, COL_WIND_L,
     SECTION_BG, SECTION_TEXT, SECTION_BORDER,
     CHART_H_XS, CHART_H_SM, CHART_H_MD, CHART_H_LG, CHART_H_XL, CHART_H_TBL,
-    CARD_BORDER_OUTER, CARD_BORDER_ACCENT, CARD_RADIUS, CARD_PADDING, CARD_SHADOW,
+    CARD_BORDER_OUTER, CARD_BORDER_ACCENT, CARD_RADIUS, CARD_PADDING, CARD_SHADOW, CARD_BORDER_COLOR,
     rgba, with_alpha, transparent, band_colors, pos_neg_colors, set_mode, get_palette,
 )
 
@@ -99,15 +99,18 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
 .ppa-card {{
     background: {p["SECTION_BG"]}; color: {p["SECTION_TEXT"]};
     padding: {CARD_PADDING}; border-radius: {CARD_RADIUS}; text-align: center;
-    border: {CARD_BORDER_OUTER} solid {p["BORDER"]};
+    border: {CARD_BORDER_OUTER} solid {CARD_BORDER_COLOR};
+    border-left: {CARD_BORDER_ACCENT} solid {p["WARN_ACC"]};
     box-shadow: {CARD_SHADOW};
 }}
 .ppa-card .val {{ font-size: 32px; font-weight: 700; color: {p["SECTION_TEXT"]} !important; font-family: Calibri, Arial, sans-serif; }}
 .ppa-card .lbl {{ font-size: 11px; color: {p["SECTION_TEXT"]} !important; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.06em; }}
 .kpi-card {{
-    background: {p["SURFACE"]}; border-left: {CARD_BORDER_ACCENT} solid {p["SOLAR_ACC"]};
+    background: {p["SURFACE"]};
+    border: {CARD_BORDER_OUTER} solid {CARD_BORDER_COLOR};
+    border-left: {CARD_BORDER_ACCENT} solid {p["SOLAR_ACC"]};
     padding: {CARD_PADDING}; border-radius: {CARD_RADIUS};
-    border: {CARD_BORDER_OUTER} solid {p["BORDER"]}; box-shadow: {CARD_SHADOW};
+    box-shadow: {CARD_SHADOW};
     display: flex; flex-direction: column; gap: 2px;
 }}
 .kpi-val {{ font-size: 32px; font-weight: 700; color: {p["TEXT_PRIMARY"]}; font-family: Calibri, Arial, sans-serif; line-height: 1.1; }}
@@ -139,7 +142,8 @@ p, li, label, .stMarkdown, td, th {{ font-family: Calibri, Arial, sans-serif !im
     border-radius: 8px; padding: 12px 18px; color: {p["TEXT_PRIMARY"]} !important; font-weight: 500; margin: 10px 0;
 }}
 .wind-msg {{
-    background: {p["WIND_FILL"]}; border: 1px solid {p["WIND_ACC"]};
+    background: {p["WIND_FILL"]}; border: {CARD_BORDER_OUTER} solid {CARD_BORDER_COLOR};
+    border-left: {CARD_BORDER_ACCENT} solid {p["WIND_ACC"]};
     border-radius: 8px; padding: 12px 18px; color: {p["TEXT_PRIMARY"]} !important; font-weight: 500; margin: 10px 0;
 }}
 [data-testid="stSidebar"] {{ background: linear-gradient(180deg, {SIDEBAR}, {SIDEBAR}EE) !important; }}
