@@ -35,7 +35,7 @@ TO RESIZE ALL CHARTS: edit CHART SIZES section.
 # LIGHT PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _LIGHT = dict(
-    PAGE_BG        = "#E9D8A6",   # Wheat — warm parchment background
+    PAGE_BG        = "#FAFAF8",   # 
     SURFACE        = "#FFFFFF",   # White — cards, chart bg
     SIDEBAR_BG     = "#001219",   # Ink Black — deep sidebar
     TEXT_PRIMARY   = "#001219",   # Ink Black — max contrast on light
@@ -62,7 +62,7 @@ _LIGHT = dict(
 # DARK PALETTE
 # ══════════════════════════════════════════════════════════════════════════════
 _DARK = dict(
-    PAGE_BG        = "#001219",   # Ink Black — deep dark background
+    PAGE_BG        = "#FAFAF8",   # 
     SURFACE        = "#005F73",   # Dark Teal — elevated surface
     SIDEBAR_BG     = "#001219",   # Ink Black — same as page in dark
     TEXT_PRIMARY   = "#E9D8A6",   # Wheat — warm readable on dark
