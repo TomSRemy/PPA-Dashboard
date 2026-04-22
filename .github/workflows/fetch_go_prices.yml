@@ -38,7 +38,7 @@ jobs:
       - name: Run parser
         env:
           GO_TOKEN_JSON: ${{ secrets.GO_TOKEN_JSON }}
-        run: python fetch_go_prices.py
+        run: python ppa_dashboard/fetch_go_prices.py
 
       - name: Commit and push if new data
         run: |
