@@ -45,7 +45,7 @@ def get_service():
 
 # ── Mail fetching ─────────────────────────────────────────────────────────────
 def get_commerg_emails(service, max_results=10):
-    query = f"from:{SENDER_FILTER} subject:{SUBJECT_FILTER!r}"
+    query = f"subject:{SUBJECT_FILTER!r}"
     result = service.users().messages().list(
         userId="me", q=query, maxResults=max_results
     ).execute()
