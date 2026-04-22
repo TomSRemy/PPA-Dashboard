@@ -1,0 +1,49 @@
+name: Fetch GO Prices (Commerg)
+
+on:
+  schedule:
+    # Chaque vendredi à 14h UTC (Commerg envoie le vendredi matin)
+    - cron: "0 14 * * 5"
+  workflow_dispatch:  # déclenchement manuel possible
+
+jobs:
+  fetch-go-prices:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            google-auth \
+            google-auth-oauthlib \
+            google-auth-httplib2 \
+            google-api-python-client
+
+      - name: Write token files
+        env:
+          GO_TOKEN_JSON: ${{ secrets.GO_TOKEN_JSON }}
+          GO_CREDENTIALS_JSON: ${{ secrets.GO_CREDENTIALS_JSON }}
+        run: |
+          echo "$GO_TOKEN_JSON" > token.json
+          echo "$GO_CREDENTIALS_JSON" > credentials.json
+
+      - name: Run parser
+        env:
+          GO_TOKEN_JSON: ${{ secrets.GO_TOKEN_JSON }}
+        run: python fetch_go_prices.py
+
+      - name: Commit and push if new data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ppa_dashboard/data/go_prices.csv
+          git diff --cached --quiet || git commit -m "auto: update go_prices.csv [$(date +%Y-%m-%d)]"
+          git push
