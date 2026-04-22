@@ -16,7 +16,7 @@ from googleapiclient.discovery import build
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCOPES          = ["https://www.googleapis.com/auth/gmail.readonly"]
-SUBJECT_FILTER  = "Commerg Market Week"
+SUBJECT_FILTER  = '"Commerg Market Week"'
 OUTPUT_CSV      = Path("ppa_dashboard/data/go_prices.csv")
 TOKEN_ENV       = "GO_TOKEN_JSON"
 CREDS_ENV       = "GO_CREDENTIALS_JSON"
