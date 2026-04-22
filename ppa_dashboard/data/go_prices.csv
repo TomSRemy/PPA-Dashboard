@@ -1,0 +1,9 @@
+parsed_date,mail_date,week_num,source,product,year,bid,ask,delta
+2026-04-22,2026-04-22,1,Commerg,GO AIB HWS,2025,0.23,0.27,0.15
+2026-04-22,2026-04-22,1,Commerg,GO AIB HWS,2026,0.6,0.65,0.4
+2026-04-22,2026-04-22,1,Commerg,GO AIB HWS,2027,0.69,0.74,0.115
+2026-04-22,2026-04-22,1,Commerg,GO AIB HWS,2028,0.79,0.85,0.095
+2026-04-22,2026-04-22,1,Commerg,GO AIB Renewable,2025,0.22,0.26,0.15
+2026-04-22,2026-04-22,1,Commerg,GO AIB Renewable,2026,0.59,0.64,0.4
+2026-04-22,2026-04-22,1,Commerg,GO AIB Renewable,2027,0.68,0.73,0.115
+2026-04-22,2026-04-22,1,Commerg,GO AIB Renewable,2028,0.78,0.84,0.095
