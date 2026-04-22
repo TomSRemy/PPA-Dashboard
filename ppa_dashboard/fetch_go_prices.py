@@ -16,14 +16,15 @@ from googleapiclient.discovery import build
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCOPES          = ["https://www.googleapis.com/auth/gmail.readonly"]
-SUBJECT_FILTER  = '"Commerg Market Week"'
+SENDER_FILTER   = "trading@commerg.com"
+SUBJECT_FILTER  = "Commerg Market Week"
 OUTPUT_CSV      = Path("ppa_dashboard/data/go_prices.csv")
 TOKEN_ENV       = "GO_TOKEN_JSON"
 CREDS_ENV       = "GO_CREDENTIALS_JSON"
 
 CSV_HEADERS = [
     "parsed_date", "mail_date", "week_num", "source",
-    "product", "year", "bid", "ask", "delta",
+    "product", "year", "bid", "ask", "delta", "term",
 ]
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ def get_service():
 
 # ── Mail fetching ─────────────────────────────────────────────────────────────
 def get_commerg_emails(service, max_results=10):
-    query = f"subject:{SUBJECT_FILTER!r}"
+    query = f"from:{SENDER_FILTER} subject:{SUBJECT_FILTER!r}"
     result = service.users().messages().list(
         userId="me", q=query, maxResults=max_results
     ).execute()
@@ -115,7 +116,8 @@ def parse_go_block(block_text, product_name):
                 ask   = float(lines[i+2].replace(",", "."))
                 delta = float(lines[i+3].replace(",", "."))
                 rows.append({"product": product_name, "year": year,
-                             "bid": bid, "ask": ask, "delta": delta})
+                             "bid": bid, "ask": ask, "delta": delta,
+                             "term": None})  # calculé après
                 i += 4
             except (IndexError, ValueError):
                 i += 1
@@ -221,6 +223,7 @@ def main():
                 "bid":         r["bid"],
                 "ask":         r["ask"],
                 "delta":       r["delta"],
+                "term":        f"Y + {r['year'] - mail_date.year}",
             })
             existing.add(key)
 
