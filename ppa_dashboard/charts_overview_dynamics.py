@@ -403,7 +403,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
-            "data": vals, "symbol": "none", "smooth": True,
+            "data": vals, "symbol": "none", "smooth": False,
             "lineStyle": {"color": MONTH_COLORS[m-1], "width": 1.2, "type": "dotted"},
             "opacity": 0.65,
         })
@@ -412,7 +412,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
-        "data": avg_vals, "symbol": "circle", "symbolSize": 7, "smooth": True,
+        "data": avg_vals, "symbol": "circle", "symbolSize": 7, "smooth": False,
         "lineStyle": {"color": tech_clr, "width": 2.5},
         "itemStyle": {"color": tech_clr, "borderColor": WHT, "borderWidth": 2},
         "z": 10,
@@ -423,7 +423,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
-        "yAxis": _yval("{value} MW", "Avg MW"),
+        "yAxis": _yval("{value} MWh", "Avg MWh"),
         "series": series,
     }
 
