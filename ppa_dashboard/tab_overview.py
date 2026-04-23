@@ -10,10 +10,11 @@ import numpy as np
 from theme import C1, C2, C3, C4, C5, C2L, C3L, WHT, kpi_color
 from ui import section, desc, status_msg, ppa_card, kpi_card, tech_badge
 from charts_overview_dynamics import (
-    chart_historical_cp, chart_projection,
+    chart_historical_cp,
     chart_daily_profile_national, chart_daily_profile_asset,
     chart_monthly_production, chart_annual_production,
 )
+from charts import chart_projection
 from data import get_nat_sd
 from streamlit_echarts import st_echarts
 
@@ -168,14 +169,14 @@ def render_tab_overview(ctx):
     with c1b:
         section(f"Projection — {cfg['label']} CP% avec bandes d'incertitude")
         desc(f"Ancrée sur le dernier point asset. Régression {reg_basis}. Zones = P10-P90.")
-        _ec(chart_projection(
+        st.plotly_chart(chart_projection(
             nat_ref, asset_ann, has_asset, proj,
             nat_cp_list, nat_ref_complete, cfg["nat_cp"],
             cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
             last_yr_proj, proj_n, ex22,
             reg_basis=reg_basis, anchor_val=anchor_val,
             proj_targets=proj_targets),
-            height="540px", key="proj_chart")
+            use_container_width=True)
 
     st.markdown("---")
 
