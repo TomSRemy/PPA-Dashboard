@@ -18,6 +18,9 @@ from charts import (
     _mk_stub, MK_ZOOM_OPTS, MK_PURPLE, MK_BLUE, MK_GREEN,
 )
 from data import load_balancing, load_market_prices, load_xborder_da, load_fcr, load_hourly
+from charts_go_prices import chart_go_price_indications, chart_go_cal1, go_kpi
+from streamlit_echarts import st_echarts
+from datetime import date
 
 def render_tab_market_overview(ctx):
     # Unpack context
@@ -112,7 +115,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 1 — KPIs
     # ════════════════════════════════════════════════════════════════════════
-    section("Key Market Indicators")
+    with st.expander("📊 Key Market Indicators", expanded=True):
+     section("Key Market Indicators")
     kpis = mk_kpis(hourly_full, bal if has_bal else None, mkt if has_mkt else None)
 
     def _kpi_delta(val, prev, unit="", pct=True):
@@ -180,7 +184,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 2 — FR DA Spot (main chart)
     # ════════════════════════════════════════════════════════════════════════
-    section("FR Day-Ahead Spot Price")
+    with st.expander("⚡ FR Day-Ahead Spot Price", expanded=False):
+     section("FR Day-Ahead Spot Price")
     desc("Hourly or daily average. Daily mode adds 7D and 30D rolling averages.")
     mode = st.radio("Display mode", ["Hourly", "Daily average"], index=1,
                     horizontal=True, key="mk_spot_mode")
@@ -197,7 +202,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 3 — DA Spread
     # ════════════════════════════════════════════════════════════════════════
-    section("DA Daily Spread")
+    with st.expander("📈 DA Daily Spread", expanded=False):
+     section("DA Daily Spread")
     desc("Daily max−min + 30D rolling average. Measures intraday arbitrage potential.")
     z = local_zoom("mk_spread_zoom")
     sc, tc = st.columns([3, 1])
@@ -212,7 +218,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 4 — Negative price hours
     # ════════════════════════════════════════════════════════════════════════
-    section("Negative DA Price Hours")
+    with st.expander("🔴 Negative DA Price Hours", expanded=False):
+     section("Negative DA Price Hours")
     desc("Daily bars + calendar heatmap. Red = high negative hour count.")
     z = local_zoom("mk_neg_zoom")
     st.plotly_chart(mk_chart_neg_bars(hourly_full, z), use_container_width=True)
@@ -223,7 +230,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 5 — Distribution
     # ════════════════════════════════════════════════════════════════════════
-    section("DA Spot Price Distribution")
+    with st.expander("📊 DA Spot Price Distribution", expanded=False):
+     section("DA Spot Price Distribution")
     desc("Histogram of hourly prices. Mean and median shown at different heights to avoid overlap.")
     z = local_zoom("mk_dist_zoom")
     st.plotly_chart(mk_chart_distribution(hourly_full, z), use_container_width=True)
@@ -233,7 +241,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 6 — Market drivers (one per row)
     # ════════════════════════════════════════════════════════════════════════
-    section("Market Drivers")
+    with st.expander("🛢️ Market Drivers", expanded=False):
+     section("Market Drivers")
 
     st.markdown("#### Carbon Price (EUA)")
     desc("EUA daily futures (€/tCO2). Source: Ember Climate. Includes 7D and 30D rolling avg.")
@@ -273,7 +282,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 7 — Renewable generation
     # ════════════════════════════════════════════════════════════════════════
-    section("Renewable Generation")
+    with st.expander("🌱 Renewable Generation", expanded=False):
+     section("Renewable Generation")
 
     st.markdown("#### Wind & Solar — Daily Trend")
     desc("Daily average + 7D rolling. Separate lines for Wind and Solar.")
@@ -295,7 +305,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 8 — Imbalance (one per row)
     # ════════════════════════════════════════════════════════════════════════
-    section("Flexibility & Imbalance Markets")
+    with st.expander("⚖️ Flexibility & Imbalance Markets", expanded=False):
+     section("Flexibility & Imbalance Markets")
     if not has_bal:
         st.warning("balancing_prices.csv not found — run the ENTSO-E balancing script.")
     else:
@@ -324,7 +335,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 9 — Ancillary services
     # ════════════════════════════════════════════════════════════════════════
-    section("Ancillary Services")
+    with st.expander("🔧 Ancillary Services", expanded=False):
+     section("Ancillary Services")
 
     st.markdown("#### FCR — Frequency Containment Reserve (France)")
     desc("Contracted capacity price (€/MW/day). Source: ENTSO-E.")
@@ -341,7 +353,8 @@ def render_tab_market_overview(ctx):
     # ════════════════════════════════════════════════════════════════════════
     # ROW 10 — Regional view
     # ════════════════════════════════════════════════════════════════════════
-    section("Regional View — Europe")
+    with st.expander("🗺️ Regional View — Europe", expanded=False):
+     section("Regional View — Europe")
 
     st.markdown("#### DA Spot Map — Europe")
     desc("Average DA price by country for selected window. Green = low, Red = high. "
@@ -355,3 +368,104 @@ def render_tab_market_overview(ctx):
     z = local_zoom("mk_xb_hist_zoom")
     st.plotly_chart(mk_chart_country_history(xb if has_xb else None, hourly_full, z),
                     use_container_width=True)
+    st.markdown("---")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # ROW 11 — Guarantees of Origin
+    # ════════════════════════════════════════════════════════════════════════
+    with st.expander("🍃 Garanties d'Origine — Prix indicatifs Commerg", expanded=True):
+
+        # ── Filtres ───────────────────────────────────────────────────────
+        col_prod, col_src, col_d1, col_d2 = st.columns([2, 1, 1, 1])
+        with col_prod:
+            go_product = st.selectbox(
+                "Produit",
+                ["GO AIB Renewable", "GO AIB Wind", "GO AIB Solar",
+                 "GO AIB Hydro", "GO Ireland Wind",
+                 "GO France Wind", "GO France Solar", "GO France Hydro"],
+                index=0, key="go_product",
+            )
+        with col_src:
+            go_source = st.selectbox(
+                "Source", ["Commerg", "STX", "OTC Flow"],
+                index=0, key="go_source",
+            )
+        with col_d1:
+            go_d1 = st.date_input("Début", value=date(2022, 1, 1), key="go_d1")
+        with col_d2:
+            go_d2 = st.date_input("Fin",   value=date.today(),      key="go_d2")
+
+        # ── KPI ───────────────────────────────────────────────────────────
+        kpi = go_kpi(product=go_product, source=go_source)
+        kc1, kc2, kc3 = st.columns(3)
+
+        def _go_kpi_card(col, label, value, sub, border_color):
+            col.markdown(
+                f"""<div style="background:#f8f9fa;border-radius:8px;padding:14px 18px;
+                border-left:4px solid {border_color};margin-bottom:8px">
+                <div style="font-size:11px;color:#888;text-transform:uppercase;
+                letter-spacing:0.5px">{label}</div>
+                <div style="font-size:24px;font-weight:700;color:#001219;margin:4px 0">{value}</div>
+                <div style="font-size:11px;color:#666">{sub}</div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+
+        if kpi:
+            delta_str  = ""
+            delta_col  = "#888"
+            if kpi["delta"] is not None:
+                sign = "+" if kpi["delta"] >= 0 else ""
+                delta_str = f"{sign}{kpi['delta']:.4f} € vs sem. préc."
+                delta_col = "#2A9D5C" if kpi["delta"] >= 0 else "#BB3E03"
+            _go_kpi_card(kc1, "GO CAL+1 Bid",
+                         f"{kpi['last_bid']:.2f} €/MWh",
+                         f'<span style="color:{delta_col}">{delta_str}</span>',
+                         "#0A9396")
+            ask_str = f"{kpi['last_ask']:.2f} €/MWh" if kpi["last_ask"] else "N/A"
+            mid_str = ""
+            if kpi["last_ask"]:
+                mid = round((kpi["last_bid"] + kpi["last_ask"]) / 2, 2)
+                mid_str = f"Mid {mid:.2f} €"
+            _go_kpi_card(kc2, "GO CAL+1 Ask", ask_str, mid_str, "#94D2BD")
+            week_str = f"Semaine #{kpi['week_num']}" if kpi["week_num"] else ""
+            _go_kpi_card(kc3, "Dernière cotation",
+                         kpi["last_date"],
+                         f"{week_str} — prod. {kpi['year_label']}",
+                         "#EE9B00")
+        else:
+            st.info("KPI GO non disponibles — vérifier go_prices.csv")
+
+        st.markdown("")
+
+        # ── Charts ────────────────────────────────────────────────────────
+        gc1, gc2 = st.columns(2)
+
+        def _st_ec(opt, height="420px", key=None):
+            if opt is None or ("graphic" in opt and "series" not in opt):
+                msg = opt["graphic"][0]["style"]["text"] if opt else "Données non disponibles"
+                st.info(msg)
+                return
+            st_echarts(options=opt, height=height, key=key)
+
+        with gc1:
+            st.markdown(f"**GOs Price Indications — {go_product}**")
+            st.caption("Prix bid hebdomadaire par année de production (€/MWh)")
+            _st_ec(
+                chart_go_price_indications(
+                    product=go_product, source=go_source,
+                    date_start=str(go_d1), date_end=str(go_d2),
+                ),
+                height="420px", key="go_price_indications",
+            )
+
+        with gc2:
+            st.markdown(f"**GO CAL+1 — {go_product}**")
+            st.caption("Prix bid Y+1 (forward 1 an) — €/MWh")
+            _st_ec(
+                chart_go_cal1(
+                    product=go_product, source=go_source,
+                    date_start=str(go_d1), date_end=str(go_d2),
+                ),
+                height="420px", key="go_cal1",
+            )
