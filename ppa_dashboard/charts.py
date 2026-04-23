@@ -89,32 +89,47 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                      last_yr_proj, proj_n, ex22,
                      reg_basis="Asset", anchor_val=None, proj_targets=None):
     fig = go.Figure()
+
+    # ── Asset historical line ─────────────────────────────────────────────────
     if has_asset:
-        fig.add_trace(go.Scatter(x=asset_ann["Year"].tolist(), y=asset_ann["cp_pct"].tolist(),
-                                 name="Asset (historical)", mode="lines+markers+text",
-                                 line=dict(color=C5, width=2),
-                                 marker=dict(size=10, color=C5, line=dict(width=1, color=WHT)),
-                                 text=[f"<b>{v*100:.0f}%</b>" for v in asset_ann["cp_pct"]],
-                                 textposition="top center",
-                                 textfont=dict(size=11, color=C5, family="Calibri")))
-    fig.add_trace(go.Scatter(x=nat_ref["year"].tolist(), y=nat_cp_list,
-                             name=f"M0 National {tech_lbl}", mode="lines+markers",
-                             line=dict(color=tech_clr, width=1.8, dash="dash"),
-                             marker=dict(size=8, color=tech_clr, symbol="square",
-                                         line=dict(width=1, color=WHT))))
-    tx = list(range(2014, last_yr_proj + proj_n + 1))
-    fig.add_trace(go.Scatter(x=tx, y=[1-(ic_u+sl_u*yr) for yr in tx],
-                             name="Trend", line=dict(color=REF_LINE, width=2, dash="dot"),
-                             mode="lines", opacity=0.8))
+        fig.add_trace(go.Scatter(
+            x=asset_ann["Year"].tolist(), y=asset_ann["cp_pct"].tolist(),
+            name="Asset (historical)", mode="lines+markers+text",
+            line=dict(color=C5, width=2),
+            marker=dict(size=10, color=C5, line=dict(width=1, color=WHT)),
+            text=[f"<b>{v*100:.0f}%</b>" for v in asset_ann["cp_pct"]],
+            textposition="top center",
+            textfont=dict(size=11, color=C5, family="Calibri")))
+
+    # ── National M0 historical ────────────────────────────────────────────────
+    fig.add_trace(go.Scatter(
+        x=nat_ref["year"].tolist(), y=nat_cp_list,
+        name=f"M0 National {tech_lbl}", mode="lines+markers",
+        line=dict(color=tech_clr, width=1.8, dash="dash"),
+        marker=dict(size=8, color=tech_clr, symbol="square",
+                    line=dict(width=1, color=WHT))))
+
+    # ── Regression trend extended to 2035 ─────────────────────────────────────
+    tx = list(range(2014, 2036))
+    fig.add_trace(go.Scatter(
+        x=tx, y=[1 - (ic_u + sl_u * yr) for yr in tx],
+        name="Trend", line=dict(color=REF_LINE, width=2, dash="dot"),
+        mode="lines", opacity=0.8))
+
+    # ── Confidence bands ──────────────────────────────────────────────────────
     py_ = proj["year"].tolist()
-    fig.add_trace(go.Scatter(x=py_+py_[::-1],
-                             y=proj["p90"].tolist()+proj["p10"].tolist()[::-1],
-                             fill="toself", fillcolor=rgba(ACCENT_WARN, 0.20),
-                             line=dict(color=transparent()), name="P10-P90"))
-    fig.add_trace(go.Scatter(x=py_+py_[::-1],
-                             y=proj["p75"].tolist()+proj["p25"].tolist()[::-1],
-                             fill="toself", fillcolor=rgba(ACCENT_WARN, 0.35),
-                             line=dict(color=transparent()), name="P25-P75"))
+    fig.add_trace(go.Scatter(
+        x=py_ + py_[::-1],
+        y=proj["p90"].tolist() + proj["p10"].tolist()[::-1],
+        fill="toself", fillcolor=rgba(ACCENT_WARN, 0.20),
+        line=dict(color=transparent()), name="P10-P90"))
+    fig.add_trace(go.Scatter(
+        x=py_ + py_[::-1],
+        y=proj["p75"].tolist() + proj["p25"].tolist()[::-1],
+        fill="toself", fillcolor=rgba(ACCENT_WARN, 0.35),
+        line=dict(color=transparent()), name="P25-P75"))
+
+    # ── Anchor point ──────────────────────────────────────────────────────────
     if anchor_val is not None:
         hl = anchor_val
     elif has_asset:
@@ -123,33 +138,54 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
         hl = nat_ref_complete[nat_cp_col].iloc[-1]
     else:
         hl = nat_ref_complete["cp_nat_pct"].iloc[-1]
-    fig.add_trace(go.Scatter(x=[last_yr_proj]+py_, y=[hl]+proj["p50"].tolist(),
-                             name="P50 (central scenario)", mode="lines+markers",
-                             line=dict(color=C1, width=2),
-                             marker=dict(size=8, color=C1, line=dict(width=1, color=WHT))))
-    for _, row in proj.iterrows():
-        fig.add_annotation(x=row["year"], y=row["p50"],
-                           text=f"<b>P50:{row['p50']*100:.0f}%</b><br>P10:{row['p10']*100:.0f}%",
-                           showarrow=True, arrowhead=2, arrowcolor=C1, arrowwidth=1.5,
-                           font=dict(size=11, color=C1, family="Calibri"),
-                           bgcolor="rgba(255,255,255,0.9)", bordercolor=C3, borderwidth=1,
-                           ax=32, ay=-40)
+
+    # ── Without asset: show anchor marker on national line ────────────────────
+    if not has_asset:
+        fig.add_trace(go.Scatter(
+            x=[last_yr_proj], y=[hl],
+            name="_anchor", mode="markers",
+            marker=dict(size=12, color=C1, symbol="circle",
+                        line=dict(width=2, color=WHT)),
+            showlegend=False))
+
+    # ── P50 central projection ────────────────────────────────────────────────
+    fig.add_trace(go.Scatter(
+        x=[last_yr_proj] + py_, y=[hl] + proj["p50"].tolist(),
+        name="P50 (central scenario)", mode="lines+markers",
+        line=dict(color=C1, width=2),
+        marker=dict(size=8, color=C1, line=dict(width=1, color=WHT))))
+
+    # ── Alternating labels: above for odd index, below for even ───────────────
+    for i, (_, row) in enumerate(proj.iterrows()):
+        ay_val = -42 if i % 2 == 0 else 42
+        fig.add_annotation(
+            x=row["year"], y=row["p50"],
+            text=f"<b>P50:{row['p50']*100:.0f}%</b><br>P10:{row['p10']*100:.0f}%",
+            showarrow=True, arrowhead=2, arrowcolor=C1, arrowwidth=1.5,
+            font=dict(size=11, color=C1, family="Calibri"),
+            bgcolor="rgba(255,255,255,0.9)", bordercolor=C3, borderwidth=1,
+            ax=0, ay=ay_val)
+
+    # ── PPE3 capacity targets ─────────────────────────────────────────────────
     if proj_targets:
         for t in proj_targets:
-            fig.add_trace(go.Scatter(x=[t["year"]], y=[t["cp"]], mode="markers+text",
-                                     marker=dict(size=10, color="black", line=dict(width=1, color=WHT)),
-                                     text=[f"<b>{t['year']}</b><br>{t['cp']*100:.0f}%"],
-                                     textposition="top center",
-                                     textfont=dict(size=11, color="black", family="Calibri"),
-                                     name=f"{t['year']} capacity-based"))
-    fig.add_vline(x=last_yr_proj+0.5, line=dict(color=REF_LINE_L, width=1.5, dash="dot"))
+            fig.add_trace(go.Scatter(
+                x=[t["year"]], y=[t["cp"]], mode="markers+text",
+                marker=dict(size=10, color="black", line=dict(width=1, color=WHT)),
+                text=[f"<b>{t['year']}</b><br>{t['cp']*100:.0f}%"],
+                textposition="top center",
+                textfont=dict(size=11, color="black", family="Calibri"),
+                name=f"{t['year']} capacity-based"))
+
+    fig.add_vline(x=last_yr_proj + 0.5, line=dict(color=REF_LINE_L, width=1.5, dash="dot"))
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.15, line_width=0)
     fig.update_yaxes(tickformat=".0%")
     plotly_base(fig, h=CHART_H_XL)
     fig.update_layout(
-        title=dict(text=(f"Slope: {-sl_u*100:.2f}%/yr  R\u00b2: {r2_u:.3f} "
-                         f"({'excl.2022 ' if ex22 else ''}| {reg_basis} regression) | excl. YTD"),
-                   font=dict(size=13, color=C2, family="Calibri"), x=0.5),
+        title=dict(
+            text=(f"Slope: {-sl_u*100:.2f}%/yr  R²: {r2_u:.3f} "
+                  f"({'excl.2022 ' if ex22 else ''}| {reg_basis} regression) | excl. YTD"),
+            font=dict(size=13, color=C2, family="Calibri"), x=0.5),
         yaxis=dict(range=[0.15, 1.22]))
     return fig
 
