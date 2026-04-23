@@ -166,18 +166,37 @@ def render_tab_overview(ctx):
 
     st.markdown("---")
 
-    # ── Projection — full width ───────────────────────────────────────────────
+    # ── Projection — full width + table ─────────────────────────────────────
     section(f"Projection — {cfg['label']} CP% avec bandes d'incertitude")
     desc(f"Ancrée sur le dernier point asset. Régression {reg_basis}. Cone = P10-P90 / P25-P75. Tenor {tenor_start}–{tenor_end} en avant.")
-    st.plotly_chart(chart_projection(
+    _fig_proj, _pf = chart_projection(
         nat_ref, asset_ann, has_asset, proj,
         nat_cp_list, nat_ref_complete, cfg["nat_cp"],
         cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
         last_yr_proj, proj_n, ex22,
         reg_basis=reg_basis, anchor_val=anchor_val,
         proj_targets=proj_targets,
-        tenor_start=tenor_start, tenor_end=tenor_end),
-        use_container_width=True)
+        tenor_start=tenor_start, tenor_end=tenor_end)
+    col_chart, col_tbl = st.columns([3, 1])
+    with col_chart:
+        st.plotly_chart(_fig_proj, use_container_width=True)
+    with col_tbl:
+        st.markdown("#### Projection P50")
+        _tbl = _pf[["year","p10","p50","p90"]].copy()
+        _tbl["year"] = _tbl["year"].astype(int)
+        _tbl["p10"]  = (_tbl["p10"]  * 100).round(1).astype(str) + "%"
+        _tbl["p50"]  = (_tbl["p50"]  * 100).round(1).astype(str) + "%"
+        _tbl["p90"]  = (_tbl["p90"]  * 100).round(1).astype(str) + "%"
+        _tbl.columns = ["Year", "P10", "P50", "P90"]
+        # Highlight tenor rows
+        def _hl_tenor(row):
+            if tenor_start <= int(row["Year"]) <= tenor_end:
+                return ["background-color: rgba(233,196,106,0.25); font-weight:bold"]*4
+            return [""]*4
+        st.dataframe(
+            _tbl.style.apply(_hl_tenor, axis=1),
+            hide_index=True, use_container_width=True,
+            height=min(40 + len(_tbl)*35, 600))
 
     st.markdown("---")
 
