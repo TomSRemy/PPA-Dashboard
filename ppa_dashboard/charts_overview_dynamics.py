@@ -103,12 +103,22 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     ]
 
     if has_asset:
-        bar_asset = [{"value": round(float(v)*100, 1),
-                      "itemStyle": {"color": _hex_rgba(C5, 0.60), "borderRadius": [4,4,0,0]},
-                      "label": {"show": True, "position": "top",
-                                "formatter": f"{round(float(v)*100):.0f}%",
-                                "color": C5, "fontSize": 10}}
-                     for v in asset_ann["cp_pct"].tolist()]
+        # Build a full-length list aligned on ny, with None for missing years
+        asset_cp_map = dict(zip(asset_ann["Year"].tolist(),
+                                asset_ann["cp_pct"].tolist()))
+        bar_asset = []
+        for yr in ny:
+            v = asset_cp_map.get(yr)
+            if v is None:
+                bar_asset.append({"value": None})
+            else:
+                bar_asset.append({
+                    "value": round(float(v) * 100, 1),
+                    "itemStyle": {"color": _hex_rgba(C5, 0.60), "borderRadius": [4, 4, 0, 0]},
+                    "label": {"show": True, "position": "top",
+                               "formatter": f"{round(float(v)*100):.0f}%",
+                               "color": C5, "fontSize": 10},
+                })
         series_top.append({"name": asset_name, "type": "bar", "data": bar_asset})
 
     # trend line on CP%
