@@ -123,7 +123,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
 
     opt_top = {
         "tooltip": {**_TT, "trigger": "axis",
-                    "formatter": lambda p: ""},  # will be auto
+                    },  # tooltip uses ECharts default
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 52},
         "xAxis": _xcat([str(y) for y in ny]),
@@ -608,7 +608,7 @@ def chart_heatmap(monthly_agg, tech_clr, tech_lbl):
 
     return {
         "tooltip": {**_TT, "trigger": "item",
-                    "formatter": lambda p: f"{p['name']}: {p['value'][2]:.1f}%"},
+                    "formatter": "{b}: {c[2]:.1f}%"},
         "grid": {"top": 32, "bottom": 60, "left": 52, "right": 80},
         "xAxis": {"type":"category","data":months,"axisLine":_AL,"axisTick":_AT,
                   "axisLabel":_AX,"splitLine":{"show":False}},
