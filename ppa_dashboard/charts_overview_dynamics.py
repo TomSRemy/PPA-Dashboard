@@ -178,114 +178,147 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     ny = nat_ref["year"].tolist()
     py = proj["year"].tolist()
 
-    # bands as markArea on the p50 series
     p10 = proj["p10"].tolist(); p90 = proj["p90"].tolist()
     p25 = proj["p25"].tolist(); p75 = proj["p75"].tolist()
     p50 = proj["p50"].tolist()
 
-    # anchor
-    if anchor_val is not None: hl = anchor_val
-    elif has_asset: hl = float(asset_ann["cp_pct"].iloc[-1])
+    # anchor point (last observed year)
+    if anchor_val is not None:
+        hl = anchor_val
+    elif has_asset:
+        hl = float(asset_ann["cp_pct"].iloc[-1])
     elif nat_cp_col in nat_ref_complete.columns and not nat_ref_complete[nat_cp_col].isna().all():
         hl = float(nat_ref_complete[nat_cp_col].iloc[-1])
-    else: hl = float(nat_ref_complete["cp_nat_pct"].iloc[-1])
+    else:
+        hl = float(nat_ref_complete["cp_nat_pct"].iloc[-1])
 
-    # trend line
+    # trend line (full history + projection window)
     tx = list(range(2014, last_yr_proj + proj_n + 1))
-    trend_y = [round((1-(ic_u+sl_u*yr))*100, 2) for yr in tx]
+    trend_y = [round((1 - (ic_u + sl_u * yr)) * 100, 2) for yr in tx]
 
     series = []
 
-    # P10-P90 band
-    band_data_outer = [[str(py[i]), round(p10[i]*100,2), round(p90[i]*100,2)]
-                       for i in range(len(py))]
+    # ── Confidence bands via "fill-down masking" ──────────────────────────────
+    # P90 filled down to axis with light colour, then P10 filled over it with
+    # page background colour — creates a clean floating band without stacking.
     series.append({
-        "name": "P10–P90", "type": "line",
-        "data": [[str(y), round(v*100,2)] for y,v in zip(py,p90)],
-        "symbol": "none", "lineStyle": {"color": "transparent"},
-        "areaStyle": {"color": _hex_rgba(C3, 0.18)},
-        "stack": "band_outer", "showInLegend": True,
+        "name": "P10–P90",
+        "type": "line",
+        "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p90)],
+        "symbol": "none",
+        "lineStyle": {"color": "transparent", "width": 0},
+        "areaStyle": {"color": _hex_rgba(C3, 0.20), "origin": "start"},
+        "showInLegend": True,
+        "z": 1,
     })
     series.append({
-        "name": "_p10", "type": "line",
-        "data": [[str(y), round(v*100,2)] for y,v in zip(py,p10)],
-        "symbol": "none", "lineStyle": {"color": "transparent"},
-        "areaStyle": {"color": WHT, "opacity": 1},
-        "stack": "band_outer", "showInLegend": False,
-    })
-    # P25-P75 band
-    series.append({
-        "name": "P25–P75", "type": "line",
-        "data": [[str(y), round(v*100,2)] for y,v in zip(py,p75)],
-        "symbol": "none", "lineStyle": {"color": "transparent"},
-        "areaStyle": {"color": _hex_rgba(C3, 0.30)},
-        "stack": "band_inner", "showInLegend": True,
+        "name": "_p10_mask",
+        "type": "line",
+        "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p10)],
+        "symbol": "none",
+        "lineStyle": {"color": "transparent", "width": 0},
+        "areaStyle": {"color": "#F7F4F0", "origin": "start", "opacity": 1},
+        "showInLegend": False,
+        "z": 2,
     })
     series.append({
-        "name": "_p25", "type": "line",
-        "data": [[str(y), round(v*100,2)] for y,v in zip(py,p25)],
-        "symbol": "none", "lineStyle": {"color": "transparent"},
-        "areaStyle": {"color": WHT, "opacity": 1},
-        "stack": "band_inner", "showInLegend": False,
+        "name": "P25–P75",
+        "type": "line",
+        "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p75)],
+        "symbol": "none",
+        "lineStyle": {"color": "transparent", "width": 0},
+        "areaStyle": {"color": _hex_rgba(C3, 0.38), "origin": "start"},
+        "showInLegend": True,
+        "z": 3,
+    })
+    series.append({
+        "name": "_p25_mask",
+        "type": "line",
+        "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p25)],
+        "symbol": "none",
+        "lineStyle": {"color": "transparent", "width": 0},
+        "areaStyle": {"color": "#F7F4F0", "origin": "start", "opacity": 1},
+        "showInLegend": False,
+        "z": 4,
     })
 
-    # Trend
+    # ── Regression trend ──────────────────────────────────────────────────────
     series.append({
-        "name": "Trend", "type": "line",
-        "data": [[str(y), round(v,2)] for y,v in zip(tx,trend_y)],
-        "symbol": "none", "smooth": True,
-        "lineStyle": {"color": REF, "width": 2, "type": "dotted"},
+        "name": "Régression",
+        "type": "line",
+        "data": [[str(y), round(v, 2)] for y, v in zip(tx, trend_y)],
+        "symbol": "none",
+        "lineStyle": {"color": REF, "width": 1.6, "type": "dotted"},
+        "z": 5,
     })
 
-    # National M0
+    # ── National M0 (historical) ──────────────────────────────────────────────
     series.append({
-        "name": f"M0 National {tech_lbl}", "type": "line",
-        "data": [[str(y), round(float(v)*100,2)] for y,v in zip(ny,nat_cp_list)],
+        "name": f"M0 National {tech_lbl}",
+        "type": "line",
+        "data": [[str(y), round(float(v) * 100, 2)] for y, v in zip(ny, nat_cp_list)],
         "symbol": "rect", "symbolSize": 8,
-        "lineStyle": {"color": tech_clr, "width": 1.8, "type": "dashed"},
+        "lineStyle": {"color": tech_clr, "width": 2, "type": "dashed"},
         "itemStyle": {"color": tech_clr, "borderColor": WHT, "borderWidth": 1},
+        "z": 6,
     })
 
-    # Asset historical
+    # ── Asset historical ──────────────────────────────────────────────────────
     if has_asset:
         series.append({
-            "name": "Asset (historical)", "type": "line",
-            "data": [[str(y), round(float(v)*100,2)]
-                     for y,v in zip(asset_ann["Year"].tolist(), asset_ann["cp_pct"].tolist())],
-            "symbol": "circle", "symbolSize": 10,
-            "lineStyle": {"color": C5, "width": 2},
-            "itemStyle": {"color": C5, "borderColor": WHT, "borderWidth": 1},
-            "label": {"show": True, "position": "top",
-                      "formatter": "{c}%", "color": C5, "fontSize": 10},
+            "name": "Asset (historique)",
+            "type": "line",
+            "data": [[str(y), round(float(v) * 100, 2)]
+                     for y, v in zip(asset_ann["Year"].tolist(), asset_ann["cp_pct"].tolist())],
+            "symbol": "circle", "symbolSize": 9,
+            "lineStyle": {"color": C5, "width": 2.2},
+            "itemStyle": {"color": C5, "borderColor": WHT, "borderWidth": 2},
+            "label": {
+                "show": True, "position": "top",
+                "formatter": "{c}%", "color": C5, "fontSize": 11,
+                "backgroundColor": "rgba(255,255,255,0.75)",
+                "padding": [2, 4], "borderRadius": 3,
+            },
+            "z": 8,
         })
 
-    # P50
-    p50_data = [[str(last_yr_proj), round(hl*100,2)]] + \
-               [[str(y), round(float(v)*100,2)] for y,v in zip(py,p50)]
+    # ── P50 central projection ────────────────────────────────────────────────
+    p50_data = ([[str(last_yr_proj), round(hl * 100, 2)]] +
+                [[str(y), round(float(v) * 100, 2)] for y, v in zip(py, p50)])
     series.append({
-        "name": "P50 (central)", "type": "line",
+        "name": "P50 (central)",
+        "type": "line",
         "data": p50_data,
-        "symbol": "circle", "symbolSize": 8, "smooth": True,
-        "lineStyle": {"color": C1, "width": 2},
-        "itemStyle": {"color": C1, "borderColor": WHT, "borderWidth": 1},
-        "label": {"show": True, "position": "top",
-                  "formatter": "{c}%", "color": C1, "fontSize": 10},
+        "symbol": "circle", "symbolSize": 8, "smooth": False,
+        "lineStyle": {"color": C1, "width": 2.5},
+        "itemStyle": {"color": C1, "borderColor": WHT, "borderWidth": 2},
+        "label": {
+            "show": True, "position": "top",
+            "formatter": "{c}%", "color": C1, "fontSize": 11,
+            "backgroundColor": "rgba(255,255,255,0.75)",
+            "padding": [2, 4], "borderRadius": 3,
+        },
+        "z": 9,
     })
 
-    # PPE3 targets
+    # ── PPE3 targets ──────────────────────────────────────────────────────────
     if proj_targets:
         for t in proj_targets:
             series.append({
-                "name": f"PPE3 {t['year']}", "type": "scatter",
-                "data": [[str(t["year"]), round(float(t["cp"])*100,2)]],
-                "symbol": "diamond", "symbolSize": 14,
-                "itemStyle": {"color": C1},
-                "label": {"show": True, "position": "top",
-                          "formatter": f"PPE3 {t['year']}\n{round(float(t['cp'])*100):.0f}%",
-                          "color": C1, "fontSize": 10},
+                "name": f"PPE3 {t['year']}",
+                "type": "scatter",
+                "data": [[str(t["year"]), round(float(t["cp"]) * 100, 2)]],
+                "symbol": "diamond", "symbolSize": 16,
+                "itemStyle": {"color": TEAL},
+                "label": {
+                    "show": True, "position": "right",
+                    "formatter": f"PPE3 {t['year']}\n{round(float(t['cp'])*100):.0f}%",
+                    "color": TEAL, "fontSize": 10,
+                },
+                "z": 10,
             })
 
-    all_years = sorted(set([str(y) for y in ny+tx+py]))
+    all_years = sorted(set([str(y) for y in ny + tx + py]))
 
     return {
         "tooltip": {**_TT, "trigger": "axis"},
