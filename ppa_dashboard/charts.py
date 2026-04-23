@@ -96,23 +96,29 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     END_YR = 2035
     sig    = 0.04
 
-    # ── Anchor ────────────────────────────────────────────────────────────────
-    if anchor_val is not None:
-        hl = anchor_val
-    elif has_asset:
-        hl = asset_ann["cp_pct"].iloc[-1]
-    elif nat_cp_col in nat_ref_complete.columns and not nat_ref_complete[nat_cp_col].isna().all():
-        hl = nat_ref_complete[nat_cp_col].iloc[-1]
-    else:
-        hl = nat_ref_complete["cp_nat_pct"].iloc[-1]
-
     ts = tenor_start if tenor_start is not None else (last_yr_proj + 1)
     te = tenor_end   if tenor_end   is not None else (last_yr_proj + proj_n)
 
-    # ── Extend projection to END_YR ───────────────────────────────────────────
+    # ── Anchor: last real observed value ─────────────────────────────────────
+    # With asset: last asset CP%. Without asset: last non-partial national value.
+    if has_asset and anchor_val is not None:
+        hl = anchor_val
+    elif has_asset:
+        hl = float(asset_ann["cp_pct"].iloc[-1])
+    else:
+        # Use last complete (non-partial) national value
+        _nc = nat_ref_complete[nat_ref_complete["partial"] == False] if "partial" in nat_ref_complete.columns else nat_ref_complete
+        if nat_cp_col in _nc.columns and not _nc[nat_cp_col].isna().all():
+            hl = float(_nc[nat_cp_col].dropna().iloc[-1])
+        else:
+            hl = float(_nc["cp_nat_pct"].dropna().iloc[-1])
+        last_yr_proj = int(_nc["year"].iloc[-1])  # override anchor year to last complete nat year
+
+    # ── Extend projection from anchor year to END_YR ──────────────────────────
     rows = []
     for t, yr in enumerate(range(last_yr_proj + 1, END_YR + 1)):
-        fsd = (1 - hl) + sl_u * (t + 1) if anchor_val is not None else ic_u + sl_u * yr
+        # Always use anchor-relative formula for clean // to trend
+        fsd = (1 - hl) + sl_u * (t + 1)
         cs  = sig * _np.sqrt(t + 1)
         rows.append({"year": yr,
                      "p10": 1 - (fsd + 1.28  * cs),
@@ -120,7 +126,7 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                      "p50": 1 - fsd,
                      "p75": 1 - (fsd - 0.674 * cs),
                      "p90": 1 - (fsd - 1.28  * cs)})
-    pf = _pd.DataFrame(rows)   # full projection to 2035
+    pf = _pd.DataFrame(rows)
 
     # ── Cone P10-P90 + P25-P75 — continuous, tenor-agnostic ──────────────────
     xs = pf["year"].tolist()
@@ -129,13 +135,17 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
         y=pf["p90"].tolist() + pf["p10"].tolist()[::-1],
         fill="toself", fillcolor=rgba(ACCENT_WARN, 0.18),
         line=dict(color=transparent()), name="P10-P90",
-        showlegend=True, hoverinfo="skip"))
+        showlegend=True,
+        customdata=list(zip(pf["p10"].tolist(), pf["p50"].tolist(), pf["p90"].tolist())),
+        hovertemplate="<b>%{x}</b><br>P90: %{customdata[2]:.0%}<br>P50: %{customdata[1]:.0%}<br>P10: %{customdata[0]:.0%}<extra></extra>"))
     fig.add_trace(go.Scatter(
         x=xs + xs[::-1],
         y=pf["p75"].tolist() + pf["p25"].tolist()[::-1],
         fill="toself", fillcolor=rgba(ACCENT_WARN, 0.33),
         line=dict(color=transparent()), name="P25-P75",
-        showlegend=True, hoverinfo="skip"))
+        showlegend=True,
+        customdata=list(zip(pf["p25"].tolist(), pf["p50"].tolist(), pf["p75"].tolist())),
+        hovertemplate="<b>%{x}</b><br>P75: %{customdata[2]:.0%}<br>P50: %{customdata[1]:.0%}<br>P25: %{customdata[0]:.0%}<extra></extra>"))
 
     # ── Asset historical ──────────────────────────────────────────────────────
     if has_asset:
@@ -171,12 +181,14 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                         line=dict(width=2, color=WHT)),
             showlegend=False, hoverinfo="skip"))
 
-    # ── P50 segments ──────────────────────────────────────────────────────────
-    pre   = pf[pf["year"] <  ts]
-    tenor = pf[(pf["year"] >= ts) & (pf["year"] <= te)]
+    # ── P50 segments: pre / tenor / post ─────────────────────────────────────
+    # Ligne pleine starts at ts-1 (year before tenor) for visual continuity
+    solid_start = ts - 1
+    pre   = pf[pf["year"] <  solid_start]
+    solid = pf[(pf["year"] >= solid_start) & (pf["year"] <= te)]
     post  = pf[pf["year"] >  te]
 
-    # pré-tenor: pointillé discret
+    # pré solid: pointillé discret from anchor
     if len(pre) > 0:
         fig.add_trace(go.Scatter(
             x=[last_yr_proj] + pre["year"].tolist(),
@@ -185,47 +197,48 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
             line=dict(color=C1, width=1.5, dash="dot"),
             marker=dict(size=6, color=C1, line=dict(width=1, color=WHT)),
             opacity=0.55, showlegend=False))
-    # si pas de pré-tenor, connexion directe anchor → tenor
-    x_pre_end = pre["year"].iloc[-1]  if len(pre) > 0 else last_yr_proj
-    y_pre_end = pre["p50"].iloc[-1]   if len(pre) > 0 else hl
+    x_pre_end = pre["year"].iloc[-1] if len(pre) > 0 else last_yr_proj
+    y_pre_end = pre["p50"].iloc[-1]  if len(pre) > 0 else hl
 
-    # tenor: ligne pleine épaisse
-    if len(tenor) > 0:
+    # solid segment (ts-1 → te): ligne pleine épaisse
+    if len(solid) > 0:
         fig.add_trace(go.Scatter(
-            x=[x_pre_end] + tenor["year"].tolist(),
-            y=[y_pre_end] + tenor["p50"].tolist(),
+            x=[x_pre_end] + solid["year"].tolist(),
+            y=[y_pre_end] + solid["p50"].tolist(),
             name="P50 — Tenor", mode="lines+markers",
             line=dict(color=C1, width=3),
             marker=dict(size=8, color=C1, line=dict(width=1.5, color=WHT))))
-    x_ten_end = tenor["year"].iloc[-1] if len(tenor) > 0 else x_pre_end
-    y_ten_end = tenor["p50"].iloc[-1]  if len(tenor) > 0 else y_pre_end
+    x_sol_end = solid["year"].iloc[-1] if len(solid) > 0 else x_pre_end
+    y_sol_end = solid["p50"].iloc[-1]  if len(solid) > 0 else y_pre_end
 
     # post-tenor: pointillé discret
     if len(post) > 0:
         fig.add_trace(go.Scatter(
-            x=[x_ten_end] + post["year"].tolist(),
-            y=[y_ten_end] + post["p50"].tolist(),
+            x=[x_sol_end] + post["year"].tolist(),
+            y=[y_sol_end] + post["p50"].tolist(),
             name="P50 (post-tenor)", mode="lines+markers",
             line=dict(color=C1, width=1.5, dash="dot"),
             marker=dict(size=6, color=C1, line=dict(width=1, color=WHT)),
             opacity=0.55, showlegend=False))
 
-    # ── Annotations P50 — alternées, tenor en avant ───────────────────────────
+    # ── Annotations P50 — alternées ───────────────────────────────────────────
     years_list = pf["year"].tolist()
     n_pts      = len(years_list)
-    for idx, row in pf.iterrows():
-        i        = years_list.index(row["year"])
-        in_tenor = ts <= row["year"] <= te
-        ay_val   = 48 if i == n_pts - 1 else (-42 if i % 2 == 0 else 42)
+    for i, row in enumerate(pf.itertuples()):
+        in_tenor = ts <= row.year <= te
+        ay_val   = 52 if i == n_pts - 1 else (-52 if i % 2 == 0 else 52)
         fig.add_annotation(
-            x=row["year"], y=row["p50"],
-            text=f"<b>{row['p50']*100:.0f}%</b>",
+            x=row.year, y=row.p50,
+            text=f"<b>{row.p50*100:.0f}%</b>",
             showarrow=True, arrowhead=2,
-            arrowcolor=C1 if in_tenor else rgba(C1, 0.40),
+            arrowcolor=C1 if in_tenor else rgba(C1, 0.35),
             arrowwidth=1.5 if in_tenor else 0.8,
-            font=dict(size=11, color=C1 if in_tenor else rgba(C1, 0.50), family="Calibri"),
-            bgcolor="rgba(255,255,255,0.92)" if in_tenor else "rgba(255,255,255,0.55)",
-            bordercolor=C3 if in_tenor else "rgba(180,180,180,0.4)",
+            font=dict(size=11,
+                      color=C1 if in_tenor else rgba(C1, 0.45),
+                      family="Calibri"),
+            bgcolor="rgba(255,255,255,0.93)" if in_tenor else "rgba(0,0,0,0)",
+            bordercolor=C3 if in_tenor else "rgba(0,0,0,0)",
+            borderpad=6,
             borderwidth=1 if in_tenor else 0,
             ax=0, ay=ay_val)
 
@@ -241,10 +254,12 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                 textfont=dict(size=11, color=C2, family="Calibri"),
                 name=f"PPE3 {t['year']}"))
 
-    # ── Crisis vrect only ─────────────────────────────────────────────────────
+    # ── Crisis vrect ─────────────────────────────────────────────────────────
     fig.add_vrect(x0=2021.5, x1=2022.5, fillcolor=C3, opacity=0.15, line_width=0)
 
+    y_min = min(0.0, float(pf["p10"].min()) - 0.02)
     fig.update_yaxes(tickformat=".0%")
+    fig.update_xaxes(dtick=1, tickangle=-45)
     plotly_base(fig, h=CHART_H_XL)
     fig.update_layout(
         title=dict(
@@ -252,8 +267,8 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
                   f"({'excl.2022 ' if ex22 else ''}| {reg_basis} regression) | excl. YTD"
                   f" | Tenor {ts}–{te}"),
             font=dict(size=13, color=C2, family="Calibri"), x=0.5),
-        yaxis=dict(range=[min(0.0, pf["p10"].min() - 0.02), 1.22]))
-    return fig
+        yaxis=dict(range=[y_min, 1.22]))
+    return fig, pf
 
 
 # ══════════════════════════════════════════════════════════════════════════════
