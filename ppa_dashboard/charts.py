@@ -814,8 +814,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     a["Date"]  = pd.to_datetime(a["Date"])
     a["Hour"]  = a["Date"].dt.hour
     a["Month"] = a["Date"].dt.month
-    a = a[a["Prod_MWh"] > 0]
- 
+
     month_avg   = a.groupby(["Month", "Hour"])["Prod_MWh"].mean().reset_index()
     overall_avg = a.groupby("Hour")["Prod_MWh"].mean().reset_index()
  
