@@ -175,7 +175,8 @@ def render_tab_overview(ctx):
             cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
             last_yr_proj, proj_n, ex22,
             reg_basis=reg_basis, anchor_val=anchor_val,
-            proj_targets=proj_targets),
+            proj_targets=proj_targets,
+            tenor_start=tenor_start, tenor_end=tenor_end),
             use_container_width=True)
 
     st.markdown("---")
