@@ -155,29 +155,29 @@ def render_tab_overview(ctx):
 
     st.markdown("---")
 
-    # ── Historical CP — two sub-charts ───────────────────────────────────────
-    c1a, c1b = st.columns(2)
-    with c1a:
-        section(f"Historical Captured Price — {cfg['label']} — {yr_range[0]} onwards")
-        desc("Barres: CP% par année. Or = YTD (exclu de la régression).")
-        opt_top, opt_bot = chart_historical_cp(
-            nat_ref, asset_ann, has_asset, asset_name,
-            cfg["color"], cfg["label"], nat_cp_list, nat_eur_list, partial_years)
-        _ec(opt_top, height="300px", key="hist_cp_top")
-        _ec(opt_bot, height="220px", key="hist_cp_bot")
+    # ── Historical CP — full width ───────────────────────────────────────────
+    section(f"Historical Captured Price — {cfg['label']} — {yr_range[0]} onwards")
+    desc("Barres: CP% par année. Or = YTD (exclu de la régression).")
+    opt_top, opt_bot = chart_historical_cp(
+        nat_ref, asset_ann, has_asset, asset_name,
+        cfg["color"], cfg["label"], nat_cp_list, nat_eur_list, partial_years)
+    _ec(opt_top, height="340px", key="hist_cp_top")
+    _ec(opt_bot, height="260px", key="hist_cp_bot")
 
-    with c1b:
-        section(f"Projection — {cfg['label']} CP% avec bandes d'incertitude")
-        desc(f"Ancrée sur le dernier point asset. Régression {reg_basis}. Zones = P10-P90.")
-        st.plotly_chart(chart_projection(
-            nat_ref, asset_ann, has_asset, proj,
-            nat_cp_list, nat_ref_complete, cfg["nat_cp"],
-            cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
-            last_yr_proj, proj_n, ex22,
-            reg_basis=reg_basis, anchor_val=anchor_val,
-            proj_targets=proj_targets,
-            tenor_start=tenor_start, tenor_end=tenor_end),
-            use_container_width=True)
+    st.markdown("---")
+
+    # ── Projection — full width ───────────────────────────────────────────────
+    section(f"Projection — {cfg['label']} CP% avec bandes d'incertitude")
+    desc(f"Ancrée sur le dernier point asset. Régression {reg_basis}. Cone = P10-P90 / P25-P75. Tenor {tenor_start}–{tenor_end} en avant.")
+    st.plotly_chart(chart_projection(
+        nat_ref, asset_ann, has_asset, proj,
+        nat_cp_list, nat_ref_complete, cfg["nat_cp"],
+        cfg["color"], cfg["label"], sl_u, ic_u, r2_u,
+        last_yr_proj, proj_n, ex22,
+        reg_basis=reg_basis, anchor_val=anchor_val,
+        proj_targets=proj_targets,
+        tenor_start=tenor_start, tenor_end=tenor_end),
+        use_container_width=True)
 
     st.markdown("---")
 
