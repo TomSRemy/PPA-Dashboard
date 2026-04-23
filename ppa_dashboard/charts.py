@@ -182,40 +182,42 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
             showlegend=False, hoverinfo="skip"))
 
     # ── P50 segments: pre / tenor / post ─────────────────────────────────────
-    # Ligne pleine starts at ts-1 (year before tenor) for visual continuity
-    solid_start = ts - 1
-    pre   = pf[pf["year"] <  solid_start]
-    solid = pf[(pf["year"] >= solid_start) & (pf["year"] <= te)]
+    # pre  : last_yr_proj → ts  (pointillé, inclut le point ts comme jonction)
+    # tenor: ts → te            (pleine épaisse, ts est le premier point)
+    # post : te → END_YR        (pointillé)
+    pre   = pf[pf["year"] <  ts]
+    tenor = pf[(pf["year"] >= ts) & (pf["year"] <= te)]
     post  = pf[pf["year"] >  te]
 
-    # pré solid: pointillé discret from anchor
-    if len(pre) > 0:
-        fig.add_trace(go.Scatter(
-            x=[last_yr_proj] + pre["year"].tolist(),
-            y=[hl]           + pre["p50"].tolist(),
-            name="P50 (pré-tenor)", mode="lines+markers",
-            line=dict(color=C1, width=1.5, dash="dot"),
-            marker=dict(size=6, color=C1, line=dict(width=1, color=WHT)),
-            opacity=0.55, showlegend=False))
-    x_pre_end = pre["year"].iloc[-1] if len(pre) > 0 else last_yr_proj
-    y_pre_end = pre["p50"].iloc[-1]  if len(pre) > 0 else hl
+    # Jonction anchor → ts : valeur P50 à ts (premier point tenor)
+    y_ts = float(pf[pf["year"] == ts]["p50"].iloc[0]) if ts in pf["year"].values else hl
 
-    # solid segment (ts-1 → te): ligne pleine épaisse
-    if len(solid) > 0:
+    # pré-tenor: pointillé de last_yr_proj jusqu'à ts (inclus pour jointure visuelle)
+    pre_x = [last_yr_proj] + pre["year"].tolist() + [ts]
+    pre_y = [hl]           + pre["p50"].tolist()   + [y_ts]
+    fig.add_trace(go.Scatter(
+        x=pre_x, y=pre_y,
+        name="P50 (pré-tenor)", mode="lines+markers",
+        line=dict(color=C1, width=1.5, dash="dot"),
+        marker=dict(size=6, color=C1, line=dict(width=1, color=WHT)),
+        opacity=0.55, showlegend=False))
+
+    # tenor: ligne pleine épaisse, exactement ts → te
+    if len(tenor) > 0:
         fig.add_trace(go.Scatter(
-            x=[x_pre_end] + solid["year"].tolist(),
-            y=[y_pre_end] + solid["p50"].tolist(),
+            x=tenor["year"].tolist(),
+            y=tenor["p50"].tolist(),
             name="P50 — Tenor", mode="lines+markers",
             line=dict(color=C1, width=3),
             marker=dict(size=8, color=C1, line=dict(width=1.5, color=WHT))))
-    x_sol_end = solid["year"].iloc[-1] if len(solid) > 0 else x_pre_end
-    y_sol_end = solid["p50"].iloc[-1]  if len(solid) > 0 else y_pre_end
+    x_te = float(te)
+    y_te = float(tenor["p50"].iloc[-1]) if len(tenor) > 0 else y_ts
 
-    # post-tenor: pointillé discret
+    # post-tenor: pointillé de te → END_YR
     if len(post) > 0:
         fig.add_trace(go.Scatter(
-            x=[x_sol_end] + post["year"].tolist(),
-            y=[y_sol_end] + post["p50"].tolist(),
+            x=[te] + post["year"].tolist(),
+            y=[y_te] + post["p50"].tolist(),
             name="P50 (post-tenor)", mode="lines+markers",
             line=dict(color=C1, width=1.5, dash="dot"),
             marker=dict(size=6, color=C1, line=dict(width=1, color=WHT)),
