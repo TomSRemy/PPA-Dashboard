@@ -1,0 +1,39 @@
+name: Update SEFE Forwards
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests pandas
+
+      - name: Run SEFE forwards update
+        env:
+          SEFE_TOKEN: ${{ secrets.SEFE_TOKEN }}
+        run: python ppa_dashboard/fetch_sefe.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add ppa_dashboard/data/sefe_forwards.csv
+          git diff --staged --quiet || git commit -m "Auto-update SEFE $(date -u '+%Y-%m-%d')"
+          git push
