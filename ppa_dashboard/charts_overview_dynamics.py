@@ -127,7 +127,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     })
 
     opt_top = {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 52},
         "xAxis": _xcat([str(y) for y in ny]),
@@ -162,7 +162,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
         })
 
     opt_bot = {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("€/MWh")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 52},
         "xAxis": _xcat([str(y) for y in ny]),
@@ -289,7 +289,7 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     all_years = sorted(set([str(y) for y in ny + tx + py]))
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(all_years),
@@ -313,7 +313,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     for m in range(1, 13):
         d = month_avg[month_avg["Month"]==m].sort_values("Hour")
         if len(d) == 0: continue
-        vals = [float(d[d["Hour"]==hr][prod_col].iloc[0])
+        vals = [round(float(d[d["Hour"]==hr][prod_col].iloc[0]), 2)
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
@@ -322,7 +322,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
             "opacity": 0.65,
         })
 
-    avg_vals = [float(overall_avg[overall_avg["Hour"]==hr][prod_col].iloc[0])
+    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr][prod_col].iloc[0]), 2)
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
@@ -333,7 +333,7 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("MW")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
@@ -357,7 +357,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     for m in range(1, 13):
         d = month_avg[month_avg["Month"]==m].sort_values("Hour")
         if len(d) == 0: continue
-        vals = [float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0])
+        vals = [round(float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0]), 2)
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
@@ -366,7 +366,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
             "opacity": 0.65,
         })
 
-    avg_vals = [float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0])
+    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0]), 2)
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
@@ -377,7 +377,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("MWh")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
@@ -430,7 +430,7 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "right": 52},
         "xAxis": _xcat(MONTH_NAMES),
@@ -456,7 +456,7 @@ def chart_annual_production(hourly, asset_ann, prod_col, tech_clr, asset_name, h
         })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("GWh")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": False},
         "grid": {**_GR},
         "xAxis": _xcat([str(y) for y in years]),
@@ -510,7 +510,7 @@ def chart_neg_hours(hourly, partial_years, tech_clr):
         })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("h")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True},
         "grid": {**_GR},
         "xAxis": _xcat([str(y) for y in neg["Year"].tolist()]),
@@ -545,7 +545,7 @@ def chart_monthly_profile(hourly, prod_col, tech_clr, tech_lbl):
                          "itemStyle": {"color": color, "borderRadius": [4,4,0,0]}})
 
     opt = {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "grid": {**_GR},
         "xAxis": _xcat(MONTH_NAMES),
         "yAxis": _yval("{value}%", "Shape Discount moyen"),
@@ -578,7 +578,7 @@ def chart_shape_disc_delta(nat_ref, nat_sd_col, tech_clr, tech_lbl):
                                    "color": C1, "fontSize": 11}})
 
     return {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("pp")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "grid": {**_GR},
         "xAxis": _xcat([str(int(y)) for y in sd["year"].tolist()]),
         "yAxis": _yval("{value}%", "Delta Shape Disc (pp)"),
@@ -714,7 +714,7 @@ def chart_duck_curve(hourly, tech_clr, tech_lbl, duck_months, recent_years=None)
     }
 
     opt = {
-        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("x")},
+        "tooltip": {**_TT, "trigger": "axis"},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
