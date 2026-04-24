@@ -4,7 +4,7 @@ ECharts chart functions for tab_overview (Tab 1) and tab_market_dynamics (Tab 3)
 Each function returns an ECharts options dict or (dict, data) tuple.
 """
 
-import pandas as pd
+import pandas as pdchart_daily_profile_asset
 import numpy as np
 from scipy import stats
 
@@ -399,7 +399,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     for m in range(1, 13):
         d = month_avg[month_avg["Month"]==m].sort_values("Hour")
         if len(d) == 0: continue
-        vals = [round(float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0]),1)
+        vals = [round(float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0]),3)
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
@@ -408,7 +408,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
             "opacity": 0.65,
         })
 
-    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0]),1)
+    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0]),3)
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
