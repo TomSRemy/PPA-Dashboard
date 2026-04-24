@@ -4,7 +4,7 @@ ECharts chart functions for tab_overview (Tab 1) and tab_market_dynamics (Tab 3)
 Each function returns an ECharts options dict or (dict, data) tuple.
 """
 
-import pandas as pdchart_daily_profile_asset
+import pandas as pd
 import numpy as np
 from scipy import stats
 
@@ -43,6 +43,9 @@ _LG  = {
 }
 _GR  = {"top": 32, "bottom": 52, "left": 52, "right": 16}
 
+def _tt_fmt(unit=""):
+    suffix = f" {unit}" if unit else ""
+    return f"(v) => v !== null && v !== undefined ? v.toFixed(1) + '{suffix}' : '-'"
 
 def _hex_rgba(h, a):
     h = h.lstrip("#")
@@ -77,15 +80,10 @@ def _ytime():
 
 def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                         tech_clr, tech_lbl, nat_cp_list, nat_eur_list, partial_years):
-    """
-    Returns (opt_top, opt_bottom) — two ECharts dicts to render in two rows.
-    Top = CP% bars. Bottom = CP EUR/MWh lines.
-    """
     ny   = nat_ref["year"].tolist()
     ns   = nat_ref["spot"].tolist()
     is_p = nat_ref["partial"].tolist() if "partial" in nat_ref.columns else [False]*len(ny)
 
-    # ── Top chart: CP% ────────────────────────────────────────────────────────
     bar_nat = []
     for i, (v, p) in enumerate(zip(nat_cp_list, is_p)):
         color = _hex_rgba(C3, 0.65) if p else _hex_rgba(tech_clr, 0.65)
@@ -103,9 +101,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     ]
 
     if has_asset:
-        # Build a full-length list aligned on ny, with None for missing years
-        asset_cp_map = dict(zip(asset_ann["Year"].tolist(),
-                                asset_ann["cp_pct"].tolist()))
+        asset_cp_map = dict(zip(asset_ann["Year"].tolist(), asset_ann["cp_pct"].tolist()))
         bar_asset = []
         for yr in ny:
             v = asset_cp_map.get(yr)
@@ -121,7 +117,6 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
                 })
         series_top.append({"name": asset_name, "type": "bar", "data": bar_asset})
 
-    # trend line on CP%
     series_top.append({
         "name": "_trend", "type": "line",
         "data": [[str(y), round(float(v)*100, 1)] for y,v in zip(ny,nat_cp_list)],
@@ -132,8 +127,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
     })
 
     opt_top = {
-        "tooltip": {**_TT, "trigger": "axis",
-                    },  # tooltip uses ECharts default
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 52},
         "xAxis": _xcat([str(y) for y in ny]),
@@ -145,7 +139,6 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
         "series": series_top,
     }
 
-    # ── Bottom chart: EUR/MWh ─────────────────────────────────────────────────
     series_bot = [
         {"name": "National Spot", "type": "line",
          "data": [[str(y), round(float(v),2)] for y,v in zip(ny,ns)],
@@ -169,7 +162,7 @@ def chart_historical_cp(nat_ref, asset_ann, has_asset, asset_name,
         })
 
     opt_bot = {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("€/MWh")},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 52},
         "xAxis": _xcat([str(y) for y in ny]),
@@ -192,7 +185,6 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     p25 = proj["p25"].tolist(); p75 = proj["p75"].tolist()
     p50 = proj["p50"].tolist()
 
-    # anchor point (last observed year)
     if anchor_val is not None:
         hl = anchor_val
     elif has_asset:
@@ -202,70 +194,48 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
     else:
         hl = float(nat_ref_complete["cp_nat_pct"].iloc[-1])
 
-    # trend line (full history + projection window)
     tx = list(range(2014, last_yr_proj + proj_n + 1))
     trend_y = [round((1 - (ic_u + sl_u * yr)) * 100, 2) for yr in tx]
 
     series = []
 
-    # ── Confidence bands via "fill-down masking" ──────────────────────────────
-    # P90 filled down to axis with light colour, then P10 filled over it with
-    # page background colour — creates a clean floating band without stacking.
     series.append({
-        "name": "P10–P90",
-        "type": "line",
+        "name": "P10–P90", "type": "line",
         "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p90)],
-        "symbol": "none",
-        "lineStyle": {"color": "transparent", "width": 0},
+        "symbol": "none", "lineStyle": {"color": "transparent", "width": 0},
         "areaStyle": {"color": _hex_rgba(C3, 0.20), "origin": "start"},
-        "showInLegend": True,
-        "z": 1,
+        "showInLegend": True, "z": 1,
     })
     series.append({
-        "name": "_p10_mask",
-        "type": "line",
+        "name": "_p10_mask", "type": "line",
         "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p10)],
-        "symbol": "none",
-        "lineStyle": {"color": "transparent", "width": 0},
+        "symbol": "none", "lineStyle": {"color": "transparent", "width": 0},
         "areaStyle": {"color": "#F7F4F0", "origin": "start", "opacity": 1},
-        "showInLegend": False,
-        "z": 2,
+        "showInLegend": False, "z": 2,
     })
     series.append({
-        "name": "P25–P75",
-        "type": "line",
+        "name": "P25–P75", "type": "line",
         "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p75)],
-        "symbol": "none",
-        "lineStyle": {"color": "transparent", "width": 0},
+        "symbol": "none", "lineStyle": {"color": "transparent", "width": 0},
         "areaStyle": {"color": _hex_rgba(C3, 0.38), "origin": "start"},
-        "showInLegend": True,
-        "z": 3,
+        "showInLegend": True, "z": 3,
     })
     series.append({
-        "name": "_p25_mask",
-        "type": "line",
+        "name": "_p25_mask", "type": "line",
         "data": [[str(y), round(v * 100, 2)] for y, v in zip(py, p25)],
-        "symbol": "none",
-        "lineStyle": {"color": "transparent", "width": 0},
+        "symbol": "none", "lineStyle": {"color": "transparent", "width": 0},
         "areaStyle": {"color": "#F7F4F0", "origin": "start", "opacity": 1},
-        "showInLegend": False,
-        "z": 4,
+        "showInLegend": False, "z": 4,
     })
-
-    # ── Regression trend ──────────────────────────────────────────────────────
     series.append({
-        "name": "Régression",
-        "type": "line",
+        "name": "Régression", "type": "line",
         "data": [[str(y), round(v, 2)] for y, v in zip(tx, trend_y)],
         "symbol": "none",
         "lineStyle": {"color": REF, "width": 1.6, "type": "dotted"},
         "z": 5,
     })
-
-    # ── National M0 (historical) ──────────────────────────────────────────────
     series.append({
-        "name": f"M0 National {tech_lbl}",
-        "type": "line",
+        "name": f"M0 National {tech_lbl}", "type": "line",
         "data": [[str(y), round(float(v) * 100, 2)] for y, v in zip(ny, nat_cp_list)],
         "symbol": "rect", "symbolSize": 8,
         "lineStyle": {"color": tech_clr, "width": 2, "type": "dashed"},
@@ -273,65 +243,53 @@ def chart_projection(nat_ref, asset_ann, has_asset, proj,
         "z": 6,
     })
 
-    # ── Asset historical ──────────────────────────────────────────────────────
     if has_asset:
         series.append({
-            "name": "Asset (historique)",
-            "type": "line",
+            "name": "Asset (historique)", "type": "line",
             "data": [[str(y), round(float(v) * 100, 2)]
                      for y, v in zip(asset_ann["Year"].tolist(), asset_ann["cp_pct"].tolist())],
             "symbol": "circle", "symbolSize": 9,
             "lineStyle": {"color": C5, "width": 2.2},
             "itemStyle": {"color": C5, "borderColor": WHT, "borderWidth": 2},
-            "label": {
-                "show": True, "position": "top",
-                "formatter": "{c}%", "color": C5, "fontSize": 11,
-                "backgroundColor": "rgba(255,255,255,0.75)",
-                "padding": [2, 4], "borderRadius": 3,
-            },
+            "label": {"show": True, "position": "top", "formatter": "{c}%",
+                      "color": C5, "fontSize": 11,
+                      "backgroundColor": "rgba(255,255,255,0.75)",
+                      "padding": [2, 4], "borderRadius": 3},
             "z": 8,
         })
 
-    # ── P50 central projection ────────────────────────────────────────────────
     p50_data = ([[str(last_yr_proj), round(hl * 100, 2)]] +
                 [[str(y), round(float(v) * 100, 2)] for y, v in zip(py, p50)])
     series.append({
-        "name": "P50 (central)",
-        "type": "line",
+        "name": "P50 (central)", "type": "line",
         "data": p50_data,
         "symbol": "circle", "symbolSize": 8, "smooth": False,
         "lineStyle": {"color": C1, "width": 2.5},
         "itemStyle": {"color": C1, "borderColor": WHT, "borderWidth": 2},
-        "label": {
-            "show": True, "position": "top",
-            "formatter": "{c}%", "color": C1, "fontSize": 11,
-            "backgroundColor": "rgba(255,255,255,0.75)",
-            "padding": [2, 4], "borderRadius": 3,
-        },
+        "label": {"show": True, "position": "top", "formatter": "{c}%",
+                  "color": C1, "fontSize": 11,
+                  "backgroundColor": "rgba(255,255,255,0.75)",
+                  "padding": [2, 4], "borderRadius": 3},
         "z": 9,
     })
 
-    # ── PPE3 targets ──────────────────────────────────────────────────────────
     if proj_targets:
         for t in proj_targets:
             series.append({
-                "name": f"PPE3 {t['year']}",
-                "type": "scatter",
+                "name": f"PPE3 {t['year']}", "type": "scatter",
                 "data": [[str(t["year"]), round(float(t["cp"]) * 100, 2)]],
                 "symbol": "diamond", "symbolSize": 16,
                 "itemStyle": {"color": TEAL},
-                "label": {
-                    "show": True, "position": "right",
-                    "formatter": f"PPE3 {t['year']}\n{round(float(t['cp'])*100):.0f}%",
-                    "color": TEAL, "fontSize": 10,
-                },
+                "label": {"show": True, "position": "right",
+                          "formatter": f"PPE3 {t['year']}\n{round(float(t['cp'])*100):.0f}%",
+                          "color": TEAL, "fontSize": 10},
                 "z": 10,
             })
 
     all_years = sorted(set([str(y) for y in ny + tx + py]))
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(all_years),
@@ -355,27 +313,27 @@ def chart_daily_profile_national(hourly, prod_col, tech_clr, tech_lbl):
     for m in range(1, 13):
         d = month_avg[month_avg["Month"]==m].sort_values("Hour")
         if len(d) == 0: continue
-        vals = [round(float(d[d["Hour"]==hr][prod_col].iloc[0]),1)
+        vals = [float(d[d["Hour"]==hr][prod_col].iloc[0])
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
-            "data": vals, "symbol": "none", "smooth": True,
+            "data": vals, "symbol": "none", "smooth": False,
             "lineStyle": {"color": MONTH_COLORS[m-1], "width": 1.2},
             "opacity": 0.65,
         })
 
-    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr][prod_col].iloc[0]),1)
+    avg_vals = [float(overall_avg[overall_avg["Hour"]==hr][prod_col].iloc[0])
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
-        "data": avg_vals, "symbol": "circle", "symbolSize": 7, "smooth": True,
+        "data": avg_vals, "symbol": "circle", "symbolSize": 7, "smooth": False,
         "lineStyle": {"color": C1, "width": 2.5},
         "itemStyle": {"color": C1, "borderColor": WHT, "borderWidth": 2},
         "z": 10,
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("MW")},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
@@ -399,7 +357,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     for m in range(1, 13):
         d = month_avg[month_avg["Month"]==m].sort_values("Hour")
         if len(d) == 0: continue
-        vals = [round(float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0]),3)
+        vals = [float(d[d["Hour"]==hr]["Prod_MWh"].iloc[0])
                 if len(d[d["Hour"]==hr]) > 0 else None for hr in range(24)]
         series.append({
             "name": MONTH_NAMES[m-1], "type": "line",
@@ -408,7 +366,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
             "opacity": 0.65,
         })
 
-    avg_vals = [round(float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0]),3)
+    avg_vals = [float(overall_avg[overall_avg["Hour"]==hr]["Prod_MWh"].iloc[0])
                 if len(overall_avg[overall_avg["Hour"]==hr]) > 0 else None for hr in range(24)]
     series.append({
         "name": "Annual average", "type": "line",
@@ -419,7 +377,7 @@ def chart_daily_profile_asset(asset_raw, tech_clr, asset_name):
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("MWh")},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
@@ -445,9 +403,9 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
         gwh_data = []
         for m in range(1, 13):
             row = asset_mo[asset_mo["Month"] == m]
-            v = round(float(row["GWh"].iloc[0]), 2) if len(row) > 0 else 0
+            v = float(row["GWh"].iloc[0]) if len(row) > 0 else 0
             gwh_data.append({
-                "value": v,
+                "value": round(v, 2),
                 "itemStyle": {"color": _hex_rgba(tech_clr, 0.72), "borderRadius": [4,4,0,0]},
             })
         series.append({
@@ -461,18 +419,18 @@ def chart_monthly_production(hourly, asset_raw, prod_col, tech_clr, asset_name, 
     nat_data = []
     for m in range(1, 13):
         row = nat_avg[nat_avg["Month"] == m]
-        nat_data.append(round(float(row[prod_col].iloc[0]), 1) if len(row) > 0 else None)
+        nat_data.append(float(row[prod_col].iloc[0]) if len(row) > 0 else None)
 
     series.append({
         "name": "National avg MW", "type": "line",
         "data": nat_data, "yAxisIndex": 1,
-        "symbol": "circle", "symbolSize": 8, "smooth": True,
+        "symbol": "circle", "symbolSize": 8, "smooth": False,
         "lineStyle": {"color": C1, "width": 1.8, "type": "dashed"},
         "itemStyle": {"color": C1, "borderColor": WHT, "borderWidth": 2},
     })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("")},
         "legend": {**_LG, "show": True},
         "grid": {**_GR, "right": 52},
         "xAxis": _xcat(MONTH_NAMES),
@@ -498,7 +456,7 @@ def chart_annual_production(hourly, asset_ann, prod_col, tech_clr, asset_name, h
         })
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("GWh")},
         "legend": {**_LG, "show": False},
         "grid": {**_GR},
         "xAxis": _xcat([str(y) for y in years]),
@@ -547,17 +505,15 @@ def chart_neg_hours(hourly, partial_years, tech_clr):
         series.append({
             "name": f"Tendance ({sln:+.0f}h/an)", "type": "line",
             "data": [[str(y), v] for y,v in zip(fut, trend_y)],
-            "symbol": "none", "smooth": True,
+            "symbol": "none", "smooth": False,
             "lineStyle": {"color": C5, "width": 1.8, "type": "dashed"},
         })
 
-    years_str = [str(y) for y in neg["Year"].tolist()]
-
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("h")},
         "legend": {**_LG, "show": True},
         "grid": {**_GR},
-        "xAxis": _xcat(years_str),
+        "xAxis": _xcat([str(y) for y in neg["Year"].tolist()]),
         "yAxis": _yval("{value}h", "Heures", mn=0),
         "markLine": {"data": [{"yAxis": 15, "name": "Seuil CRE 15h",
                                "lineStyle": {"color": C2, "type": "dashed", "width": 1.5},
@@ -580,7 +536,6 @@ def chart_monthly_profile(hourly, prod_col, tech_clr, tech_lbl):
     month_avg = monthly_agg.groupby("Month")["sd_m"].agg(["mean","std"]).reset_index()
 
     bar_data = []
-    err_pos = []; err_neg = []
     for _, row in month_avg.iterrows():
         v = float(row["mean"]); s = float(row["std"]) if pd.notna(row["std"]) else 0
         if v > 0.15: color = _hex_rgba(C5, 0.75)
@@ -588,11 +543,9 @@ def chart_monthly_profile(hourly, prod_col, tech_clr, tech_lbl):
         else: color = _hex_rgba(tech_clr, 0.70)
         bar_data.append({"value": round(v*100, 2),
                          "itemStyle": {"color": color, "borderRadius": [4,4,0,0]}})
-        err_pos.append(round(s*100, 2))
-        err_neg.append(round(s*100, 2))
 
     opt = {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("%")},
         "grid": {**_GR},
         "xAxis": _xcat(MONTH_NAMES),
         "yAxis": _yval("{value}%", "Shape Discount moyen"),
@@ -625,7 +578,7 @@ def chart_shape_disc_delta(nat_ref, nat_sd_col, tech_clr, tech_lbl):
                                    "color": C1, "fontSize": 11}})
 
     return {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("pp")},
         "grid": {**_GR},
         "xAxis": _xcat([str(int(y)) for y in sd["year"].tolist()]),
         "yAxis": _yval("{value}%", "Delta Shape Disc (pp)"),
@@ -657,8 +610,7 @@ def chart_heatmap(monthly_agg, tech_clr, tech_lbl):
         "yAxis": {"type":"category","data":years,"axisLine":_AL,"axisTick":_AT,
                   "axisLabel":_AX},
         "visualMap": {
-            "min": 0, "max": 30,
-            "calculable": True,
+            "min": 0, "max": 30, "calculable": True,
             "orient": "horizontal", "left": "center", "bottom": 0,
             "inRange": {"color": ["#FFFFFF", tech_clr, C3, C5]},
             "textStyle": {"color": TEAL, "fontSize": 11},
@@ -666,8 +618,7 @@ def chart_heatmap(monthly_agg, tech_clr, tech_lbl):
         },
         "series": [{
             "type": "heatmap", "data": data,
-            "label": {"show": True, "formatter": "{c}%",
-                      "color": C1, "fontSize": 10},
+            "label": {"show": True, "formatter": "{c}%", "color": C1, "fontSize": 10},
         }],
     }
 
@@ -744,10 +695,10 @@ def chart_duck_curve(hourly, tech_clr, tech_lbl, duck_months, recent_years=None)
         vals = []
         for hr in range(24):
             row = d[d["Hour"]==hr]
-            vals.append(round(float(row["norm_spot"].iloc[0]),3) if len(row) > 0 else None)
+            vals.append(float(row["norm_spot"].iloc[0]) if len(row) > 0 else None)
         series.append({
             "name": str(yr), "type": "line",
-            "data": vals, "symbol": "none", "smooth": True,
+            "data": vals, "symbol": "none", "smooth": False,
             "lineStyle": {
                 "color": _hex_rgba(tech_clr, alpha),
                 "width": 2.2 if is_last else 1.2,
@@ -755,7 +706,6 @@ def chart_duck_curve(hourly, tech_clr, tech_lbl, duck_months, recent_years=None)
             "z": 10 if is_last else 1,
         })
 
-    # ref line at 1.0 as markLine on last series
     series[-1]["markLine"] = {
         "data": [{"yAxis": 1.0, "lineStyle": {"color": REF, "type": "dotted", "width": 1.5},
                   "label": {"formatter": "Moy. mensuelle = 1.0",
@@ -764,7 +714,7 @@ def chart_duck_curve(hourly, tech_clr, tech_lbl, duck_months, recent_years=None)
     }
 
     opt = {
-        "tooltip": {**_TT, "trigger": "axis"},
+        "tooltip": {**_TT, "trigger": "axis", "valueFormatter": _tt_fmt("x")},
         "legend": {**_LG, "show": True, "type": "scroll"},
         "grid": {**_GR, "bottom": 56},
         "xAxis": _xcat(hours),
@@ -774,8 +724,7 @@ def chart_duck_curve(hourly, tech_clr, tech_lbl, duck_months, recent_years=None)
 
     if 4 in duck_months or 5 in duck_months:
         opt["visualMap"] = {
-            "show": False,
-            "type": "piecewise",
+            "show": False, "type": "piecewise",
             "pieces": [{"min": 9.5, "max": 15.5}],
         }
 
