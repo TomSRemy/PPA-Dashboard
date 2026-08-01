@@ -1,7 +1,7 @@
-Last update : 2026-07-31 10:41 UTC
+Last update : 2026-08-01 10:02 UTC
 Mode        : Incremental
 New rows    : 24
-Total rows  : 101,378
-Data through: 2026-07-30
+Total rows  : 101,402
+Data through: 2026-07-31
 Forecast    : SolarForecastMW not yet available
 Columns     : Spot | NatMW (B16) | SolarForecastMW (A69/B16) | WindMW (B18+B19) | NuclearMW (B14) | GasMW (B04) | HydroMW (B11+B12) | OtherMW (B17+B20)
