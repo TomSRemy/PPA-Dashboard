@@ -1,6 +1,6 @@
-Last update : 2026-09-07 14:06 UTC
+Last update : 2026-09-08 12:40 UTC
 Mode        : Incremental
-New rows    : 24
+New rows    : 0
 Total rows  : 102,314
 Data through: 2026-09-07
 Forecast    : SolarForecastMW not yet available
